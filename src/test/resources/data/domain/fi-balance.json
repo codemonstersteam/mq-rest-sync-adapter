@@ -1,0 +1,16 @@
+  {
+    "correlationId": "7aba384e-4958-42da-9435-2a0bed1fb642",
+    "method": "POST",
+    "service": "cifrub-processing-fi",
+    "operation": "fi-wallet-balance",
+    "headers": {
+      "user-agent": "ReactorNetty/1.0.12",
+      "host": "middle-service:8080",
+      "accept": "*/*",
+      "Authorization": "Basic WTFak46cGFzc3dvcmQ=",
+      "RequestId": "b9fc3fe5-18a0-4158-8bb3-f6cc5edc5bdf",
+      "Content-Type": "application/json",
+      "content-length": "5748"
+    },
+    "body": "{\n \"requestType\" : \"operationHistory\",\n \"dateFrom\" : \"2022-08-01T16:00:00Z\",\n \"dateTo\" : \"2023-03-T17:00:00Z\",\n \"operTime\" : \"2023-03-03T17:11:30Z\"\n}"
+  }
