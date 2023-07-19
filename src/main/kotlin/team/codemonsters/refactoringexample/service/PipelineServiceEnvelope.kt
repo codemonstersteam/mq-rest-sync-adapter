@@ -48,7 +48,7 @@ class PipelineServiceEnvelope() : PipelineService {
         this.restConfiguration = restConfiguration
         this.restClient = restClient
 
-        log.info("Incoming transmission into DRR ")
+        log.info("Incoming transmission")
         log.info("headers: ${message.headers}")
         log.info("payload: ${message.payload}")
 

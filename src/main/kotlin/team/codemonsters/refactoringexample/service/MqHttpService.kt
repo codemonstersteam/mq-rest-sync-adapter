@@ -36,7 +36,7 @@ class MqHttpService(
         endpoint.id = "myJmsEndpoint"
         endpoint.destination = mqConfig.REQ
         endpoint.messageListener = MessageListener { message ->
-            log.info("Incoming transmission into DRR: ")
+            log.info("Incoming transmission: ")
             log.info("Raw message: ${message}")
             //log.info("payload: ${message.payload}")
             log.info("Selected pipeline: ${mqConfig.messagePipeline}")
