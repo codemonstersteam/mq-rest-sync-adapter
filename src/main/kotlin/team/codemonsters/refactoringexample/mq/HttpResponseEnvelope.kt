@@ -1,7 +1,6 @@
 package team.codemonsters.refactoringexample.mq
 
 import org.springframework.http.HttpHeaders
-import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import team.codemonsters.refactoringexample.util.JsonUtil
@@ -18,7 +17,7 @@ class HttpResponseEnvelope(
     val message: String?,
 
     /** Из HttpRequestEnvelope, null если вызова не было*/
-    val method: HttpMethod?,
+    val method: String?,
 
     /** Из HttpRequestEnvelope */
     val service: String?,

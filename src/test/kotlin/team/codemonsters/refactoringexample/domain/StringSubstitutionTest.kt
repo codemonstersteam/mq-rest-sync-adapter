@@ -14,21 +14,30 @@ import team.codemonsters.refactoringexample.mq.RestServiceRequest
 class StringSubstitutionTest {
 
     @Test
-    fun replaceVariables(){
-        val httpRequestEnvelope = Result.success(TestUtil.readResourceFilePathTo("/data/domain/client-cert-reg-request.json", HttpRequestEnvelope::class.java))
-
-        val restConfiguration = RestConfiguration(
-            configs = mapOf("cifrub-processing" to RestServiceCfg(
-                url = "http://base-service-utl:8080",
-                basicAuth = null,
-                operations = mapOf("client-cert-reg" to "/api/v2.0/client/\${Api-clientId}/certificate/register")
-            )
+    fun replaceVariables() {
+        val httpRequestEnvelope = Result.success(
+            TestUtil.readResourceFilePathTo(
+                "/data/domain/client-cert-reg-request.json",
+                HttpRequestEnvelope::class.java
             )
         )
 
-        val httpRequest = RestServiceRequest.emerge(httpRequestEnvelope,restConfiguration )
+        val restConfiguration = RestConfiguration(
+            configs = mapOf(
+                "cifrub-processing" to RestServiceCfg(
+                    url = "http://base-service-utl:8080",
+                    basicAuth = null,
+                    operations = mapOf("client-cert-reg" to "/api/v2.0/client/\${Api-clientId}/certificate/register")
+                )
+            )
+        )
+
+        val httpRequest = RestServiceRequest.emerge(httpRequestEnvelope, restConfiguration)
 
         Assertions.assertNotNull(httpRequest.getOrNull())
-        Assertions.assertEquals("/api/v2.0/client/aaa-bbb/certificate/register", httpRequest.getOrNull()!!.operationUrl)
+        Assertions.assertEquals(
+            "/api/v2.0/client/aaa-bbb/certificate/register",
+            httpRequest.getOrNull()!!.operationUrl
+        )
     }
 }

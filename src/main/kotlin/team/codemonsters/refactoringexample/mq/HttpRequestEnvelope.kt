@@ -1,6 +1,5 @@
 package team.codemonsters.refactoringexample.mq
 
-import org.springframework.http.HttpMethod
 import team.codemonsters.refactoringexample.mq.enum.OperationType
 import team.codemonsters.refactoringexample.mq.enum.getOperationType
 import team.codemonsters.refactoringexample.exceptions.ServiceCommunicationException
@@ -15,7 +14,7 @@ data class HttpRequestEnvelope private constructor(
     val correlationId: String,
 
     /** POST - другие методы пока не работают TODO - добавить GET */
-    val method: HttpMethod,
+    val method: String,
 
     /** для обработки - cifrub-processing, для данных - cifrub-client-data*/
     val service: String,
@@ -42,7 +41,7 @@ data class HttpRequestEnvelope private constructor(
 
         fun emerge(
             correlationId: String,
-            httpMethod: HttpMethod,
+            httpMethod: String,
             service: String,
             operation: String,
             httpHeaders: Map<String, String>,

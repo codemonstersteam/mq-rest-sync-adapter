@@ -16,7 +16,8 @@ class MqPublisher(
     private val jmsTemplate: JmsTemplate
 ) {
 
-    fun publishToMq(jmsRequest: BasicJmsRequest<String>, originalMsgId: String?): Mono<MqPublishedResponce<String>> =
+    fun publishToMq(jmsRequest: BasicJmsRequest<String>, originalMsgId: String?)
+            : Mono<MqPublishedResponce<String>> =
         Mono.fromCallable {
             jmsTemplate.convertAndSend(
                 jmsRequest.queue,
@@ -33,9 +34,9 @@ class MqPublisher(
 
     fun sendToMq(jmsRequest: BasicJmsRequest<String>, originalMsgId: String?) {
         jmsTemplate.convertAndSend(
-                jmsRequest.queue,
-                jmsRequest.payload
-            ) { message -> fillMessageWithHeaders(message, jmsRequest.headers, originalMsgId) }
+            jmsRequest.queue,
+            jmsRequest.payload
+        ) { message -> fillMessageWithHeaders(message, jmsRequest.headers, originalMsgId) }
     }
 
     private fun fillMessageWithHeaders(
@@ -50,7 +51,7 @@ class MqPublisher(
                 message.setStringProperty(key, value)
             }
         }
-        return message;
+        return message
     }
 
 }

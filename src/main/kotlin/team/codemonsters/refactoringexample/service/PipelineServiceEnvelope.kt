@@ -26,14 +26,13 @@ import java.util.*
 @Component
 class PipelineServiceEnvelope() : PipelineService {
 
-    private val log = LoggerFactory.getLogger(MqHttpService::class.java)!!
+    private val log = LoggerFactory.getLogger(PipelineServiceEnvelope::class.java)!!
 
     private lateinit var receivedMessage: Message<Any>
     private lateinit var mqPublisher: MqPublisher
     private lateinit var mqConfig: MqServiceCfg
     private lateinit var restConfiguration: RestConfiguration
     private lateinit var restClient: RESTClient
-
 
     override fun receiveMessage(
         message: Message<Any>,
@@ -48,7 +47,7 @@ class PipelineServiceEnvelope() : PipelineService {
         this.restConfiguration = restConfiguration
         this.restClient = restClient
 
-        log.info("Incoming transmission")
+        log.info("Incoming transmission into System PipelineServiceEnvelope")
         log.info("headers: ${message.headers}")
         log.info("payload: ${message.payload}")
 

@@ -27,7 +27,7 @@ class RESTClient(private val webClient: WebClient
 
         when (request.requestEnvelope.method) {
             //Post request
-            HttpMethod.POST -> return webClient.post()
+            HttpMethod.POST.name() -> return webClient.post()
                 .uri(URI.create(request.restCfg.url + request.operationUrl))
                 .headers {
                     it.set(HttpHeaders.CONTENT_TYPE, CONTENT_TYPE)
@@ -62,7 +62,7 @@ class RESTClient(private val webClient: WebClient
                     )
                 }
             // Get request
-            HttpMethod.GET -> return webClient.get()
+            HttpMethod.GET.name() -> return webClient.get()
                 .uri(URI.create(request.restCfg.url + request.operationUrl))
                 .headers {
                     it.set(HttpHeaders.CONTENT_TYPE, CONTENT_TYPE)
