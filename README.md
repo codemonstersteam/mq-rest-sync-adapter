@@ -31,5 +31,6 @@ start
 stop
 
 ```
+![pipeline](https://www.plantuml.com/plantuml/png/bL9BIiDG59rd5NUeMz199sv0tO2WCpzYuxnfg1yiHbo0uWvUGXvzfirp2-VkoFCkeH2m0w65U-_vdEIGoJG_kyllhoup6x83V29YhQK-mi7hND3nqAFXCkEgXM15w4TdY5eGsnnIzSxJ6W4j0ccbAT7eWdYhbJuJ-Xu9a-X3vxOwD8oiXZWkWO13hm-SNWLHIF9OQKdQCc7yU_flGrsY8WX_vXWehaZYRPGAjoDtn1BqS3JQDk5v22anQ45j9CsS8pcinUBj1Hl1rq3os6WfU9EzuwEJq_sTkUEKNb-IJoIp6KfC6q6heDNbluf3BRGkx34Ny69rrOY4zCd63jvuvbPRSFT7QTFyvZQRN5oVyrFv1G00)
 
 
