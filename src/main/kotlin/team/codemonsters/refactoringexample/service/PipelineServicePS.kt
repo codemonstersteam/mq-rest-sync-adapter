@@ -1,6 +1,7 @@
 package team.codemonsters.refactoringexample.service;
 
 import org.slf4j.LoggerFactory
+import org.springframework.http.HttpStatus
 import org.springframework.jms.annotation.JmsListener
 import org.springframework.messaging.Message
 import org.springframework.stereotype.Component
@@ -42,6 +43,8 @@ class PipelineServicePS(
     private val mqConfig: MqServiceCfg = mqConfiguration.configs["ps"]!!
 
     private val log = LoggerFactory.getLogger(PipelineServicePS::class.java)!!
+
+    private val SUCCESS_HTTP_STATUSES = setOf(HttpStatus.ACCEPTED.value(), HttpStatus.OK.value())
 
     @JmsListener(destination = "\${mq.configs.ps.REQ}")
     fun receiveBalance(message: Message<Any>) {
@@ -208,12 +211,28 @@ class PipelineServicePS(
     ): Result<MqResponseMessage> =
         mqResponse.fold(
             onSuccess = { success ->
-                createMessageForReceipt(httpRequestEnvelope, ReceiptStatus.SUCCESS, null, null).map {
-                    val receiptResponse = MqResponseMessage.emerge(correlationId, url, it)
-                    val jmsResponse = convertToReceiptJmsResponse(receiptResponse, mqConfig)
-                    mqPublisher.sendToMq(jmsResponse, originalMessageId)
-                    return Result.success(success)
-                }
+                HttpResponseEnvelope.fromJsonString(success.payload)
+                    .getOrThrow().let { payload ->
+                        var receiptStatus = ReceiptStatus.SUCCESS
+                        var receiptErrorCode: Int? = null
+                        var receiptErrorDescription: String? = null
+                        if (!SUCCESS_HTTP_STATUSES.contains(payload.status)) {
+                            receiptStatus = ReceiptStatus.ERROR
+                            receiptErrorCode = payload.status
+                            receiptErrorDescription = payload.body
+                        }
+                        createMessageForReceipt(
+                            httpRequestEnvelope,
+                            receiptStatus,
+                            receiptErrorCode,
+                            receiptErrorDescription
+                        ).map {
+                            val receiptResponse = MqResponseMessage.emerge(correlationId, url, it)
+                            val jmsResponse = convertToReceiptJmsResponse(receiptResponse, mqConfig)
+                            mqPublisher.sendToMq(jmsResponse, originalMessageId)
+                            return Result.success(success)
+                        }
+                    }
             },
             onFailure = { error ->
                 createMessageForReceipt(httpRequestEnvelope, ReceiptStatus.ERROR, null, error.message).map {

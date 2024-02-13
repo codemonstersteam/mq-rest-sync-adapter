@@ -123,7 +123,7 @@ class PipelineServicePsFailTest(
         val receipt = JsonUtil.fromString(receiptString, ReceiptPs::class.java)
         SoftAssertions.assertSoftly { softly: SoftAssertions ->
             softly.assertThat(receipt.flag).isEqualTo(ReceiptStatus.ERROR)
-            softly.assertThat(receipt.errorCode).isNull()
+            softly.assertThat(receipt.errorCode).isEqualTo(500)
         }
     }
 
@@ -149,7 +149,7 @@ class PipelineServicePsFailTest(
             softly.assertThat(response.message).isEqualTo("Internal Server Error")
             softly.assertThat(response.method).isEqualTo("POST")
             softly.assertThat(response.service).isEqualTo("api-gateway")
-            softly.assertThat(response.operation).isEqualTo("client-reg")
+            softly.assertThat(response.operation).isEqualTo("client-wallet-balance")
             softly.assertThat(response.body).contains("Ошибка finishConnect(..) failed: Connection refused: ")
         }
     }
