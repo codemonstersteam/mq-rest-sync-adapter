@@ -31,6 +31,5 @@ data class GetWalletBalanceRequest(
                 request.dateTo,
                 AdditionalParameters()
             )
-
     }
 }

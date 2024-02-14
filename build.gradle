@@ -1,7 +1,7 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-	id 'org.springframework.boot' version '3.0.6'
+	id 'org.springframework.boot' version '3.1.4'
 	id 'io.spring.dependency-management' version '1.1.0'
 	id 'org.jetbrains.kotlin.jvm' version '1.7.22'
 	id 'org.jetbrains.kotlin.plugin.spring' version '1.7.22'
@@ -26,17 +26,18 @@ dependencies {
 	implementation 'com.fasterxml.jackson.module:jackson-module-kotlin:2.12.6'
 	implementation 'org.apache.commons:commons-lang3'
 	implementation 'org.apache.commons:commons-text:1.10.0'
-
-	implementation 'com.ibm.mq:mq-jms-spring-boot-starter:3.0.3'
-
-
+	//ibm mq
+	implementation 'com.ibm.mq:mq-jms-spring-boot-starter:3.1.2'
 
 	implementation 'org.springframework.boot:spring-boot-starter'
 	implementation 'org.jetbrains.kotlin:kotlin-reflect'
-
+	//test
+	testImplementation 'org.springframework.boot:spring-boot-testcontainers:3.1.4'
+	testImplementation 'com.maciejwalkowiak.spring:wiremock-spring-boot:1.0.1'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'io.projectreactor:reactor-test'
 }
+
 
 tasks.withType(KotlinCompile) {
 	kotlinOptions {

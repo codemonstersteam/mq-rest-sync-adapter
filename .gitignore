@@ -45,3 +45,5 @@ gradle-app.setting
 .classpath
 
 /.idea/
+/FFDC/
+mqjms.*

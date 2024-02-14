@@ -1,16 +1,17 @@
 package team.codemonsters.refactoringexample.service;
 
 import org.slf4j.LoggerFactory
+import org.springframework.jms.annotation.JmsListener
 import org.springframework.messaging.Message
 import org.springframework.stereotype.Component
 import reactor.core.publisher.Mono
 import team.codemonsters.refactoringexample.client.RESTClient
-
+import team.codemonsters.refactoringexample.configuration.MqConfiguration
 import team.codemonsters.refactoringexample.configuration.MqServiceCfg
 import team.codemonsters.refactoringexample.configuration.RestConfiguration
+import team.codemonsters.refactoringexample.mq.*
 import team.codemonsters.refactoringexample.mq.HttpRequestEnvelope.Companion.fromJsonString
 import team.codemonsters.refactoringexample.mq.enum.ReceiptStatus
-import team.codemonsters.refactoringexample.mq.*
 import team.codemonsters.refactoringexample.util.JsonUtil
 import java.util.*
 
@@ -30,35 +31,33 @@ import java.util.*
  */
 
 @Component
-class PipelineServicePS() : PipelineService {
+class PipelineServicePS(
+    private val mqPublisher: MqPublisher,
+    private val mqConfiguration: MqConfiguration,
+    private val restConfiguration: RestConfiguration,
+    private val restClient: RESTClient,
 
-    private val log = LoggerFactory.getLogger(MqHttpService::class.java)!!
-
-    private lateinit var receivedMessage: Message<Any>
-    private lateinit var mqPublisher: MqPublisher
-    private lateinit var mqConfig: MqServiceCfg
-    private lateinit var restConfiguration: RestConfiguration
-    private lateinit var restClient: RESTClient
-
-    override fun receiveMessage(
-        message: Message<Any>,
-        mqPublisher: MqPublisher,
-        mqConfig: MqServiceCfg,
-        restConfiguration: RestConfiguration,
-        restClient: RESTClient
     ) {
-        this.receivedMessage = message
-        this.mqPublisher = mqPublisher
-        this.mqConfig = mqConfig
-        this.restConfiguration = restConfiguration
-        this.restClient = restClient
 
-        log.info("Incoming transmission into MQ-REST-ADAPTER ")
+    private val mqConfig: MqServiceCfg = mqConfiguration.configs["ps"]!!
+
+    private val log = LoggerFactory.getLogger(PipelineServicePS::class.java)!!
+
+    @JmsListener(destination = "\${mq.configs.ps.REQ}")
+    fun receiveBalance(message: Message<Any>) {
+        receiveMessage(message)
+    }
+
+    fun receiveMessage(
+        message: Message<Any>
+    ) {
+        log.info("Incoming transmission into PipelineServicePS")
         log.info("headers: ${message.headers}")
         log.info("payload: ${message.payload}")
 
         processMessage(message)
     }
+
 
     fun processMessage(message: Message<Any>) {
         val correlationId = message.headers[mqConfig.correlationID] as String? ?: UUID.randomUUID().toString()
@@ -156,7 +155,7 @@ class PipelineServicePS() : PipelineService {
         mqConfig: MqServiceCfg
     ) = BasicJmsRequest(
         correlationId = mqRequest.correlationId,
-        queue = mqConfig.RECIEPT,
+        queue = mqConfig.RECEIPT,
         payload = mqRequest.payload,
         headers = prepareSipHeaders(mqRequest.correlationId, mqRequest.operation, mqConfig)
     )
