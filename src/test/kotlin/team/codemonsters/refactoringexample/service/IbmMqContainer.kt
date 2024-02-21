@@ -6,9 +6,10 @@ import org.testcontainers.containers.GenericContainer
 class IbmMqContainer {
 
     companion object {
+        const val IMAGE = "ibmcom/mq:9.2.4.0-r1-amd64"
         fun container(): GenericContainer<*> {
             val envVariables = mapOf("LICENSE" to "accept", "MQ_QMGR_NAME" to "QM1")
-            return GenericContainer("icr.io/ibm-messaging/mq")
+            return GenericContainer(IMAGE)
                 .withExposedPorts(1414, 1414)
                 .withExtraHost("locahost", "0.0.0.0")
                 .withEnv(envVariables)

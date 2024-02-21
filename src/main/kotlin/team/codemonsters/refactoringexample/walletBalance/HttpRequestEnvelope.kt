@@ -1,9 +1,9 @@
 package team.codemonsters.refactoringexample.walletBalance
 
-import team.codemonsters.refactoringexample.mq.HttpRequestEnvelope
+
 import team.codemonsters.refactoringexample.util.JsonUtil
 
-data class HttpRequestEnvelope private constructor(
+data class HttpRequestEnvelope constructor(
     /** Нужно сгенерить на стороне вызывающей стороны*/
     val correlationId: String,
 

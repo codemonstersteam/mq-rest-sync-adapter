@@ -1,4 +1,4 @@
-package team.codemonsters.refactoringexample.service;
+package team.codemonsters.refactoringexample.service
 
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
@@ -10,11 +10,19 @@ import team.codemonsters.refactoringexample.client.RESTClient
 import team.codemonsters.refactoringexample.configuration.MqConfiguration
 import team.codemonsters.refactoringexample.configuration.MqServiceCfg
 import team.codemonsters.refactoringexample.configuration.RestConfiguration
-import team.codemonsters.refactoringexample.mq.*
+import team.codemonsters.refactoringexample.mq.BasicJmsRequest
+import team.codemonsters.refactoringexample.mq.HttpRequestEnvelope
 import team.codemonsters.refactoringexample.mq.HttpRequestEnvelope.Companion.fromJsonString
+import team.codemonsters.refactoringexample.mq.HttpResponseEnvelope
+import team.codemonsters.refactoringexample.mq.MqPublishedResponce
+import team.codemonsters.refactoringexample.mq.MqResponseMessage
+import team.codemonsters.refactoringexample.mq.PsGetBalanceRequest
+import team.codemonsters.refactoringexample.mq.ReceiptPs
+import team.codemonsters.refactoringexample.mq.RestServiceRequest
+import team.codemonsters.refactoringexample.mq.RestServiceResponse
 import team.codemonsters.refactoringexample.mq.enum.ReceiptStatus
 import team.codemonsters.refactoringexample.util.JsonUtil
-import java.util.*
+import java.util.UUID
 
 /**
  * Пайплайн запроса АС для получения историй операций по кошельку
@@ -37,9 +45,7 @@ class PipelineServicePS(
     private val mqConfiguration: MqConfiguration,
     private val restConfiguration: RestConfiguration,
     private val restClient: RESTClient,
-
-    ) {
-
+) {
     private val mqConfig: MqServiceCfg = mqConfiguration.configs["ps"]!!
 
     private val log = LoggerFactory.getLogger(PipelineServicePS::class.java)!!
@@ -51,16 +57,13 @@ class PipelineServicePS(
         receiveMessage(message)
     }
 
-    fun receiveMessage(
-        message: Message<Any>
-    ) {
+    fun receiveMessage(message: Message<Any>) {
         log.info("Incoming transmission into PipelineServicePS")
         log.info("headers: ${message.headers}")
         log.info("payload: ${message.payload}")
 
         processMessage(message)
     }
-
 
     fun processMessage(message: Message<Any>) {
         val correlationId = message.headers[mqConfig.correlationID] as String? ?: UUID.randomUUID().toString()
@@ -72,9 +75,8 @@ class PipelineServicePS(
         val msgId = message.headers["jms_messageId"] as String?
         var httpReq: String = message.payload.toString()
 
-
         Mono.just(
-            HttpRequestEnvelope.fromJsonString(message.payload.toString())
+            HttpRequestEnvelope.fromJsonString(message.payload.toString()),
         ).map {
             HttpRequestEnvelope.validatedRequest(it, mqConfig.timeout)
         }.map {
@@ -103,7 +105,7 @@ class PipelineServicePS(
         originalMsgId: String?,
         mqPublisher: MqPublisher,
         mqConfig: MqServiceCfg,
-        httpRequestEnvelope: String
+        httpRequestEnvelope: String,
     ): Result<HttpRequestEnvelope> =
         data.fold(
             onSuccess = { success ->
@@ -114,18 +116,17 @@ class PipelineServicePS(
                         mqPublisher.sendToMq(jmsResponse, originalMsgId)
                         return Result.success(success)
                     }
-
             },
             onFailure = { error ->
                 Result.failure(error)
-            }
+            },
         )
 
     fun createMessageForReceipt(
         httpRequestEnvelope: String,
         flag: ReceiptStatus,
         errorCode: Int?,
-        description: String?
+        description: String?,
     ): Result<String> =
         fromJsonString(httpRequestEnvelope).fold(
             onSuccess = { request ->
@@ -140,65 +141,70 @@ class PipelineServicePS(
                                     request.operTime,
                                     flag,
                                     errorCode,
-                                    description
-                                )
-                            )
+                                    description,
+                                ),
+                            ),
                         )
                     },
-                    onFailure = { error -> Result.failure(error) }
+                    onFailure = { error -> Result.failure(error) },
                 )
-
             },
-            onFailure = { error -> Result.failure(error) }
+            onFailure = { error -> Result.failure(error) },
         ).map { it }
-
 
     private fun convertToReceiptJmsResponse(
         mqRequest: MqResponseMessage,
-        mqConfig: MqServiceCfg
+        mqConfig: MqServiceCfg,
     ) = BasicJmsRequest(
         correlationId = mqRequest.correlationId,
         queue = mqConfig.RECEIPT,
         payload = mqRequest.payload,
-        headers = prepareSipHeaders(mqRequest.correlationId, mqRequest.operation, mqConfig)
+        headers = prepareSipHeaders(mqRequest.correlationId, mqRequest.operation, mqConfig),
     )
 
     private fun convertToBasicJmsResponse(
         mqRequest: MqResponseMessage,
-        mqConfig: MqServiceCfg
+        mqConfig: MqServiceCfg,
     ) = BasicJmsRequest(
         correlationId = mqRequest.correlationId,
         queue = mqConfig.RES,
         payload = mqRequest.payload,
-        headers = prepareSipHeaders(mqRequest.correlationId, mqRequest.operation, mqConfig)
+        headers = prepareSipHeaders(mqRequest.correlationId, mqRequest.operation, mqConfig),
     )
 
-    private fun prepareSipHeaders(correlationId: String, url: String, mqConfig: MqServiceCfg): Map<String, String> {
-        val headers = mutableMapOf(
-            mqConfig.correlationID to correlationId,
-            "X_Method" to url,
-            "RequestID" to UUID.randomUUID().toString(),
-            mqConfig.createDateTime to mqConfig.getFormattedCreateDateTime(),
-        )
+    private fun prepareSipHeaders(
+        correlationId: String,
+        url: String,
+        mqConfig: MqServiceCfg,
+    ): Map<String, String> {
+        val headers =
+            mutableMapOf(
+                mqConfig.correlationID to correlationId,
+                "X_Method" to url,
+                "RequestID" to UUID.randomUUID().toString(),
+                mqConfig.createDateTime to mqConfig.getFormattedCreateDateTime(),
+            )
         headers.putAll(mqConfig.values)
         return headers
     }
 
-    fun submitRestRequest(data: Result<RestServiceRequest>, restClient: RESTClient): Mono<Result<RestServiceResponse>> =
+    fun submitRestRequest(
+        data: Result<RestServiceRequest>,
+        restClient: RESTClient,
+    ): Mono<Result<RestServiceResponse>> =
         data.fold(
             onSuccess = { success -> restClient.sendRequest(success) },
-            onFailure = { error -> Mono.just(Result.failure(error)) }
+            onFailure = { error -> Mono.just(Result.failure(error)) },
         )
 
-    fun processMqResponse(
-        data: Result<RestServiceResponse>,
-    ): Result<HttpResponseEnvelope> =
+    fun processMqResponse(data: Result<RestServiceResponse>): Result<HttpResponseEnvelope> =
         data.fold(
             onSuccess = { success -> HttpResponseEnvelope.emerge(success) },
             onFailure = { error ->
                 log.debug(error.message)
                 Result.failure(error)
-            })
+            },
+        )
 
     fun submitMqReceipt(
         correlationId: String,
@@ -207,7 +213,7 @@ class PipelineServicePS(
         originalMessageId: String?,
         mqPublisher: MqPublisher,
         mqConfig: MqServiceCfg,
-        httpRequestEnvelope: String
+        httpRequestEnvelope: String,
     ): Result<MqResponseMessage> =
         mqResponse.fold(
             onSuccess = { success ->
@@ -225,7 +231,7 @@ class PipelineServicePS(
                             httpRequestEnvelope,
                             receiptStatus,
                             receiptErrorCode,
-                            receiptErrorDescription
+                            receiptErrorDescription,
                         ).map {
                             val receiptResponse = MqResponseMessage.emerge(correlationId, url, it)
                             val jmsResponse = convertToReceiptJmsResponse(receiptResponse, mqConfig)
@@ -241,7 +247,7 @@ class PipelineServicePS(
                     mqPublisher.sendToMq(jmsResponse, originalMessageId)
                     return Result.failure(error)
                 }
-            }
+            },
         )
 
     fun submitMqResponse(
@@ -250,13 +256,13 @@ class PipelineServicePS(
         data: Result<MqResponseMessage>,
         originalMsgId: String?,
         mqPublisher: MqPublisher,
-        mqConfig: MqServiceCfg
+        mqConfig: MqServiceCfg,
     ): Mono<MqPublishedResponce<String>> =
         data.fold(
             onSuccess = { success ->
                 mqPublisher.publishToMq(
                     convertToBasicJmsResponse(success, mqConfig),
-                    originalMsgId
+                    originalMsgId,
                 )
             },
             onFailure = { error ->
@@ -265,10 +271,12 @@ class PipelineServicePS(
                         MqResponseMessage.emerge(
                             correlationId,
                             url,
-                            error
-                        ), mqConfig
-                    ), originalMsgId
+                            error,
+                        ),
+                        mqConfig,
+                    ),
+                    originalMsgId,
                 )
-            }
+            },
         )
 }
