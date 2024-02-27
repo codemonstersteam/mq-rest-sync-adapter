@@ -1,5 +1,6 @@
 package team.codemonsters.refactoringexample.walletBalance
 
+import org.slf4j.LoggerFactory
 import org.springframework.messaging.Message
 import org.springframework.stereotype.Service
 import reactor.core.publisher.Mono
@@ -15,14 +16,25 @@ class Workflow(
     private val brokerGateway: BrokerGateway,
     private val restClient: RestGateway,
 ) {
+    private val log = LoggerFactory.getLogger(Workflow::class.java)!!
     private val mqConfig: MqServiceCfg = mqConfiguration.configs["ps"]!!
+    private var flowIsNotLogged: Boolean = true
 
     fun process(message: Message<Any>): Mono<Result<WalletBalance>> =
         validateRequest(message)
+            .doOnNext { logWalletBalanceFlow() }
             .pipe { sendAcceptedReceiptToQueue(it) }
-            .pipe { restRequestPipe(it) }
+            .pipe { getBalanceByRest(it) }
             .pipe { sendTransactionReceiptToQueue(it) }
             .pipe { sendRestResponseToQueue(it) }
+            .flatMap { logError(it) }
+
+    private fun logWalletBalanceFlow() {
+        if (flowIsNotLogged) {
+            log.info("wallet-balance workflow is enabled")
+            flowIsNotLogged = false
+        }
+    }
 
     private fun validateRequest(message: Message<Any>): Mono<Result<ValidRequest>> =
         Mono.just(
@@ -40,7 +52,7 @@ class Workflow(
             .map { validRequest }
             .toMono()
 
-    private fun restRequestPipe(validRequest: ValidRequest): Mono<Result<WalletBalance>> =
+    private fun getBalanceByRest(validRequest: ValidRequest): Mono<Result<WalletBalance>> =
         sendRestRequest(RestServiceRequest.of(validRequest))
             .map { WalletBalance(validRequest, it) }
             .map { Result.success(it) }
@@ -66,4 +78,10 @@ class Workflow(
             .toMono()
 
     private fun sendRestRequest(request: RestServiceRequest) = restClient.sendRequest(request)
+
+    private fun logError(walletBalance: Result<WalletBalance>): Mono<Result<WalletBalance>> =
+        walletBalance.onFailure {
+            log.error("Error in wallet balance workflow ${walletBalance.exceptionOrNull()!!.message}")
+        }.toMono()
+
 }

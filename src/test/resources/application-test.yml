@@ -12,3 +12,12 @@ ibm:
     connName: localhost(1414)
     user: admin
     password: passw0rd
+
+features:
+  toggles:
+    test-feature:
+      enabled: true
+      description: "Включает тестовую фичу"
+    wallet-balance-workflow:
+      enabled: false
+      description: "Включает переработанный код бизнес-процесса получения баланса кошелька"

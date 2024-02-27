@@ -1,5 +1,6 @@
 package team.codemonsters.refactoringexample.walletBalance
 
+import org.slf4j.LoggerFactory
 import org.springframework.messaging.Message
 import org.springframework.stereotype.Component
 import team.codemonsters.refactoringexample.configuration.MqServiceCfg
@@ -12,6 +13,9 @@ import java.util.UUID
 class BrokerGateway(
     private val mqPublisher: MqPublisher,
 ) {
+
+    private val log = LoggerFactory.getLogger(Workflow::class.java)!!
+
     fun sendReceipt(
         data: Any,
         operation: String,
@@ -20,6 +24,8 @@ class BrokerGateway(
     ): Result<BasicJmsRequest<String>> =
         runCatching {
             val correlationId = incomingMessage.headers[mqConfiguration.correlationID] as String
+            log.info("correlationId = ${correlationId}")
+            log.info("data = ${data}")
             BasicJmsRequest(
                 correlationId = correlationId,
                 queue = mqConfiguration.RECEIPT,
@@ -27,9 +33,10 @@ class BrokerGateway(
                 headers = prepareSipHeaders(correlationId, operation, mqConfiguration),
             )
         }.map {
+            log.info("Sending BasicJmsRequest ${it}")
             mqPublisher.sendToMq(it, incomingMessage.headers["jms_messageId"] as String?)
             return@map it
-        }
+        }.onFailure { log.error("Error sendReceipt ${it.message}") }
 
     fun sendResponse(
         data: Any,

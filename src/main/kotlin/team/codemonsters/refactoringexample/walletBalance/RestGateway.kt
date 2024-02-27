@@ -1,5 +1,6 @@
 package team.codemonsters.refactoringexample.walletBalance
 
+import org.slf4j.LoggerFactory
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
@@ -13,12 +14,13 @@ import java.net.URI
 @Component
 class RestGateway(private val webClient: WebClient
 ) {
-
+    private val log = LoggerFactory.getLogger(Workflow::class.java)!!
     companion object {
         val CONTENT_TYPE = "${MediaType.APPLICATION_JSON};charset=${Charsets.UTF_8}"
     }
 
     fun sendRequest(request: RestServiceRequest): Mono<RestServiceResponse> {
+        log.info("sending RestServiceRequest ${request}")
         when (request.requestEnvelope.method) {
             //Post request
             HttpMethod.POST.name() -> return webClient.post()

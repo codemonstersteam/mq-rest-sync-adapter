@@ -70,8 +70,8 @@ class PipelineServicePsFailTest(
     }
 
     private fun assertResponsesInQueues(receiptQueue: String, responseQueue: String) {
-        assertReceiptError(receiptQueue)
         assertReceiptAccepted(receiptQueue)
+        assertReceiptError(receiptQueue)
         assertResponse(responseQueue)
     }
 
@@ -95,6 +95,7 @@ class PipelineServicePsFailTest(
         "X_TransactionID" to "transaction-01",
         "X_RequestID" to "x-request-01",
         "RequestID" to "request-01",
+        "CorrelationID" to "CorrelationID"
     )
 
     private fun createValidRequest() = PsGetBalanceRequest(

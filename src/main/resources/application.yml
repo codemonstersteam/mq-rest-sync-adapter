@@ -86,3 +86,9 @@ rest:
         client-reg: /api/client/register
         client-wallet-balance: /api/client/${Api-clientId}/wallet/balance
         client-wallet-status: /api/client/${Api-clientId}/wallet/status
+
+features:
+    toggles:
+      wallet-balance-workflow:
+        enabled: false
+        description: "Включает переработанный код бизнес-процесса получения баланса кошелька"

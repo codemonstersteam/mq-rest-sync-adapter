@@ -25,6 +25,7 @@ import team.codemonsters.refactoringexample.mq.enum.ReceiptStatus
 import team.codemonsters.refactoringexample.util.JsonUtil
 import java.time.Duration
 import java.time.OffsetDateTime
+import java.util.concurrent.TimeUnit
 
 @ActiveProfiles("test")
 @Tag("integration-test")
@@ -72,6 +73,7 @@ class PipelineServicePsSuccessTest(
         val receiptQueue = "RECEIPT.QUEUE.PS"
         // Act
         publishToQueue(message, originalId)
+
         // Assert
         assertResponsesInQueues(receiptQueue, responseQueue)
     }
@@ -80,8 +82,8 @@ class PipelineServicePsSuccessTest(
         receiptQueue: String,
         responseQueue: String,
     ) {
-        assertReceiptSuccess(receiptQueue)
         assertReceiptAccepted(receiptQueue)
+        assertReceiptSuccess(receiptQueue)
         assertResponse(responseQueue)
     }
 
@@ -168,6 +170,7 @@ class PipelineServicePsSuccessTest(
             "X_TransactionID" to "transaction-01",
             "X_RequestID" to "x-request-01",
             "RequestID" to "request-01",
+            "CorrelationID" to "CorrelationID"
         )
 
     private fun publishToQueue(

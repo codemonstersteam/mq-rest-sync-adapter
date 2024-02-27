@@ -7,6 +7,7 @@ import org.springframework.messaging.Message
 import org.springframework.stereotype.Component
 import reactor.core.publisher.Mono
 import team.codemonsters.refactoringexample.client.RESTClient
+import team.codemonsters.refactoringexample.configuration.FeatureToggles
 import team.codemonsters.refactoringexample.configuration.MqConfiguration
 import team.codemonsters.refactoringexample.configuration.MqServiceCfg
 import team.codemonsters.refactoringexample.configuration.RestConfiguration
@@ -22,6 +23,7 @@ import team.codemonsters.refactoringexample.mq.RestServiceRequest
 import team.codemonsters.refactoringexample.mq.RestServiceResponse
 import team.codemonsters.refactoringexample.mq.enum.ReceiptStatus
 import team.codemonsters.refactoringexample.util.JsonUtil
+import team.codemonsters.refactoringexample.walletBalance.Workflow
 import java.util.UUID
 
 /**
@@ -45,6 +47,8 @@ class PipelineServicePS(
     private val mqConfiguration: MqConfiguration,
     private val restConfiguration: RestConfiguration,
     private val restClient: RESTClient,
+    private val workflow: Workflow,
+    private val featureToggles: FeatureToggles
 ) {
     private val mqConfig: MqServiceCfg = mqConfiguration.configs["ps"]!!
 
@@ -54,14 +58,16 @@ class PipelineServicePS(
 
     @JmsListener(destination = "\${mq.configs.ps.REQ}")
     fun receiveBalance(message: Message<Any>) {
-        receiveMessage(message)
+        if(featureToggles.isFeatureEnabled("wallet-balance-workflow"))
+            workflow.process(message).subscribe()
+        else
+            receiveMessage(message)
     }
 
     fun receiveMessage(message: Message<Any>) {
         log.info("Incoming transmission into PipelineServicePS")
         log.info("headers: ${message.headers}")
         log.info("payload: ${message.payload}")
-
         processMessage(message)
     }
 
@@ -95,7 +101,7 @@ class PipelineServicePS(
             submitMqReceipt(correlationId, url, it, msgId, mqPublisher, mqConfig, httpReq)
         }.flatMap {
             submitMqResponse(correlationId, url, it, msgId, mqPublisher, mqConfig)
-        }.block()
+        }.subscribe()
     }
 
     fun acceptedMqReceipt(
