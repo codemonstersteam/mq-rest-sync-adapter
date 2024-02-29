@@ -1,6 +1,5 @@
 package team.codemonsters.refactoringexample.walletBalance
 
-import team.codemonsters.refactoringexample.exceptions.ServiceCommunicationException
 import java.time.Duration
 import java.time.OffsetDateTime
 
@@ -14,26 +13,19 @@ data class ValidRequest private constructor(
             timeout: Long,
         ): Result<ValidRequest> {
             val httpRequestEnvelope = unvalidatedRequest.httpRequestEnvelope
-            if (!unvalidatedRequest.restConfiguration.configs.containsKey(httpRequestEnvelope.service)) {
-                return Result.failure(
-                    ServiceCommunicationException(
-                        unvalidatedRequest.httpRequestEnvelope.service,
-                        "Не найдена конфигурация для сервиса: ${httpRequestEnvelope.service}",
-                    ),
-                )
-            }
-            if (!unvalidatedRequest.restConfiguration.configs[httpRequestEnvelope.service]!!.operations.containsKey(
-                    httpRequestEnvelope.operation,
-                )
-            ) {
-                return Result.failure(
-                    ServiceCommunicationException(
-                        httpRequestEnvelope.service,
-                        "Не найдена операция: ${httpRequestEnvelope.operation} для сервиса ${httpRequestEnvelope.service}",
-                    ),
-                )
-            }
             return PsGetBalanceRequest.fromJsonString(httpRequestEnvelope.body!!)
+                .ensure(
+                    { unvalidatedRequest.restConfiguration.configs.containsKey(httpRequestEnvelope.service) },
+                    "Не найдена конфигурация для сервиса: ${httpRequestEnvelope.service}"
+                )
+                .ensure(
+                    {
+                        unvalidatedRequest.restConfiguration.configs[httpRequestEnvelope.service]!!.operations.containsKey(
+                            httpRequestEnvelope.operation,
+                        )
+                    },
+                    "Не найдена операция: ${httpRequestEnvelope.operation} для сервиса ${httpRequestEnvelope.service}"
+                )
                 .ensure(
                     { OffsetDateTime.now().plus(Duration.ofMillis(timeout)).isBefore(it.operTime) },
                     "Истек срок действия запроса",
@@ -48,5 +40,6 @@ data class ValidRequest private constructor(
                 )
                 .map { ValidRequest(unvalidatedRequest, it) }
         }
+
     }
 }

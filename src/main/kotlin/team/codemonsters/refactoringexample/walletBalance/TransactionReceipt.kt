@@ -36,5 +36,4 @@ data class TransactionReceipt private constructor(
             )
         }
     }
-
 }

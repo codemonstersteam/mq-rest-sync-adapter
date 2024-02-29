@@ -10,7 +10,6 @@ data class RestServiceResponse(
     val headers: HttpHeaders,
     val body: String?
 ) {
-
     companion object {
         fun of(
             request: RestServiceRequest,
@@ -25,6 +24,5 @@ data class RestServiceResponse(
                 headers,
                 body
             )
-
     }
 }
