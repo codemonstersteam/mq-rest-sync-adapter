@@ -3,6 +3,7 @@ package team.codemonsters.refactoringexample.walletBalance
 import org.slf4j.LoggerFactory
 import org.springframework.messaging.Message
 import org.springframework.stereotype.Component
+import reactor.core.publisher.Mono
 import team.codemonsters.refactoringexample.configuration.MqServiceCfg
 import team.codemonsters.refactoringexample.mq.BasicJmsRequest
 import team.codemonsters.refactoringexample.service.MqPublisher
@@ -13,7 +14,6 @@ import java.util.UUID
 class BrokerGateway(
     private val mqPublisher: MqPublisher,
 ) {
-
     private val log = LoggerFactory.getLogger(Workflow::class.java)!!
 
     fun sendReceipt(
@@ -21,38 +21,43 @@ class BrokerGateway(
         operation: String,
         incomingMessage: Message<Any>,
         mqConfiguration: MqServiceCfg,
-    ): Result<BasicJmsRequest<String>> =
-        runCatching {
-            val correlationId = incomingMessage.headers[mqConfiguration.correlationID] as String
-            BasicJmsRequest(
-                correlationId = correlationId,
-                queue = mqConfiguration.RECEIPT,
-                payload = JsonUtil.toJson(data),
-                headers = prepareSipHeaders(correlationId, operation, mqConfiguration),
-            )
-        }.map {
-            mqPublisher.sendToMq(it, incomingMessage.headers["jms_messageId"] as String?)
-            return@map it
-        }.onFailure { log.error("Error sendReceipt ${it.message}") }
+    ): Mono<Result<BasicJmsRequest<String>>> =
+        Mono.just(
+            runCatching {
+                val correlationId = incomingMessage.headers[mqConfiguration.correlationID] as String
+                BasicJmsRequest(
+                    correlationId = correlationId,
+                    queue = mqConfiguration.RECEIPT,
+                    payload = JsonUtil.toJson(data),
+                    headers = prepareSipHeaders(correlationId, operation, mqConfiguration),
+                )
+            }.map {
+                mqPublisher.sendToMq(it, incomingMessage.headers["jms_messageId"] as String?)
+                return@map it
+            }.onFailure { log.error("Error sendReceipt ${it.message}") },
+        )
 
     fun sendResponse(
         data: Any,
         operation: String,
         incomingMessage: Message<Any>,
         mqConfiguration: MqServiceCfg,
-    ): Result<BasicJmsRequest<String>> =
-        runCatching {
-            val correlationId = incomingMessage.headers[mqConfiguration.correlationID] as String
-            BasicJmsRequest(
-                correlationId = correlationId,
-                queue = mqConfiguration.RES,
-                payload = JsonUtil.toJson(data),
-                headers = prepareSipHeaders(correlationId, operation, mqConfiguration),
-            )
-        }.map {
-            mqPublisher.sendToMq(it, incomingMessage.headers["jms_messageId"] as String?)
-            return@map it
-        }
+    ): Mono<Result<BasicJmsRequest<String>>> =
+        Mono.just(
+            runCatching {
+                val correlationId = incomingMessage.headers[mqConfiguration.correlationID] as String
+                BasicJmsRequest(
+                    correlationId = correlationId,
+                    queue = mqConfiguration.RES,
+                    payload = JsonUtil.toJson(data),
+                    headers = prepareSipHeaders(correlationId, operation, mqConfiguration),
+                )
+            }.map {
+                mqPublisher.sendToMq(it, incomingMessage.headers["jms_messageId"] as String?)
+                return@map it
+            }
+                .onFailure { log.error("Error sendResponse ${it.message}") },
+        )
 
     private fun prepareSipHeaders(
         correlationId: String,
@@ -69,5 +74,4 @@ class BrokerGateway(
         headers.putAll(mqConfig.values)
         return headers
     }
-
 }

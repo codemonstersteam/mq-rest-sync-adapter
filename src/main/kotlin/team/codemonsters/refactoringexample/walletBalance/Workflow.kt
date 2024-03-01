@@ -42,40 +42,37 @@ class Workflow(
                 .flatMap { ValidRequest.emerge(it, mqConfig.timeout) },
         )
 
-    private fun sendAcceptedReceiptToQueue(validRequest: ValidRequest) =
+    private fun sendAcceptedReceiptToQueue(validRequest: ValidRequest): Mono<Result<ValidRequest>> =
         brokerGateway.sendReceipt(
             ReceiptValidationAcceptance.accepted(validRequest),
             validRequest.unvalidatedRequest.httpRequestEnvelope.operation,
             validRequest.unvalidatedRequest.incomingMessage,
             mqConfig,
         )
-            .map { validRequest }
-            .toMono()
+            .map { it.map { validRequest } }
 
     private fun getBalanceByRest(validRequest: ValidRequest): Mono<Result<WalletBalance>> =
         sendRestRequest(RestServiceRequest.of(validRequest))
             .map { WalletBalance(validRequest, it) }
             .map { Result.success(it) }
 
-    private fun sendTransactionReceiptToQueue(walletBalance: WalletBalance) =
+    private fun sendTransactionReceiptToQueue(walletBalance: WalletBalance): Mono<Result<WalletBalance>> =
         brokerGateway.sendReceipt(
             TransactionReceipt.receipt(walletBalance),
             walletBalance.validRequest.unvalidatedRequest.httpRequestEnvelope.operation,
             walletBalance.validRequest.unvalidatedRequest.incomingMessage,
             mqConfig,
         )
-            .map { walletBalance }
-            .toMono()
+            .map { it.map { walletBalance } }
 
-    private fun sendRestResponseToQueue(walletBalance: WalletBalance) =
+    private fun sendRestResponseToQueue(walletBalance: WalletBalance): Mono<Result<WalletBalance>> =
         brokerGateway.sendResponse(
             walletBalance.httpResponseEnvelope,
             walletBalance.validRequest.unvalidatedRequest.httpRequestEnvelope.operation,
             walletBalance.validRequest.unvalidatedRequest.incomingMessage,
             mqConfig,
         )
-            .map { walletBalance }
-            .toMono()
+            .mapResult { Result.success(walletBalance) }
 
     private fun sendRestRequest(request: RestServiceRequest) = restClient.sendRequest(request)
 
@@ -83,5 +80,4 @@ class Workflow(
         walletBalance.onFailure {
             log.error("Error in wallet balance workflow ${walletBalance.exceptionOrNull()!!.message}")
         }.toMono()
-
 }
