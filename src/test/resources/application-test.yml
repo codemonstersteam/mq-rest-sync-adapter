@@ -19,5 +19,5 @@ features:
       enabled: true
       description: "Включает тестовую фичу"
     wallet-balance-workflow:
-      enabled: false
+      enabled: true
       description: "Включает переработанный код бизнес-процесса получения баланса кошелька"

@@ -26,15 +26,14 @@ class ValidRequestTest(
                 correlationId = "correlation-01",
                 createValidRequest(),
             )
-        val timeout = 60000L // example timeout value
         val messageHeaders =
             MessageHeaders(mapOf("CorrelationID" to UUID.fromString("9f8f6d7e-1645-4c26-837a-ba126906010d")))
         val message: Message<Any> =
             MessageBuilder.createMessage(JsonUtil.toJson(httpRequestEnvelope), messageHeaders)
-        val unvalidatedRequest = UnvalidatedRequest.emerge(message, restConfiguration).getOrThrow()
+        val unvalidatedRequest = UnvalidatedRequest(message, restConfiguration, 60000L)
 
         // Act
-        val result = ValidRequest.emerge(unvalidatedRequest, timeout)
+        val result = ValidRequest.emerge(unvalidatedRequest)
 
         // Assert
         assertThat(result.isSuccess).isTrue

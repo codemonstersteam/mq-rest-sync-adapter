@@ -38,14 +38,15 @@ class Workflow(
 
     private fun validateRequest(message: Message<Any>): Mono<Result<ValidRequest>> =
         Mono.just(
-            UnvalidatedRequest.emerge(message, restConfiguration)
-                .flatMap { ValidRequest.emerge(it, mqConfig.timeout) },
+            ValidRequest.emerge(
+                UnvalidatedRequest(message, restConfiguration, mqConfig.timeout),
+            )
         )
 
     private fun sendAcceptedReceiptToQueue(validRequest: ValidRequest): Mono<Result<ValidRequest>> =
         brokerGateway.sendReceipt(
             ReceiptValidationAcceptance.accepted(validRequest),
-            validRequest.unvalidatedRequest.httpRequestEnvelope.operation,
+            validRequest.httpRequestEnvelope.operation,
             validRequest.unvalidatedRequest.incomingMessage,
             mqConfig,
         )
@@ -59,7 +60,7 @@ class Workflow(
     private fun sendTransactionReceiptToQueue(walletBalance: WalletBalance): Mono<Result<WalletBalance>> =
         brokerGateway.sendReceipt(
             TransactionReceipt.receipt(walletBalance),
-            walletBalance.validRequest.unvalidatedRequest.httpRequestEnvelope.operation,
+            walletBalance.validRequest.httpRequestEnvelope.operation,
             walletBalance.validRequest.unvalidatedRequest.incomingMessage,
             mqConfig,
         )
@@ -68,7 +69,7 @@ class Workflow(
     private fun sendRestResponseToQueue(walletBalance: WalletBalance): Mono<Result<WalletBalance>> =
         brokerGateway.sendResponse(
             walletBalance.httpResponseEnvelope,
-            walletBalance.validRequest.unvalidatedRequest.httpRequestEnvelope.operation,
+            walletBalance.validRequest.httpRequestEnvelope.operation,
             walletBalance.validRequest.unvalidatedRequest.incomingMessage,
             mqConfig,
         )

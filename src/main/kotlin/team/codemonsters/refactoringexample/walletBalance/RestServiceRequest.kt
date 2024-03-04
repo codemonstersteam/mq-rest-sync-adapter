@@ -13,7 +13,7 @@ data class RestServiceRequest private constructor(
         fun of(
             validRequest: ValidRequest
         ): RestServiceRequest {
-            val httpRequest = validRequest.unvalidatedRequest.httpRequestEnvelope
+            val httpRequest = validRequest.httpRequestEnvelope
             val restCfg = validRequest.unvalidatedRequest.restConfiguration.configs[httpRequest.service]!!
             val substitutor = StringSubstitutor(httpRequest.headers)
             return RestServiceRequest(
