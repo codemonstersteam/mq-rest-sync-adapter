@@ -14,7 +14,7 @@ abstract class AbstractIbmMqIntegrationTest {
 
     companion object {
         val envVariables = mapOf("LICENSE" to "accept", "MQ_QMGR_NAME" to "QM1")
-        val container = GenericContainer("icr.io/ibm-messaging/mq")
+        val container = GenericContainer(IbmMqContainer.IMAGE)
             .withExposedPorts(1414, 1414)
             .withExtraHost("locahost", "0.0.0.0")
             .withEnv(envVariables)
