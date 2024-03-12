@@ -7,12 +7,12 @@ class IbmMqContainer {
 
     companion object {
         const val IMAGE = "ibmcom/mq:9.2.4.0-r1-amd64"
+        val CONTAINER_ENV_VARS = mapOf("LICENSE" to "accept", "MQ_QMGR_NAME" to "QM1")
         fun container(): GenericContainer<*> {
-            val envVariables = mapOf("LICENSE" to "accept", "MQ_QMGR_NAME" to "QM1")
             return GenericContainer(IMAGE)
                 .withExposedPorts(1414, 1414)
                 .withExtraHost("locahost", "0.0.0.0")
-                .withEnv(envVariables)
+                .withEnv(CONTAINER_ENV_VARS)
                 .withClasspathResourceMapping(
                     "docker/20-config.mqsc",
                     "/etc/mqm/20-config.mqsc",

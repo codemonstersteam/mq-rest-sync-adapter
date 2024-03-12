@@ -25,8 +25,8 @@ class Workflow(
             .doOnNext { logWalletBalanceFlow() }
             .pipe { sendAcceptedReceiptToQueue(it) }
             .pipe { getBalanceByRest(it) }
-            .pipe { sendTransactionReceiptToQueue(it) }
             .pipe { sendRestResponseToQueue(it) }
+            .pipe { sendTransactionReceiptToQueue(it) }
             .flatMap { logError(it) }
 
     private fun logWalletBalanceFlow() {

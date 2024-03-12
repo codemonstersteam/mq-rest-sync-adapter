@@ -13,11 +13,10 @@ import org.testcontainers.containers.GenericContainer
 abstract class AbstractIbmMqIntegrationTest {
 
     companion object {
-        val envVariables = mapOf("LICENSE" to "accept", "MQ_QMGR_NAME" to "QM1")
         val container = GenericContainer(IbmMqContainer.IMAGE)
             .withExposedPorts(1414, 1414)
             .withExtraHost("localhost", "0.0.0.0")
-            .withEnv(envVariables)
+            .withEnv(IbmMqContainer.CONTAINER_ENV_VARS)
             .withClasspathResourceMapping(
                 "docker/20-config.mqsc",
                 "/etc/mqm/20-config.mqsc",

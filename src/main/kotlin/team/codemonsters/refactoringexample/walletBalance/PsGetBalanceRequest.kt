@@ -15,7 +15,7 @@ data class PsGetBalanceRequest(
             jsonString: String,
             requestLifetime: Long,
         ): Result<PsGetBalanceRequest> =
-            Result.runCatching { JsonUtil.fromString(jsonString, PsGetBalanceRequest::class.java) }
+            parseJsonString(jsonString)
                 .ensure(
                     {
                         OffsetDateTime.now().plus(Duration.ofMillis(requestLifetime))
@@ -31,5 +31,8 @@ data class PsGetBalanceRequest(
                     { it.dateFrom.isBefore(it.dateTo ?: OffsetDateTime.now()) },
                     "Ошибка при валидации входных данных. Параметр dateFrom должен быть раньше dateTo",
                 )
+
+        private fun parseJsonString(jsonString: String) =
+            Result.runCatching { JsonUtil.fromString(jsonString, PsGetBalanceRequest::class.java) }
     }
 }

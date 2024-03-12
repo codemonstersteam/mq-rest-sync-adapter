@@ -43,7 +43,7 @@ class ValidRequestTest(
     private fun createEnvelope(
         correlationId: String,
         request: PsGetBalanceRequest,
-    ) = HttpRequestEnvelope(
+    ) = HttpRequestEnvelopeDto(
         correlationId = correlationId,
         method = HttpMethod.POST.name(),
         service = "api-gateway",

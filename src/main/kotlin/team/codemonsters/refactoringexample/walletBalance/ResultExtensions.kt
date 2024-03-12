@@ -1,5 +1,6 @@
 package team.codemonsters.refactoringexample.walletBalance
 
+import reactor.util.function.Tuple2
 import reactor.util.function.Tuple3
 import reactor.util.function.Tuple4
 import reactor.util.function.Tuples
@@ -64,3 +65,10 @@ fun <A : Any, B : Any, C : Any> Result.Companion.zip(a: Result<A>, b: Result<B>,
         success(Tuples.of(a.getOrThrow(), b.getOrThrow(), c.getOrThrow()))
     else
         failure(sequenceOf(a, b, c).first { it.isFailure }.exceptionOrNull()!!)
+
+fun <A : Any, B : Any> Result.Companion.zip(a: Result<A>, b: Result<B>)
+        : Result<Tuple2<A, B>> =
+    if (sequenceOf(a, b).none { it.isFailure })
+        success(Tuples.of(a.getOrThrow(), b.getOrThrow()))
+    else
+        failure(sequenceOf(a, b).first { it.isFailure }.exceptionOrNull()!!)
