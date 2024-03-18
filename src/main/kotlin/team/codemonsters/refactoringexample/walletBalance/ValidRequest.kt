@@ -19,9 +19,9 @@ data class ValidRequest private constructor(
                         unvalidatedRequest.restConfiguration
                     )
                 }
-                .flatMap { validRestRequest(unvalidatedRequest, it) }
+                .flatMap { validateRestRequest(unvalidatedRequest, it) }
 
-        private fun validRestRequest(
+        private fun validateRestRequest(
             unvalidatedRequest: UnvalidatedRequest,
             httpRequestEnvelope: HttpRequestEnvelope,
         ) =

@@ -21,4 +21,9 @@ class FeatureTogglesTest (
         assertThat(featureToggles.isFeatureEnabled("test-feature")).isTrue()
     }
 
+    @Test
+    fun `the test feature must be disables`(){
+        assertThat(featureToggles.isFeatureEnabled("test-feature-disabled")).isFalse()
+    }
+
 }

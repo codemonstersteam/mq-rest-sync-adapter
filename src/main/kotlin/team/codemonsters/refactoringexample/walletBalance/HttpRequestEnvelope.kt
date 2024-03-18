@@ -38,14 +38,14 @@ data class HttpRequestEnvelope private constructor(
                 )
                 .ensure(
                     {
-                        getServiceOperations(restConfiguration, httpRequestEnvelope).containsKey(
+                        serviceOperations(restConfiguration, httpRequestEnvelope).containsKey(
                             httpRequestEnvelope.operation,
                         )
                     },
                     "Не найдена операция: ${httpRequestEnvelope.operation} для сервиса ${httpRequestEnvelope.service}"
                 )
 
-        private fun getServiceOperations(
+        private fun serviceOperations(
             restConfiguration: RestConfiguration,
             httpRequestEnvelope: HttpRequestEnvelopeDto,
         ) = restConfiguration.configs[httpRequestEnvelope.service]!!.operations

@@ -34,7 +34,6 @@ class ValidRequestTest(
 
         // Act
         val result = ValidRequest.emerge(unvalidatedRequest)
-
         // Assert
         assertThat(result.isSuccess).isTrue
         // Add more assertions based on the expected behavior of the ValidRequest.emerge function

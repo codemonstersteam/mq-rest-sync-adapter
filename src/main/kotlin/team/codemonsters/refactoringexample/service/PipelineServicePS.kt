@@ -11,20 +11,12 @@ import team.codemonsters.refactoringexample.configuration.FeatureToggles
 import team.codemonsters.refactoringexample.configuration.MqConfiguration
 import team.codemonsters.refactoringexample.configuration.MqServiceCfg
 import team.codemonsters.refactoringexample.configuration.RestConfiguration
-import team.codemonsters.refactoringexample.mq.BasicJmsRequest
-import team.codemonsters.refactoringexample.mq.HttpRequestEnvelope
+import team.codemonsters.refactoringexample.mq.*
 import team.codemonsters.refactoringexample.mq.HttpRequestEnvelope.Companion.fromJsonString
-import team.codemonsters.refactoringexample.mq.HttpResponseEnvelope
-import team.codemonsters.refactoringexample.mq.MqPublishedResponce
-import team.codemonsters.refactoringexample.mq.MqResponseMessage
-import team.codemonsters.refactoringexample.mq.PsGetBalanceRequest
-import team.codemonsters.refactoringexample.mq.ReceiptPs
-import team.codemonsters.refactoringexample.mq.RestServiceRequest
-import team.codemonsters.refactoringexample.mq.RestServiceResponse
 import team.codemonsters.refactoringexample.mq.enum.ReceiptStatus
 import team.codemonsters.refactoringexample.util.JsonUtil
 import team.codemonsters.refactoringexample.walletBalance.Workflow
-import java.util.UUID
+import java.util.*
 
 /**
  * Пайплайн запроса АС для получения историй операций по кошельку
@@ -58,10 +50,11 @@ class PipelineServicePS(
 
     @JmsListener(destination = "\${mq.configs.ps.REQ}")
     fun receiveBalance(message: Message<Any>) {
-        if(featureToggles.isFeatureEnabled("wallet-balance-workflow"))
+        if (featureToggles.isFeatureEnabled("wallet-balance-workflow")) {
             workflow.process(message).subscribe()
-        else
+        } else {
             receiveMessage(message)
+        }
     }
 
     fun receiveMessage(message: Message<Any>) {

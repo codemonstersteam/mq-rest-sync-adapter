@@ -17,15 +17,15 @@ data class PsGetBalanceRequest(
         ): Result<PsGetBalanceRequest> =
             parseJsonString(jsonString)
                 .ensure(
+                    { "operationHistory" == it.requestType },
+                    "Ошибка при валидации входных данных. Не верный тип запроса.",
+                )
+                .ensure(
                     {
                         OffsetDateTime.now().plus(Duration.ofMillis(requestLifetime))
                             .isBefore(it.operTime)
                     },
                     "Истек срок действия запроса",
-                )
-                .ensure(
-                    { "operationHistory" == it.requestType },
-                    "Ошибка при валидации входных данных. Не верный тип запроса.",
                 )
                 .ensure(
                     { it.dateFrom.isBefore(it.dateTo ?: OffsetDateTime.now()) },
