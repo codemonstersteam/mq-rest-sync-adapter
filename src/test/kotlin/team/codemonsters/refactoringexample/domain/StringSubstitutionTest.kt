@@ -24,7 +24,7 @@ class StringSubstitutionTest {
 
         val restConfiguration = RestConfiguration(
             configs = mapOf(
-                "cifrub-processing" to RestServiceCfg(
+                "api-gateway" to RestServiceCfg(
                     url = "http://base-service-utl:8080",
                     basicAuth = null,
                     operations = mapOf("client-cert-reg" to "/api/v2.0/client/\${Api-clientId}/certificate/register")

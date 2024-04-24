@@ -25,7 +25,7 @@ data class HttpRequestEnvelope private constructor(
                     fromDto(it)
                 }
 
-        private fun bodyIsNotNullAndEmpty(it: HttpRequestEnvelopeDto) = !it.body.isNullOrEmpty()
+        private fun bodyIsNotNullAndEmpty(it: HttpRequestEnvelopeDto) = !it.body.isNullOrBlank()
 
         private fun validateConfigurationMatchEnvelope(
             httpRequestEnvelope: HttpRequestEnvelopeDto,
