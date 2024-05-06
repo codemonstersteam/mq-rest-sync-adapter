@@ -59,6 +59,21 @@ class HttpRequestEnvelopeTestFail {
         assertThat(resultEnvelope.exceptionOrNull()!!.message).isEqualTo("Не найдена конфигурация для сервиса: api-gateway")
     }
 
+    @Test
+    fun `should create invalid envelope when operation not found`() {
+        //arrange
+        val envelopeDto = createEnvelopeDto("request-01", createValidBalanceRequest())
+        val restConfiguration = restConfigurationInvalidOperation()
+        //act
+        val resultEnvelope = HttpRequestEnvelope.emerge(
+            envelopeDto,
+            restConfiguration
+        )
+        //assert
+        assertThat(resultEnvelope.isFailure)
+        assertThat(resultEnvelope.exceptionOrNull()!!.message).isEqualTo("Не найдена операция: client-wallet-balance для сервиса api-gateway")
+    }
+
     private fun createInvalidEnvelopeDto(correlationId: String, body: String?)
     = HttpRequestEnvelopeDto(
         correlationId = correlationId,
@@ -92,9 +107,9 @@ class HttpRequestEnvelopeTestFail {
             ).plus(Duration.ofSeconds(20)),
         )
 
-    private fun restConfiguration() = RestConfiguration(
+    private fun restConfigurationInvalidService() = RestConfiguration(
         configs = mapOf(
-            "api-gateway" to RestServiceCfg(
+            "api-gateway-invalid" to RestServiceCfg(
                 url = "http://localhost:8080",
                 basicAuth = RestBasicAuth("test", "test"),
                 operations = mapOf("client-wallet-balance" to "/api/client/\${Api-clientId}/wallet/balance")
@@ -102,12 +117,12 @@ class HttpRequestEnvelopeTestFail {
         )
     )
 
-    private fun restConfigurationInvalidService() = RestConfiguration(
+    private fun restConfigurationInvalidOperation() = RestConfiguration(
         configs = mapOf(
-            "api-gateway-invalid" to RestServiceCfg(
+            "api-gateway" to RestServiceCfg(
                 url = "http://localhost:8080",
                 basicAuth = RestBasicAuth("test", "test"),
-                operations = mapOf("client-wallet-balance" to "/api/client/\${Api-clientId}/wallet/balance")
+                operations = mapOf("client-wallet-balance-invalid" to "/api/client/\${Api-clientId}/wallet/balance")
             )
         )
     )

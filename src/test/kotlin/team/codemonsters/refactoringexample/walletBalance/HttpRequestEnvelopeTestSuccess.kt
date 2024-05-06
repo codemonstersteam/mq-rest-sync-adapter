@@ -16,7 +16,7 @@ class HttpRequestEnvelopeTestSuccess {
     @Test
     fun `should create valid envelope`() {
         //arrange
-        val envelopeDto = createEnvelopeDto("request-01", createValidBalanceRequest())
+        val envelopeDto = envelopeDto("request-01", validBalanceRequest())
         val restConfiguration = restConfiguration()
         //act
         val resultEnvelope = HttpRequestEnvelope.emerge(
@@ -27,7 +27,7 @@ class HttpRequestEnvelopeTestSuccess {
         assertThat(resultEnvelope.isSuccess)
     }
 
-    private fun createEnvelopeDto(
+    private fun envelopeDto(
         correlationId: String,
         request: PsGetBalanceRequest,
     ) = HttpRequestEnvelopeDto(
@@ -39,7 +39,7 @@ class HttpRequestEnvelopeTestSuccess {
         body = JsonUtil.toJson(request),
     )
 
-    private fun createValidBalanceRequest() =
+    private fun validBalanceRequest() =
         PsGetBalanceRequest(
             requestType = "operationHistory",
             dateFrom = OffsetDateTime.now().minus(Duration.ofSeconds(10)),
