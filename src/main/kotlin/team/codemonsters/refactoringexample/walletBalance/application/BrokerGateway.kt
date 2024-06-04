@@ -1,4 +1,4 @@
-package team.codemonsters.refactoringexample.walletBalance
+package team.codemonsters.refactoringexample.walletBalance.application
 
 import org.slf4j.LoggerFactory
 import org.springframework.messaging.Message
@@ -14,27 +14,18 @@ import java.util.UUID
 class BrokerGateway(
     private val mqPublisher: MqPublisher,
 ) {
-    private val log = LoggerFactory.getLogger(Workflow::class.java)!!
+    private val log = LoggerFactory.getLogger(BrokerGateway::class.java)!!
 
     fun sendReceipt(
-        data: Any,
-        operation: String,
-        incomingMessage: Message<Any>,
-        mqConfiguration: MqServiceCfg,
+        receipt: ReceiptFactory,
     ): Mono<Result<BasicJmsRequest<String>>> =
         Mono.just(
             runCatching {
-                val correlationId = incomingMessage.headers[mqConfiguration.correlationID] as String
-                BasicJmsRequest(
-                    correlationId = correlationId,
-                    queue = mqConfiguration.RECEIPT,
-                    payload = JsonUtil.toJson(data),
-                    headers = prepareSipHeaders(correlationId, operation, mqConfiguration),
-                )
-            }.map {
-                mqPublisher.sendToMq(it, incomingMessage.headers["jms_messageId"] as String?)
-                return@map it
-            }.onFailure { log.error("Error sendReceipt ${it.message}") },
+                val jmsRequest = receipt.toBasicJmsRequest()
+                mqPublisher.sendToMq(jmsRequest, receipt.messageId())
+                jmsRequest
+            }
+                .onFailure { log.error("Error sendReceipt ${it.message}") },
         )
 
     fun sendResponse(

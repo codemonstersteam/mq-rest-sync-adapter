@@ -15,7 +15,7 @@ import team.codemonsters.refactoringexample.mq.*
 import team.codemonsters.refactoringexample.mq.HttpRequestEnvelope.Companion.fromJsonString
 import team.codemonsters.refactoringexample.mq.enum.ReceiptStatus
 import team.codemonsters.refactoringexample.util.JsonUtil
-import team.codemonsters.refactoringexample.walletBalance.Workflow
+import team.codemonsters.refactoringexample.walletBalance.application.WalletBalanceService
 import java.util.*
 
 /**
@@ -39,7 +39,7 @@ class PipelineServicePS(
     private val mqConfiguration: MqConfiguration,
     private val restConfiguration: RestConfiguration,
     private val restClient: RESTClient,
-    private val workflow: Workflow,
+    private val workflow: WalletBalanceService,
     private val featureToggles: FeatureToggles
 ) {
     private val mqConfig: MqServiceCfg = mqConfiguration.configs["ps"]!!

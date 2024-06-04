@@ -1,6 +1,7 @@
-package team.codemonsters.refactoringexample.walletBalance
+package team.codemonsters.refactoringexample.walletBalance.application
 
 import team.codemonsters.refactoringexample.mq.enum.ReceiptStatus
+import team.codemonsters.refactoringexample.walletBalance.ValidRequest
 import java.time.OffsetDateTime
 
 data class ReceiptValidationAcceptance private constructor(

@@ -1,4 +1,4 @@
-package team.codemonsters.refactoringexample.walletBalance
+package team.codemonsters.refactoringexample.walletBalance.application
 
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpHeaders
@@ -9,12 +9,15 @@ import org.springframework.stereotype.Component
 import org.springframework.web.reactive.function.client.WebClient
 import reactor.core.publisher.Mono
 import reactor.kotlin.core.publisher.toMono
+import team.codemonsters.refactoringexample.walletBalance.RestServiceRequest
+import team.codemonsters.refactoringexample.walletBalance.RestServiceResponse
 import java.net.URI
 
 @Component
-class RestGateway(private val webClient: WebClient
+class RestGateway(
+    private val webClient: WebClient
 ) {
-    private val log = LoggerFactory.getLogger(Workflow::class.java)!!
+    private val log = LoggerFactory.getLogger(WalletBalanceService::class.java)!!
     companion object {
         val CONTENT_TYPE = "${MediaType.APPLICATION_JSON};charset=${Charsets.UTF_8}"
     }

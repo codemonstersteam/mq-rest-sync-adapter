@@ -30,7 +30,7 @@ import java.time.OffsetDateTime
 @Tag("integration-test")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @EnableWireMock(ConfigureWireMock(name = "rest-api-gateway", property = "rest.configs.api-gateway.url"))
-class PipelineServicePsWorkflowSuccessTest(
+class PipelineServicePsWalletBalanceServiceSuccessTest(
     @Autowired val jmsTemplate: JmsTemplate,
     @Autowired val jmsPublisher: MqPublisher,
     @Autowired private val mqConfiguration: MqConfiguration,

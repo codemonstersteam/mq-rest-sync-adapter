@@ -1,7 +1,8 @@
-package team.codemonsters.refactoringexample.walletBalance
+package team.codemonsters.refactoringexample.walletBalance.application
 
 import org.springframework.http.HttpStatus
 import team.codemonsters.refactoringexample.mq.enum.ReceiptStatus
+import team.codemonsters.refactoringexample.walletBalance.WalletBalance
 import java.time.OffsetDateTime
 
 data class TransactionReceipt private constructor(
@@ -11,7 +12,7 @@ data class TransactionReceipt private constructor(
     val operTime: OffsetDateTime,
     val flag: ReceiptStatus,
     val errorCode: Int? = null,
-    val description: String? = null
+    val description: String? = null,
 ) {
     companion object {
         private val SUCCESS_HTTP_STATUSES = setOf(HttpStatus.ACCEPTED, HttpStatus.OK)

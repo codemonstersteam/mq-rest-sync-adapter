@@ -1,4 +1,4 @@
-package team.codemonsters.refactoringexample.walletBalance
+package team.codemonsters.refactoringexample.walletBalance.application
 
 import org.slf4j.LoggerFactory
 import org.springframework.messaging.Message
@@ -8,25 +8,31 @@ import reactor.kotlin.core.publisher.toMono
 import team.codemonsters.refactoringexample.configuration.MqConfiguration
 import team.codemonsters.refactoringexample.configuration.MqServiceCfg
 import team.codemonsters.refactoringexample.configuration.RestConfiguration
+import team.codemonsters.refactoringexample.walletBalance.RestServiceRequest
+import team.codemonsters.refactoringexample.walletBalance.UnvalidatedRequest
+import team.codemonsters.refactoringexample.walletBalance.ValidRequest
+import team.codemonsters.refactoringexample.walletBalance.WalletBalance
+import team.codemonsters.refactoringexample.walletBalance.mapResult
+import team.codemonsters.refactoringexample.walletBalance.pipe
 
 @Service
-class Workflow(
+class WalletBalanceService(
     private val mqConfiguration: MqConfiguration,
     private val restConfiguration: RestConfiguration,
     private val brokerGateway: BrokerGateway,
     private val restClient: RestGateway,
 ) {
-    private val log = LoggerFactory.getLogger(Workflow::class.java)!!
+    private val log = LoggerFactory.getLogger(WalletBalanceService::class.java)!!
     private val mqConfig: MqServiceCfg = mqConfiguration.configs["ps"]!!
     private var flowIsNotLogged: Boolean = true
 
     fun process(message: Message<Any>): Mono<Result<WalletBalance>> =
         validateRequest(message)
             .doOnNext { logWalletBalanceFlow() }
-            .pipe { sendAcceptedReceiptToQueue(it) }
-            .pipe { getBalanceByRest(it) }
-            .pipe { sendRestResponseToQueue(it) }
-            .pipe { sendTransactionReceiptToQueue(it) }
+            .pipe { sendAcceptedReceipt(it) }
+            .pipe { getBalance(it) }
+            .pipe { sendRestResponse(it) }
+            .pipe { sendTransactionReceipt(it) }
             .flatMap { logError(it) }
 
     private fun logWalletBalanceFlow() {
@@ -43,30 +49,24 @@ class Workflow(
             )
         )
 
-    private fun sendAcceptedReceiptToQueue(validRequest: ValidRequest): Mono<Result<ValidRequest>> =
-        brokerGateway.sendReceipt(
-            ReceiptValidationAcceptance.accepted(validRequest),
-            validRequest.httpRequestEnvelope.operation,
-            validRequest.unvalidatedRequest.incomingMessage,
-            mqConfig,
-        )
+    private fun sendAcceptedReceipt(validRequest: ValidRequest): Mono<Result<ValidRequest>> =
+        ReceiptAcceptedFactory.emerge(validRequest, mqConfig)
+            .toMono()
+            .pipe { brokerGateway.sendReceipt(it) }
             .map { it.map { validRequest } }
 
-    private fun getBalanceByRest(validRequest: ValidRequest): Mono<Result<WalletBalance>> =
+    private fun getBalance(validRequest: ValidRequest): Mono<Result<WalletBalance>> =
         sendRestRequest(RestServiceRequest.of(validRequest))
             .map { WalletBalance(validRequest, it) }
             .map { Result.success(it) }
 
-    private fun sendTransactionReceiptToQueue(walletBalance: WalletBalance): Mono<Result<WalletBalance>> =
+    private fun sendTransactionReceipt(walletBalance: WalletBalance): Mono<Result<WalletBalance>> =
         brokerGateway.sendReceipt(
-            TransactionReceipt.receipt(walletBalance),
-            walletBalance.validRequest.httpRequestEnvelope.operation,
-            walletBalance.validRequest.unvalidatedRequest.incomingMessage,
-            mqConfig,
+            TransactionReceiptFactory(walletBalance, mqConfig)
         )
             .map { it.map { walletBalance } }
 
-    private fun sendRestResponseToQueue(walletBalance: WalletBalance): Mono<Result<WalletBalance>> =
+    private fun sendRestResponse(walletBalance: WalletBalance): Mono<Result<WalletBalance>> =
         brokerGateway.sendResponse(
             walletBalance.httpResponseEnvelope,
             walletBalance.validRequest.httpRequestEnvelope.operation,
