@@ -2,11 +2,11 @@ package team.codemonsters.refactoringexample.walletBalance.application
 
 import team.codemonsters.refactoringexample.configuration.MqServiceCfg
 import team.codemonsters.refactoringexample.mq.BasicJmsRequest
-import java.util.*
+import java.util.UUID
 
 interface ReceiptFactory {
     fun messageId(): String
-    fun toBasicJmsRequest(): BasicJmsRequest<String>
+    fun basicJmsRequest(): BasicJmsRequest<String>
 
     fun prepareSipHeaders(
         correlationId: String,

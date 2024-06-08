@@ -16,17 +16,16 @@ data class ReceiptAcceptedFactory private constructor(
         .incomingMessage
         .headers["jms_messageId"].toString()
 
-    override fun toBasicJmsRequest(): BasicJmsRequest<String> {
+    override fun basicJmsRequest(): BasicJmsRequest<String> {
         val data = ReceiptValidationAcceptance.accepted(validRequest)
         val operation = validRequest.httpRequestEnvelope.operation
+        val correlationId = validRequest.unvalidatedRequest.incomingMessage.headers["CorrelationID"].toString()
         return BasicJmsRequest(
-            correlationId = validRequest.httpRequestEnvelope.correlationId,
+            correlationId = correlationId,
             queue = mqConfiguration.RECEIPT,
             payload = JsonUtil.toJson(data),
             headers = prepareSipHeaders(
-                validRequest
-                    .httpRequestEnvelope
-                    .correlationId,
+                correlationId,
                 operation,
                 mqConfiguration
             ),
@@ -43,14 +42,14 @@ data class ReceiptAcceptedFactory private constructor(
                     { isCorrelationIdPresentInHeader(it, mqConfig) },
                     RuntimeException("Missing ${mqConfig.correlationID} header")
                 ).ensure(
-                    { isMessageIdPresentInHeader(it, mqConfig) },
-                    RuntimeException("Missing ${mqConfig.correlationID} header")
+                    { isMessageIdPresentInHeader(it) },
+                    RuntimeException("Missing jms_messageId header")
                 )
                 .map {
                     ReceiptAcceptedFactory(validRequest, mqConfig)
                 }
 
-        private fun isMessageIdPresentInHeader(it: ValidRequest, mqConfig: MqServiceCfg) =
+        private fun isMessageIdPresentInHeader(it: ValidRequest,) =
             it.unvalidatedRequest.incomingMessage.headers["jms_messageId"] != null
 
         private fun isCorrelationIdPresentInHeader(

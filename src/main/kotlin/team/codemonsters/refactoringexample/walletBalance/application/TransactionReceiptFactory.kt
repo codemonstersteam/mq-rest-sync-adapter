@@ -16,7 +16,7 @@ data class TransactionReceiptFactory(
         .incomingMessage
         .headers["jms_messageId"].toString()
 
-    override fun toBasicJmsRequest(): BasicJmsRequest<String> {
+    override fun basicJmsRequest(): BasicJmsRequest<String> {
         val data = TransactionReceipt.receipt(walletBalance)
         val operation = walletBalance.validRequest.httpRequestEnvelope.operation
         return BasicJmsRequest(
