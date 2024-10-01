@@ -1,7 +1,7 @@
 package team.codemonsters.refactoringexample.walletBalance.application
 
 import com.jayway.jsonpath.JsonPath
-import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.SoftAssertions
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
@@ -19,6 +19,9 @@ import team.codemonsters.refactoringexample.walletBalance.ValidRequest
 import java.time.Duration
 import java.time.OffsetDateTime
 import java.util.*
+
+private const val CORRELATION_ID = "9f8f6d7e-1645-4c26-837a-ba126906010d"
+private const val MESSAGE_ID = "9f8f6d7e-1645-4c26-837a-ba126906011b"
 
 @SpringBootTest
 class ReceiptAcceptedFactoryTest(
@@ -45,23 +48,22 @@ class ReceiptAcceptedFactoryTest(
     }
 
     private fun assertReceiptMessage(receiptAccepted: Result<ReceiptAcceptedFactory>) {
-        assertThat(receiptAccepted.isSuccess).isTrue
+        SoftAssertions.assertSoftly { softly: SoftAssertions ->
+            softly.assertThat(receiptAccepted.isSuccess).isTrue
 
-        val messageId = receiptAccepted.getOrNull()!!.messageId()
-        assertThat(messageId).isEqualTo("9f8f6d7e-1645-4c26-837a-ba126906011b")
+            val messageId = receiptAccepted.getOrNull()!!.messageId()
+            softly.assertThat(messageId).isEqualTo(MESSAGE_ID)
 
-        val basicJmsRequest = receiptAccepted.getOrNull()!!.basicJmsRequest()
+            val basicJmsRequest = receiptAccepted.getOrNull()!!.basicJmsRequest()
+            softly.assertThat(basicJmsRequest.queue).isEqualTo("receipt")
 
-        assertThat(basicJmsRequest.queue).isEqualTo("receipt")
-
-        val payloadContext = JsonPath.parse(basicJmsRequest.payload)
-        println(basicJmsRequest.payload)
-        assertThat(payloadContext.read<String>("$.requestType")).isEqualTo("operationHistory")
-        assertThat(payloadContext.read<String>("$.flag")).isEqualTo("ACCEPTED")
-        assertThat(payloadContext.read<String>("$.errorCode")).isNull()
-        println(basicJmsRequest.headers)
-        assertThat(basicJmsRequest.headers["CorrelationID"]).isEqualTo("9f8f6d7e-1645-4c26-837a-ba126906010d")
-        assertThat(basicJmsRequest.headers["X_Method"]).isEqualTo("client-wallet-balance")
+            val payloadContext = JsonPath.parse(basicJmsRequest.payload)
+            softly.assertThat(payloadContext.read<String>("$.requestType")).isEqualTo("operationHistory")
+            softly.assertThat(payloadContext.read<String>("$.flag")).isEqualTo("ACCEPTED")
+            softly.assertThat(payloadContext.read<String>("$.errorCode")).isNull()
+            softly.assertThat(basicJmsRequest.headers["CorrelationID"]).isEqualTo(CORRELATION_ID)
+            softly.assertThat(basicJmsRequest.headers["X_Method"]).isEqualTo("client-wallet-balance")
+        }
     }
 
     private fun validRequest(): ValidRequest {
@@ -73,8 +75,8 @@ class ReceiptAcceptedFactoryTest(
         val messageHeaders =
             MessageHeaders(
                 mapOf(
-                    "CorrelationID" to UUID.fromString("9f8f6d7e-1645-4c26-837a-ba126906010d"),
-                    "jms_messageId" to UUID.fromString("9f8f6d7e-1645-4c26-837a-ba126906011b"),
+                    "CorrelationID" to UUID.fromString(CORRELATION_ID),
+                    "jms_messageId" to UUID.fromString(MESSAGE_ID),
                 )
             )
         val message: Message<Any> =
