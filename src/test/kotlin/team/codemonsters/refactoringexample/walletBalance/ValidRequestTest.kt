@@ -12,12 +12,14 @@ import team.codemonsters.refactoringexample.configuration.RestConfiguration
 import team.codemonsters.refactoringexample.util.JsonUtil
 import java.time.Duration
 import java.time.OffsetDateTime
-import java.util.UUID
+import java.util.*
 
 @SpringBootTest
 class ValidRequestTest(
     @Autowired val restConfiguration: RestConfiguration,
 ) {
+    private val requestLifetime = Duration.ofSeconds(10).toMillis()
+
     @Test
     fun `emerge should return valid request`() {
         // Arrange
@@ -30,7 +32,7 @@ class ValidRequestTest(
             MessageHeaders(mapOf("CorrelationID" to UUID.fromString("9f8f6d7e-1645-4c26-837a-ba126906010d")))
         val message: Message<Any> =
             MessageBuilder.createMessage(JsonUtil.toJson(httpRequestEnvelope), messageHeaders)
-        val unvalidatedRequest = UnvalidatedRequest(message, restConfiguration, 60000L)
+        val unvalidatedRequest = UnvalidatedRequest(message, restConfiguration, requestLifetime)
 
         // Act
         val result = ValidRequest.emerge(unvalidatedRequest)
@@ -56,9 +58,6 @@ class ValidRequestTest(
             requestType = "operationHistory",
             dateFrom = OffsetDateTime.now().minus(Duration.ofSeconds(10)),
             dateTo = OffsetDateTime.now().minus(Duration.ofSeconds(5)),
-            operTime =
-                OffsetDateTime.now().plus(
-                    Duration.ofMillis(60000L),
-                ).plus(Duration.ofSeconds(20)),
+            operTime = OffsetDateTime.now().minus(Duration.ofMillis(requestLifetime))
         )
 }

@@ -22,8 +22,7 @@ data class PsGetBalanceRequest(
                 )
                 .ensure(
                     {
-                        OffsetDateTime.now().plus(Duration.ofMillis(requestLifetime))
-                            .isBefore(it.operTime)
+                        it.operTime.plus(Duration.ofMillis(requestLifetime)).isBefore(OffsetDateTime.now())
                     },
                     "Истек срок действия запроса",
                 )
@@ -34,5 +33,7 @@ data class PsGetBalanceRequest(
 
         private fun parseJsonString(jsonString: String) =
             Result.runCatching { JsonUtil.fromString(jsonString, PsGetBalanceRequest::class.java) }
+                .recoverCatching { throw RuntimeException("Failed to parse JSON ${it.message}") }
+
     }
 }

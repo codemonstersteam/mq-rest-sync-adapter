@@ -27,6 +27,7 @@ private const val MESSAGE_ID = "9f8f6d7e-1645-4c26-837a-ba126906011b"
 class ReceiptAcceptedFactoryTest(
     @Autowired val restConfiguration: RestConfiguration,
 ) {
+    private val requestLifetime = Duration.ofSeconds(10).toMillis()
 
     @Test
     fun `accepted receipt success`() {
@@ -36,7 +37,7 @@ class ReceiptAcceptedFactoryTest(
             REQ = "req",
             RES = "resp",
             RECEIPT = "receipt",
-            timeout = 60000L,
+            timeout = requestLifetime,
             correlationID = "CorrelationID"
         )
 
@@ -81,7 +82,7 @@ class ReceiptAcceptedFactoryTest(
             )
         val message: Message<Any> =
             MessageBuilder.createMessage(JsonUtil.toJson(httpRequestEnvelope), messageHeaders)
-        val unvalidatedRequest = UnvalidatedRequest(message, restConfiguration, 60000L)
+        val unvalidatedRequest = UnvalidatedRequest(message, restConfiguration, requestLifetime)
 
         return ValidRequest.emerge(unvalidatedRequest).getOrNull()!!
     }
@@ -104,9 +105,7 @@ class ReceiptAcceptedFactoryTest(
             dateFrom = OffsetDateTime.now().minus(Duration.ofSeconds(10)),
             dateTo = OffsetDateTime.now().minus(Duration.ofSeconds(5)),
             operTime =
-            OffsetDateTime.now().plus(
-                Duration.ofMillis(60000L),
-            ).plus(Duration.ofSeconds(20)),
+            OffsetDateTime.now().minus(Duration.ofMillis(requestLifetime)),
         )
 
 }

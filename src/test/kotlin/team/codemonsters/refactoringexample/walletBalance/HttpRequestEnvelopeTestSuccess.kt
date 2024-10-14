@@ -45,9 +45,7 @@ class HttpRequestEnvelopeTestSuccess {
             dateFrom = OffsetDateTime.now().minus(Duration.ofSeconds(10)),
             dateTo = OffsetDateTime.now().minus(Duration.ofSeconds(5)),
             operTime =
-            OffsetDateTime.now().plus(
-                Duration.ofMillis(60000L),
-            ).plus(Duration.ofSeconds(20)),
+            OffsetDateTime.now().plus(Duration.ofSeconds(26)),
         )
 
     private fun restConfiguration()

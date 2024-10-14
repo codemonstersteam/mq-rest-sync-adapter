@@ -157,9 +157,7 @@ class PipelineServicePsWalletBalanceServiceSuccessTest(
             dateFrom = OffsetDateTime.now().minus(Duration.ofSeconds(10)),
             dateTo = OffsetDateTime.now().minus(Duration.ofSeconds(5)),
             operTime =
-                OffsetDateTime.now().plus(
-                    Duration.ofMillis(mqConfig.timeout),
-                ).plus(Duration.ofSeconds(20)),
+                OffsetDateTime.now().minus(Duration.ofMillis(mqConfig.timeout)),
         )
 
     private fun createJmsHeaders() =
