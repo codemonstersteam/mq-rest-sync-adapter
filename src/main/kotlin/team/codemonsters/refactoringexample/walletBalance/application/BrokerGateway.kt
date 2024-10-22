@@ -21,9 +21,8 @@ class BrokerGateway(
     ): Mono<Result<BasicJmsRequest<String>>> =
         Mono.just(
             runCatching {
-                val jmsRequest = receipt.basicJmsRequest()
-                mqPublisher.sendToMq(jmsRequest, receipt.messageId())
-                jmsRequest
+                mqPublisher.sendToMq(receipt.basicJmsRequest(), receipt.messageId())
+                receipt.basicJmsRequest()
             }
                 .onFailure { log.error("Error sendReceipt ${it.message}") },
         )

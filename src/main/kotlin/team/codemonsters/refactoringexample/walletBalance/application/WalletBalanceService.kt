@@ -8,10 +8,11 @@ import reactor.kotlin.core.publisher.toMono
 import team.codemonsters.refactoringexample.configuration.MqConfiguration
 import team.codemonsters.refactoringexample.configuration.MqServiceCfg
 import team.codemonsters.refactoringexample.configuration.RestConfiguration
-import team.codemonsters.refactoringexample.walletBalance.RestServiceRequest
+import team.codemonsters.refactoringexample.walletBalance.RestServiceResponse
 import team.codemonsters.refactoringexample.walletBalance.UnvalidatedRequest
 import team.codemonsters.refactoringexample.walletBalance.ValidRequest
 import team.codemonsters.refactoringexample.walletBalance.WalletBalance
+import team.codemonsters.refactoringexample.walletBalance.infrastructure.RestServiceRequest
 import team.codemonsters.refactoringexample.walletBalance.mapResult
 import team.codemonsters.refactoringexample.walletBalance.pipe
 
@@ -50,15 +51,14 @@ class WalletBalanceService(
         )
 
     private fun sendAcceptedReceipt(validRequest: ValidRequest): Mono<Result<ValidRequest>> =
-        ReceiptAcceptedFactory.emerge(validRequest, mqConfig)
-            .toMono()
+        ReceiptAcceptedFactory.emerge(validRequest, mqConfig).toMono()
             .pipe { brokerGateway.sendReceipt(it) }
-            .map { it.map { validRequest } }
+            .mapResult { validRequest }
 
     private fun getBalance(validRequest: ValidRequest): Mono<Result<WalletBalance>> =
-        sendRestRequest(RestServiceRequest.of(validRequest))
-            .map { WalletBalance(validRequest, it) }
-            .map { Result.success(it) }
+        RestServiceRequest.emerge(validRequest).toMono()
+            .pipe { sendRestRequest(it) }
+            .mapResult { WalletBalance(validRequest, it) }
 
     private fun sendTransactionReceipt(walletBalance: WalletBalance): Mono<Result<WalletBalance>> =
         brokerGateway.sendReceipt(
@@ -73,9 +73,10 @@ class WalletBalanceService(
             walletBalance.validRequest.unvalidatedRequest.incomingMessage,
             mqConfig,
         )
-            .mapResult { Result.success(walletBalance) }
+            .mapResult { walletBalance }
 
-    private fun sendRestRequest(request: RestServiceRequest) = restClient.sendRequest(request)
+    private fun sendRestRequest(request: RestServiceRequest): Mono<Result<RestServiceResponse>> =
+        restClient.sendRequest(request)
 
     private fun logError(walletBalance: Result<WalletBalance>): Mono<Result<WalletBalance>> =
         walletBalance.onFailure {

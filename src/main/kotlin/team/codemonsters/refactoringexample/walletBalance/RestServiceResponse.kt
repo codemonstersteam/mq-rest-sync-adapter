@@ -2,6 +2,7 @@ package team.codemonsters.refactoringexample.walletBalance
 
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
+import team.codemonsters.refactoringexample.walletBalance.infrastructure.RestServiceRequest
 
 data class RestServiceResponse(
     val serviceBaseUrl: String,
@@ -18,7 +19,7 @@ data class RestServiceResponse(
             body: String?
         ): RestServiceResponse =
             RestServiceResponse(
-                request.restCfg.url,
+                request.operationUrl,
                 request.requestEnvelope,
                 httpStatus,
                 headers,
