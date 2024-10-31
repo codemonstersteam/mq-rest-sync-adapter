@@ -1,7 +1,6 @@
 package team.codemonsters.refactoringexample.walletBalance.application
 
 import org.slf4j.LoggerFactory
-import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
@@ -9,8 +8,8 @@ import org.springframework.web.reactive.function.client.ClientResponse
 import org.springframework.web.reactive.function.client.WebClient
 import reactor.core.publisher.Mono
 import reactor.kotlin.core.publisher.toMono
-import team.codemonsters.refactoringexample.walletBalance.RestServiceResponse
 import team.codemonsters.refactoringexample.walletBalance.infrastructure.RestServiceRequest
+import team.codemonsters.refactoringexample.walletBalance.infrastructure.RestServiceResponse
 
 @Component
 class RestGateway(
@@ -23,32 +22,29 @@ class RestGateway(
         return when (request.method) {
             HttpMethod.POST.name() -> post(request)
             HttpMethod.GET.name() -> get(request)
-            else -> unsupportedMethod(request)
-        }.map{
+            else -> RestServiceResponse.unsupportedMethod(request).toMono()
+        }.map {
             Result.success(it)
         }
     }
 
-    private fun get(request: RestServiceRequest): Mono<RestServiceResponse> {
+    private fun get(
+        request: RestServiceRequest
+    ): Mono<RestServiceResponse> {
         return webClient.get()
             .uri(request.uri)
             .headers { request.headers() }
             .exchangeToMono { response ->
                 response.bodyToMono(String::class.java)
                     .switchIfEmpty("".toMono())
-                    .map {
-                        RestServiceResponse.of(
-                            request,
-                            HttpStatus.valueOf(response.statusCode().value()),
-                            response.headers().asHttpHeaders(),
-                            it
-                        )
-                    }
+                    .map { mapToSuccessResponse(request, response, it) }
             }
-            .onErrorResume { mapErrorToResponse(request, it).toMono() }
+            .onErrorResume { RestServiceResponse.error(request, it).toMono() }
     }
 
-    private fun post(request: RestServiceRequest) =
+    private fun post(
+        request: RestServiceRequest
+    ) =
         webClient.post()
             .uri(request.uri)
             .headers { request.headers() }
@@ -56,38 +52,20 @@ class RestGateway(
             .exchangeToMono { response ->
                 response.bodyToMono(String::class.java)
                     .switchIfEmpty("".toMono())
-                    .map { mapToRestServiceResponse(request, response, it) }
+                    .map { mapToSuccessResponse(request, response, it) }
             }
-            .onErrorResume { error -> Mono.just(mapErrorToResponse(request, error)) }
+            .onErrorResume { error -> Mono.just(RestServiceResponse.error(request, error)) }
 
-
-    private fun mapErrorToResponse(
+    private fun mapToSuccessResponse(
         request: RestServiceRequest,
-        error: Throwable
-    ) = RestServiceResponse.of(
-        request,
-        HttpStatus.INTERNAL_SERVER_ERROR,
-        HttpHeaders.EMPTY,
-        "Ошибка ${error.message} при выполнении запроса к сервису ${request.uri}"
-    )
-
-    private fun mapToRestServiceResponse(
-        request: RestServiceRequest,
-        response: ClientResponse, body: String
+        response: ClientResponse,
+        body: String
     ) =
-        RestServiceResponse.of(
+        RestServiceResponse.success(
             request,
             HttpStatus.valueOf(response.statusCode().value()),
             response.headers().asHttpHeaders(),
             body
         )
 
-    private fun unsupportedMethod(request: RestServiceRequest) =
-        RestServiceResponse.of(
-            request,
-            HttpStatus.INTERNAL_SERVER_ERROR,
-            HttpHeaders.EMPTY,
-            "Ошибка при выполнении запроса к сервису ${request.uri}: метод ${request.method} не поддерживается"
-        )
-            .toMono()
 }

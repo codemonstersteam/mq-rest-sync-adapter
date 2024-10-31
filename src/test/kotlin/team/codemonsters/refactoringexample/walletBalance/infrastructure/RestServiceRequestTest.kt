@@ -1,5 +1,7 @@
 package team.codemonsters.refactoringexample.walletBalance.infrastructure
+
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.SoftAssertions
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpMethod
 import org.springframework.messaging.Message
@@ -14,14 +16,14 @@ import team.codemonsters.refactoringexample.walletBalance.UnvalidatedRequest
 import team.codemonsters.refactoringexample.walletBalance.ValidRequest
 import java.time.Duration
 import java.time.OffsetDateTime
-import java.util.UUID
+import java.util.*
 
 internal class RestServiceRequestTest {
 
     private val restConfiguration: RestConfiguration = RestConfiguration(
         configs = mapOf(
             "api-gateway" to RestServiceCfg(
-                url = "http://base-service-utl:8080",
+                url = "http://base-service-url:8080",
                 basicAuth = null,
                 operations = mapOf("client-wallet-balance" to "/api/client/\${Api-clientId}/wallet/balance")
             )
@@ -36,15 +38,33 @@ internal class RestServiceRequestTest {
 
     @Test
     fun `should create RestServiceRequest with valid request`() {
-        // given
+        // arrange
         val validRequest = validRequest()
-
-        // when
+        // act
         val restServiceRequest = RestServiceRequest.emerge(validRequest)
+        // assert
+        assertRequest(restServiceRequest, validRequest)
+    }
 
-        // then
-        //soft assertion all params
-        assertThat(restServiceRequest.isSuccess).isTrue
+    private fun assertRequest(
+        restServiceRequest: Result<RestServiceRequest>,
+        validRequest: ValidRequest
+    ) {
+        SoftAssertions.assertSoftly { softly: SoftAssertions ->
+            softly.assertThat(restServiceRequest.isSuccess).isTrue
+            val request = restServiceRequest.getOrNull()!!
+            //1 какой http метод запроса будет использован
+            softly.assertThat(request.method).isEqualTo(HttpMethod.POST.name())
+            // 2 на какой url будет отправлен запрос
+            softly.assertThat(request.uri.toString())
+                .isEqualTo("http://base-service-url:8080/api/client/Api-clientId-01/wallet/balance")
+            // 3 что будет содержаться в теле запроса
+            softly.assertThat(request.body).isEqualTo(validRequest.httpRequestEnvelope.body)
+            // 4 какие заголовки будут использованы в запросе
+            softly.assertThat(request.headers().getFirst("Content-Type")).isEqualTo("application/json;charset=UTF-8")
+            softly.assertThat(request.headers().getFirst("Api-clientId")).isEqualTo("Api-clientId-01")
+            softly.assertThat(request.headers().getFirst("RequestID")).isEqualTo("request-01")
+        }
     }
 
     private fun validRequest(): ValidRequest {

@@ -8,7 +8,7 @@ import reactor.kotlin.core.publisher.toMono
 import team.codemonsters.refactoringexample.configuration.MqConfiguration
 import team.codemonsters.refactoringexample.configuration.MqServiceCfg
 import team.codemonsters.refactoringexample.configuration.RestConfiguration
-import team.codemonsters.refactoringexample.walletBalance.RestServiceResponse
+import team.codemonsters.refactoringexample.walletBalance.infrastructure.RestServiceResponse
 import team.codemonsters.refactoringexample.walletBalance.UnvalidatedRequest
 import team.codemonsters.refactoringexample.walletBalance.ValidRequest
 import team.codemonsters.refactoringexample.walletBalance.WalletBalance

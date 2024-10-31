@@ -3,6 +3,7 @@ package team.codemonsters.refactoringexample.walletBalance
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
+import team.codemonsters.refactoringexample.walletBalance.infrastructure.RestServiceResponse
 
 class HttpResponseEnvelope(
 
