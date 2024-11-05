@@ -1,6 +1,5 @@
 package team.codemonsters.refactoringexample.walletBalance.infrastructure
 
-import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.SoftAssertions
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpMethod
@@ -32,8 +31,6 @@ internal class RestServiceRequestTest {
 
     private val CORRELATION_ID = "9f8f6d7e-1645-4c26-837a-ba126906010d"
     private val MESSAGE_ID = "9f8f6d7e-1645-4c26-837a-ba126906011b"
-
-
     private val requestLifetime = Duration.ofSeconds(10).toMillis()
 
     @Test
