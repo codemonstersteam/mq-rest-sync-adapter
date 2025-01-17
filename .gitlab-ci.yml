@@ -19,5 +19,7 @@ stages:
 test:
   image: gradle:jdk17
   stage: test
+  tags:
+    - testcontainers
   script:
     - ./gradlew test
