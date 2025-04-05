@@ -1,6 +1,5 @@
 package team.codemonsters.refactoringexample.walletBalance.infrastructure
 
-import org.apache.commons.text.StringSubstitutor
 import org.springframework.http.HttpHeaders
 import org.springframework.http.MediaType
 import team.codemonsters.refactoringexample.configuration.RestServiceCfg
@@ -11,7 +10,6 @@ import java.net.URI
 data class RestServiceRequest private constructor(
     private val restCfg: RestServiceCfg,
     val requestEnvelope: HttpRequestEnvelope,
-    val operationUrl: String,
     val uri: URI,
 ) {
 
@@ -31,24 +29,19 @@ data class RestServiceRequest private constructor(
 
     val method: String = requestEnvelope.method
 
+    val operationUrl: String = uri.path
+
     companion object {
         private val CONTENT_TYPE = "${MediaType.APPLICATION_JSON};charset=${Charsets.UTF_8}"
 
-        fun emerge(
+        fun of(
             validRequest: ValidRequest
-        ): Result<RestServiceRequest> {
-            val httpRequest = validRequest.httpRequestEnvelope
-            val restCfg = validRequest.unvalidatedRequest.restConfiguration.configs[httpRequest.service]!!
-            val operationUrl =
-                StringSubstitutor(httpRequest.headers).replace(restCfg.operations[httpRequest.operation]!!)
-            val uri = restCfg.url + operationUrl
-            return Result.runCatching { URI.create(uri) }
-                .map {
-                    RestServiceRequest(restCfg, httpRequest, operationUrl, it)
-                }.recoverCatching {
-                    throw RuntimeException("Failed to create RestServiceRequest cause the url {$uri} is not valid", it)
-                }
-        }
+        ): RestServiceRequest =
+            RestServiceRequest(
+                validRequest.configuration(),
+                validRequest.httpRequestEnvelope,
+                validRequest.serviceUri
+            )
     }
 
 }

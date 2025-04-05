@@ -67,8 +67,8 @@ fun <A : Any, B : Any, C : Any> Result.Companion.zip(a: Result<A>, b: Result<B>,
         failure(sequenceOf(a, b, c).first { it.isFailure }.exceptionOrNull()!!)
 
 fun <A : Any, B : Any> Result.Companion.zip(a: Result<A>, b: Result<B>)
-        : Result<Tuple2<A, B>> =
+        : Result<Pair<A, B>> =
     if (sequenceOf(a, b).none { it.isFailure })
-        success(Tuples.of(a.getOrThrow(), b.getOrThrow()))
+        success(Pair(a.getOrThrow(), b.getOrThrow()))
     else
         failure(sequenceOf(a, b).first { it.isFailure }.exceptionOrNull()!!)

@@ -12,7 +12,7 @@ fun <T, R> Mono<Result<T>>.pipe(function: (T) -> Mono<Result<R>>)
         )
     }
 
-fun <T, R> Mono<Result<T>>.mapResult(function: (T) -> R)
+fun <T, R> Mono<Result<T>>.fold(function: (T) -> R)
         : Mono<Result<R>> =
     this.map { result ->
         result.fold(

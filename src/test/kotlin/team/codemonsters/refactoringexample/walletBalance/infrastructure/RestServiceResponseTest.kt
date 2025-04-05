@@ -12,7 +12,7 @@ internal class RestServiceResponseTest : RestServiceResponseAbstractTest() {
     fun `should create success response`() {
         // arrange
         val validRequest = validRequest()
-        val restServiceRequest = RestServiceRequest.emerge(validRequest).getOrNull()!!
+        val restServiceRequest = RestServiceRequest.of(validRequest)
         val envelope = restServiceRequest.requestEnvelope
         // act
         val response = RestServiceResponse.success(
@@ -39,7 +39,7 @@ internal class RestServiceResponseTest : RestServiceResponseAbstractTest() {
     fun `should create error response`() {
         // arrange
         val validRequest = validRequest()
-        val restServiceRequest = RestServiceRequest.emerge(validRequest).getOrNull()!!
+        val restServiceRequest = RestServiceRequest.of(validRequest)
         val envelope = restServiceRequest.requestEnvelope
         // act
         val response = RestServiceResponse.error(
@@ -65,7 +65,7 @@ internal class RestServiceResponseTest : RestServiceResponseAbstractTest() {
     fun `should create unsupportedMethod response`() {
         // arrange
         val validRequest = invalidRequest()
-        val restServiceRequest = RestServiceRequest.emerge(validRequest).getOrNull()!!
+        val restServiceRequest = RestServiceRequest.of(validRequest)
         val envelope = restServiceRequest.requestEnvelope
         // act
         val response = RestServiceResponse.unsupportedMethod(

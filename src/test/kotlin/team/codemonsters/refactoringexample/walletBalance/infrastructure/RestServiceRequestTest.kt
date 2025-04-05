@@ -38,18 +38,16 @@ internal class RestServiceRequestTest {
         // arrange
         val validRequest = validRequest()
         // act
-        val restServiceRequest = RestServiceRequest.emerge(validRequest)
+        val restServiceRequest = RestServiceRequest.of(validRequest)
         // assert
         assertRequest(restServiceRequest, validRequest)
     }
 
     private fun assertRequest(
-        restServiceRequest: Result<RestServiceRequest>,
+        request: RestServiceRequest,
         validRequest: ValidRequest
     ) {
         SoftAssertions.assertSoftly { softly: SoftAssertions ->
-            softly.assertThat(restServiceRequest.isSuccess).isTrue
-            val request = restServiceRequest.getOrNull()!!
             //1 какой http метод запроса будет использован
             softly.assertThat(request.method).isEqualTo(HttpMethod.POST.name())
             // 2 на какой url будет отправлен запрос

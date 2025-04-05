@@ -8,12 +8,12 @@ import reactor.kotlin.core.publisher.toMono
 import team.codemonsters.refactoringexample.configuration.MqConfiguration
 import team.codemonsters.refactoringexample.configuration.MqServiceCfg
 import team.codemonsters.refactoringexample.configuration.RestConfiguration
-import team.codemonsters.refactoringexample.walletBalance.infrastructure.RestServiceResponse
 import team.codemonsters.refactoringexample.walletBalance.UnvalidatedRequest
 import team.codemonsters.refactoringexample.walletBalance.ValidRequest
 import team.codemonsters.refactoringexample.walletBalance.WalletBalance
+import team.codemonsters.refactoringexample.walletBalance.fold
 import team.codemonsters.refactoringexample.walletBalance.infrastructure.RestServiceRequest
-import team.codemonsters.refactoringexample.walletBalance.mapResult
+import team.codemonsters.refactoringexample.walletBalance.infrastructure.RestServiceResponse
 import team.codemonsters.refactoringexample.walletBalance.pipe
 
 @Service
@@ -29,17 +29,19 @@ class WalletBalanceService(
 
     fun process(message: Message<Any>): Mono<Result<WalletBalance>> =
         validateRequest(message)
-            .doOnNext { logWalletBalanceFlow() }
+            .doOnNext {
+                logWalletBalanceFlow(flowIsNotLogged)
+                flowIsNotLogged = false
+            }
             .pipe { sendAcceptedReceipt(it) }
             .pipe { getBalance(it) }
             .pipe { sendRestResponse(it) }
             .pipe { sendTransactionReceipt(it) }
             .flatMap { logError(it) }
 
-    private fun logWalletBalanceFlow() {
+    private fun logWalletBalanceFlow(flowIsNotLogged: Boolean) {
         if (flowIsNotLogged) {
             log.info("wallet-balance workflow is enabled")
-            flowIsNotLogged = false
         }
     }
 
@@ -53,12 +55,11 @@ class WalletBalanceService(
     private fun sendAcceptedReceipt(validRequest: ValidRequest): Mono<Result<ValidRequest>> =
         ReceiptAcceptedFactory.emerge(validRequest, mqConfig).toMono()
             .pipe { brokerGateway.sendReceipt(it) }
-            .mapResult { validRequest }
+            .fold { validRequest }
 
     private fun getBalance(validRequest: ValidRequest): Mono<Result<WalletBalance>> =
-        RestServiceRequest.emerge(validRequest).toMono()
-            .pipe { sendRestRequest(it) }
-            .mapResult { WalletBalance(validRequest, it) }
+        sendRestRequest(RestServiceRequest.of(validRequest))
+            .fold { WalletBalance(validRequest, it) }
 
     private fun sendTransactionReceipt(walletBalance: WalletBalance): Mono<Result<WalletBalance>> =
         brokerGateway.sendReceipt(
@@ -73,7 +74,7 @@ class WalletBalanceService(
             walletBalance.validRequest.unvalidatedRequest.incomingMessage,
             mqConfig,
         )
-            .mapResult { walletBalance }
+            .fold { walletBalance }
 
     private fun sendRestRequest(request: RestServiceRequest): Mono<Result<RestServiceResponse>> =
         restClient.sendRequest(request)

@@ -39,7 +39,7 @@ data class ReceiptAcceptedFactory private constructor(
         ): Result<ReceiptAcceptedFactory> =
             Result.success(validRequest)
                 .ensure(
-                    { isCorrelationIdPresentInHeader(it, mqConfig) },
+                    { isCorrelationIdPresentInHeader(it, mqConfig.correlationID) },
                     RuntimeException("Missing ${mqConfig.correlationID} header")
                 ).ensure(
                     { isMessageIdPresentInHeader(it) },
@@ -54,8 +54,8 @@ data class ReceiptAcceptedFactory private constructor(
 
         private fun isCorrelationIdPresentInHeader(
             it: ValidRequest,
-            mqConfig: MqServiceCfg
-        ) = it.unvalidatedRequest.incomingMessage.headers[mqConfig.correlationID] != null
+            correlationId: String
+        ) = it.unvalidatedRequest.incomingMessage.headers[correlationId] != null
     }
 
 }
