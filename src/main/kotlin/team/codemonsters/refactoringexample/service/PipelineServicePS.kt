@@ -43,14 +43,16 @@ class PipelineServicePS(
     private val featureToggles: FeatureToggles
 ) {
     private val mqConfig: MqServiceCfg = mqConfiguration.configs["ps"]!!
-
     private val log = LoggerFactory.getLogger(PipelineServicePS::class.java)!!
-
     private val SUCCESS_HTTP_STATUSES = setOf(HttpStatus.ACCEPTED.value(), HttpStatus.OK.value())
+    private var refactoredFlowIsNotLogged: Boolean = true
+
 
     @JmsListener(destination = "\${mq.configs.ps.REQ}")
     fun receiveBalance(message: Message<Any>) {
         if (featureToggles.isFeatureEnabled("wallet-balance-workflow")) {
+            logWalletBalanceFlow(refactoredFlowIsNotLogged)
+            refactoredFlowIsNotLogged = false
             workflow.process(message).subscribe()
         } else {
             receiveMessage(message)
@@ -62,6 +64,12 @@ class PipelineServicePS(
         log.info("headers: ${message.headers}")
         log.info("payload: ${message.payload}")
         processMessage(message)
+    }
+
+    private fun logWalletBalanceFlow(flowIsNotLogged: Boolean) {
+        if (flowIsNotLogged) {
+            log.info("wallet-balance workflow is enabled")
+        }
     }
 
     fun processMessage(message: Message<Any>) {

@@ -25,25 +25,14 @@ class WalletBalanceService(
 ) {
     private val log = LoggerFactory.getLogger(WalletBalanceService::class.java)!!
     private val mqConfig: MqServiceCfg = mqConfiguration.configs["ps"]!!
-    private var flowIsNotLogged: Boolean = true
 
     fun process(message: Message<Any>): Mono<Result<WalletBalance>> =
         validateRequest(message)
-            .doOnNext {
-                logWalletBalanceFlow(flowIsNotLogged)
-                flowIsNotLogged = false
-            }
             .pipe { sendAcceptedReceipt(it) }
             .pipe { getBalance(it) }
             .pipe { sendRestResponse(it) }
             .pipe { sendTransactionReceipt(it) }
             .flatMap { logError(it) }
-
-    private fun logWalletBalanceFlow(flowIsNotLogged: Boolean) {
-        if (flowIsNotLogged) {
-            log.info("wallet-balance workflow is enabled")
-        }
-    }
 
     private fun validateRequest(message: Message<Any>): Mono<Result<ValidRequest>> =
         Mono.just(
