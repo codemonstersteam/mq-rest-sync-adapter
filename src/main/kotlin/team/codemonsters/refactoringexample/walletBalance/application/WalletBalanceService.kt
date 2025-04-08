@@ -68,11 +68,8 @@ class WalletBalanceService(
             .map { it.map { walletBalance } }
 
     private fun sendRestResponse(walletBalance: WalletBalance): Mono<Result<WalletBalance>> =
-        brokerGateway.sendResponse(
-            walletBalance.httpResponseEnvelope,
-            walletBalance.validRequest.httpRequestEnvelope.operation,
-            walletBalance.validRequest.unvalidatedRequest.incomingMessage,
-            mqConfig,
+        brokerGateway.sendReceipt(
+            ResponseReceiptFactory(walletBalance, mqConfig)
         )
             .fold { walletBalance }
 
