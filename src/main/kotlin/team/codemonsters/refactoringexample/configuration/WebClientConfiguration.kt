@@ -13,6 +13,7 @@ import org.springframework.http.client.reactive.ReactorClientHttpConnector
 import org.springframework.web.reactive.function.client.WebClient
 import reactor.netty.http.client.HttpClient
 import reactor.netty.transport.logging.AdvancedByteBufFormat
+import java.util.*
 import java.util.concurrent.TimeUnit
 
 @Configuration
@@ -42,7 +43,7 @@ class WebClientConfiguration(private val webClientProperties: WebClientPropertie
     private fun getLogLevel(): String {
         val logger = LoggerFactory.getLogger(HttpClient::class.java.packageName) as Logger
         return logger.run {
-            if (level == null) level = Level.toLevel(webClientProperties.logging.defaultLevel.toUpperCase())
+            if (level == null) level = Level.toLevel(webClientProperties.logging.defaultLevel.uppercase(Locale.getDefault()))
             level.levelStr
         }
     }

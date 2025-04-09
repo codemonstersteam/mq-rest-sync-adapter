@@ -138,14 +138,14 @@ class PipelineServicePS(
         fromJsonString(httpRequestEnvelope).fold(
             onSuccess = { request ->
                 PsGetBalanceRequest.fromJsonString(request.body!!).fold(
-                    onSuccess = { request ->
+                    onSuccess = {
                         Result.success(
                             JsonUtil.toJson(
                                 ReceiptPs(
-                                    request.requestType,
-                                    request.dateFrom,
-                                    request.dateTo,
-                                    request.operTime,
+                                    it.requestType,
+                                    it.dateFrom,
+                                    it.dateTo,
+                                    it.operTime,
                                     flag,
                                     errorCode,
                                     description,
