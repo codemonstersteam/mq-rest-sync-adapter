@@ -17,7 +17,7 @@ stages:
   - test
 
 test:
-  image: gradle:jdk17
+  image: gradle:jdk21
   stage: test
   tags:
     - testcontainers
