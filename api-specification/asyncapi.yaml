@@ -35,6 +35,12 @@ channels:
     messages:
       httpRequestEnvelope:
         $ref: '#/components/messages/httpRequestEnvelope'
+  receiptReceivedRequest:
+    address: "RECEIPT.QUEUE.PS"
+    description: канал используется для отправки квитанции о получении запроса
+    messages:
+      receiptValidationAcceptance:
+        $ref: '#/components/messages/ReceiptValidationAcceptance'
 operations:
   receiveEnvelope:
     action: receive
@@ -50,6 +56,12 @@ components:
       contentType: application/json
       payload:
         $ref: '#/components/schemas/httpEnvelopePayload'
+    receiptValidationAcceptance:
+      name: receiptValidationAcceptance
+      title: Successful receipt of request
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/receiptValidationAcceptancePayload'
   schemas:
     httpEnvelopePayload:
       type: object
@@ -97,4 +109,27 @@ components:
         body:
           type: string
           description: request body
-
+    receiptValidationAcceptancePayload:
+      type: object
+      required:
+        - requestType
+        - dateFrom
+        - operTime
+        - flag
+      properties:
+        requestType:
+          type: string
+          description: Тип запроса
+          enum:
+            - operationHistory
+        dateFrom:
+          type: double
+          description: Дата сформированного запроса
+        operTime:
+          type: double
+          description: Дата и время операции
+        flag:
+          type: string
+          description: Флаг квитанции
+          enum:
+            - ACCEPTED
