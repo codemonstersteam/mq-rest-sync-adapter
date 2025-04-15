@@ -35,12 +35,18 @@ channels:
     messages:
       httpRequestEnvelope:
         $ref: '#/components/messages/httpRequestEnvelope'
-  receiptReceivedRequest:
+  receiptReceived:
     address: "RECEIPT.QUEUE.PS"
-    description: канал используется для отправки квитанции о получении запроса
+    description: канал используется для доставки квитанции об успешном получении запроса и начале обработке запроса
     messages:
       receiptValidationAcceptance:
-        $ref: '#/components/messages/ReceiptValidationAcceptance'
+        $ref: '#/components/messages/receiptValidationAcceptance'
+  transactionReceipt:
+    address: "RECEIPT.QUEUE.PS"
+    description: канал используется для доставки квитанции о транзакции
+    messages:
+      transactionReceipt:
+        $ref: '#/components/messages/transactionReceipt'
 operations:
   receiveEnvelope:
     action: receive
@@ -48,6 +54,14 @@ operations:
       $ref: "#/channels/incomingMessages"
     summary: |
       :Получает конверт с запросом
+  sendAcceptedReceipt:
+    action: send
+    channel:
+      $ref: "#/channels/receiptReceived"
+  sendTransactionReceipt:
+    action: send
+    channel:
+      $ref: "#/channels/transactionReceipt"
 components:
   messages:
     httpRequestEnvelope:
@@ -57,11 +71,17 @@ components:
       payload:
         $ref: '#/components/schemas/httpEnvelopePayload'
     receiptValidationAcceptance:
-      name: receiptValidationAcceptance
-      title: Successful receipt of request
+      name: ReceiptValidationAcceptance
+      title: Квитанция об успешном получении запроса
       contentType: application/json
       payload:
         $ref: '#/components/schemas/receiptValidationAcceptancePayload'
+    transactionReceipt:
+      name: TransactionReceipt
+      title: Квитанция об успешном получении запроса
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/transactionReceiptPayload'
   schemas:
     httpEnvelopePayload:
       type: object
@@ -123,13 +143,76 @@ components:
           enum:
             - operationHistory
         dateFrom:
-          type: double
-          description: Дата сформированного запроса
+          type: number
+          description: |
+            Дата сформированного запроса 
+            Java OffsetDateTime
+            A date-time with an offset from UTC/Greenwich in the ISO-8601 calendar system, such as 2007-12-03T10:15:30+01:00.
         operTime:
-          type: double
-          description: Дата и время операции
+          type: number
+          description: |
+            Дата и время операции
+            Java OffsetDateTime
+            A date-time with an offset from UTC/Greenwich in the ISO-8601 calendar system, such as 2007-12-03T10:15:30+01:00.
         flag:
           type: string
-          description: Флаг квитанции
+          description: |
+            Флаг определяющий статус квитанции
           enum:
             - ACCEPTED
+        dateTo:
+          type: number
+          description: |
+            Дата и время окончания запроса
+            Java OffsetDateTime
+            A date-time with an offset from UTC/Greenwich in the ISO-8601 calendar system, such as 2007-12-03T10:15:30+01:00.
+        errorCode:
+          type: number
+          description: Код ошибки
+        description:
+          type: string
+          description: Описание ошибки
+    transactionReceiptPayload:
+      type: object
+      required:
+        - requestType
+        - dateFrom
+        - operTime
+        - flag
+      properties:
+        requestType:
+          type: string
+          description: Тип запроса
+          enum:
+            - operationHistory
+        dateFrom:
+          type: number
+          description: |
+            Дата сформированного запроса 
+            Java OffsetDateTime
+            A date-time with an offset from UTC/Greenwich in the ISO-8601 calendar system, such as 2007-12-03T10:15:30+01:00.
+        operTime:
+          type: number
+          description: |
+            Дата и время операции
+            Java OffsetDateTime
+            A date-time with an offset from UTC/Greenwich in the ISO-8601 calendar system, such as 2007-12-03T10:15:30+01:00.
+        flag:
+          type: string
+          description: |
+            Флаг определяющий статус квитанции
+          enum:
+            - SUCCESS
+            - ERROR
+        dateTo:
+          type: number
+          description: |
+            Дата и время окончания запроса
+            Java OffsetDateTime
+            A date-time with an offset from UTC/Greenwich in the ISO-8601 calendar system, such as 2007-12-03T10:15:30+01:00.
+        errorCode:
+          type: number
+          description: Код ошибки
+        description:
+          type: string
+          description: Описание ошибки
