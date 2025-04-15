@@ -47,6 +47,12 @@ channels:
     messages:
       transactionReceipt:
         $ref: '#/components/messages/transactionReceipt'
+  sendRestResponse:
+    address: "OUT.QUEUE.PS"
+    description: канал используется для доставки ответа от REST сервиса
+    messages:
+      httpResponseEnvelope:
+        $ref: '#/components/messages/httpResponseEnvelope'
 operations:
   receiveEnvelope:
     action: receive
@@ -62,6 +68,11 @@ operations:
     action: send
     channel:
       $ref: "#/channels/transactionReceipt"
+  sendRestResponse:
+    action: send
+    channel:
+      $ref: "#/channels/sendRestResponse"
+
 components:
   messages:
     httpRequestEnvelope:
@@ -82,6 +93,12 @@ components:
       contentType: application/json
       payload:
         $ref: '#/components/schemas/transactionReceiptPayload'
+    httpResponseEnvelope:
+      name: httpResponseEnvelope
+      title: Http Response Envelope
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/httpResponseEnvelopePayload'
   schemas:
     httpEnvelopePayload:
       type: object
@@ -216,3 +233,57 @@ components:
         description:
           type: string
           description: Описание ошибки
+    httpResponseEnvelopePayload:
+      type: object
+      required:
+        - correlationId
+        - status
+        - message
+        - method
+        - service
+        - operation
+        - headers
+        - body
+      properties:
+        correlationId:
+          type: string
+          description: Correlation Id
+        status:
+          type: integer
+          description: httpCode
+        message:
+          type: string
+          description: httpCode.reasonPhrase
+        method:
+          type: string
+          enum:
+            - GET
+            - POST
+          description: http метод
+        service:
+          type: string
+          enum:
+            - api-gateway
+          description: конфигурация вызова в перекладчике содержит название REST сервиса
+        operation:
+          type: string
+          enum:
+            - client-wallet-balance
+            - client-wallet-status
+          description: |
+            конфигурация вызова в перекладчике содержит название операции REST сервиса
+            из двух свойств service + operation из конфига собирается
+            url запроса в REST сервис
+        headers:
+          type: object
+          properties:
+            "Api-clientId":
+              type: string
+              description: |
+                Идентификатор клиента содержится в заголовке http запроса
+                Этот параметр также используется в формировании запроса в REST сервис
+          required:
+            - "Api-clientId"
+        body:
+          type: string
+          description: request body
