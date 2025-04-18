@@ -1,5 +1,20 @@
 # mq-rest-sync-adapter
 
+Начало истории в [01-dev-origin](https://git.codemonsters.team/guides/mq-rest-sync-adapter/-/tree/01-dev-origin?ref_type=heads)
+
+Этот [выразительный пример плохого качества](https://git.codemonsters.team/guides/mq-rest-sync-adapter/-/tree/01-dev-origin?ref_type=heads) кодописи и применения [кукбука](https://git.codemonsters.team/guides/ddd-code-toolkit) мотивировал меня писать статьи про рефакторинг.
+- [Как написать чистый код и сделать жизнь проще](https://codemonsters.team/effective-developer/code/clean-code/how-to/)  
+- [Как не стоит писать код: разбираем ошибки](https://codemonsters.team/effective-developer/code/clean-code/how-not-to-write-code/)  
+- [Гайд по чистому коду: начало улучшений. Какие тесты добавить в проект в первую очередь](https://codemonsters.team/effective-developer/code/clean-code/how-to-integration-test/)  
+
+Далее я описывал рефакторинг этого проекта.
+Я осознал в какой-то момент, что хочу написать электрокнигу для введения в эффективную разработку
+Статья получилась большой и сложной для восприятия новичка.
+Драфт большой статьи я выложу. На свой сайт в блог
+
+Ты читаешь исходник сервиса с переписанным куском бизнес-логики.
+Этот улучшенный кусок [встроен](https://git.codemonsters.team/guides/mq-rest-sync-adapter/-/blob/feature/02-vertical-slice-refactoring/src/main/kotlin/team/codemonsters/refactoringexample/service/PipelineServicePS.kt?ref_type=heads#L53) по вертикальному срезу с фича тоглом
+
 ## Пример рефакторинга по кукбуку
 
 В серии статей я опишу, почему я прошу разработчиков читать книги  
