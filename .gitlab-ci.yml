@@ -14,6 +14,7 @@ variables:
 
 
 stages:
+  - test-api-specification
   - test
 
 test:
@@ -23,3 +24,11 @@ test:
     - testcontainers
   script:
     - ./gradlew test
+
+test-api-specification:
+  image:
+    name: asyncapi/cli:3.1.1
+    entrypoint: ['']
+  stage: test-api-specification
+  script:
+    - asyncapi validate ./api-specification/asyncapi.yml
