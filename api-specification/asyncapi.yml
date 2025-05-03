@@ -31,7 +31,12 @@ servers:
   restServer:
     host: https://localhost:8080
     protocol: https
-    pathname: /api/client/${Api-clientId}/wallet/balance
+    pathname: '/api/client/{clientId}/wallet/balance'
+    security:
+      - $ref: '#/components/securitySchemes/userPass'
+    variables:
+      clientId:
+        default: Api-clientId-01
     description: |
       Тестовый инстанс REST http в докере 
       который предоставляет информацию о балансе
@@ -53,7 +58,8 @@ channels:
         $ref: '#/components/messages/httpRequestEnvelope'
   receiptReceived:
     address: "RECEIPT.QUEUE.PS"
-    description: канал используется для доставки квитанции об успешном получении запроса и начале обработке запроса
+    description: |
+      канал используется для доставки квитанции об успешном получении запроса и начале обработке запроса
     messages:
       receiptValidationAcceptance:
         $ref: '#/components/messages/receiptValidationAcceptance'
@@ -69,6 +75,14 @@ channels:
     messages:
       httpResponseEnvelope:
         $ref: '#/components/messages/httpResponseEnvelope'
+  getBalanceRequest:
+    address: "/api/client/{Api-clientId}/wallet/balance"
+    description: |
+      Канал используется для обращения по REST-у в сервис
+      для получения баланса кошелька
+    messages:
+      httpRequestEnvelope:
+        $ref: '#/components/messages/psGetBalanceRequest'
 operations:
   receiveEnvelope:
     action: receive
@@ -88,7 +102,14 @@ operations:
     action: send
     channel:
       $ref: "#/channels/sendRestResponse"
+  getBalanceRequest:
+    action: send
+    channel:
+      $ref: "#/channels/getBalanceRequest"
 components:
+  securitySchemes:
+    userPass:
+      type: userPassword
   messages:
     httpRequestEnvelope:
       name: httpRequestEnvelope
@@ -114,6 +135,14 @@ components:
       contentType: application/json
       payload:
         $ref: '#/components/schemas/httpResponseEnvelopePayload'
+    psGetBalanceRequest:
+      name: PsGetBalanceRequest
+      title: Http Request PsGetBalanceRequest
+      contentType: application/json
+      headers:
+        $ref: '#/components/schemas/psGetBalanceRequestHeaders'
+      payload:
+        $ref: '#/components/schemas/psGetBalanceRequestPayload'
   schemas:
     httpEnvelopePayload:
       type: object
@@ -302,3 +331,35 @@ components:
         body:
           type: string
           description: request body
+    psGetBalanceRequestHeaders:
+      type: object
+      properties:
+        Api-clientId:
+          type: string
+          example: Api-clientId-01
+        RequestID:
+          type: string
+          example: request-01
+    psGetBalanceRequestPayload:
+      type: object
+      required:
+        - requestType
+        - dateFrom
+        - dateTo
+        - operTime
+      properties:
+        requestType:
+          type: string
+          example: "operationHistory"
+        dateFrom:
+          type: number
+          format: double
+          example: 1745299787.198193738
+        dateTo:
+          type: number
+          format: double
+          example: 1745299792.198546764
+        operTime:
+          type: number
+          format: double
+          example: 1745299737.198562113

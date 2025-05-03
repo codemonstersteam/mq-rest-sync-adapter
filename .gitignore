@@ -47,3 +47,5 @@ gradle-app.setting
 /.idea/
 /FFDC/
 mqjms.*
+.vscode/
+/bin/
