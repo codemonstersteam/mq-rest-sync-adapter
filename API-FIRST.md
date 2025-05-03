@@ -3,7 +3,7 @@
 ## Async API
 https://www.asyncapi.com/docs/tools/cli/usage
 
-```
+```bash
 asyncapi validate api-specification/asyncapi.yaml
 ```
 
@@ -12,7 +12,7 @@ https://hub.docker.com/r/asyncapi/
 
 https://hub.docker.com/r/asyncapi/generator
 
-```
+```bash
 docker run --rm -it \
 --user=root \
 -v api-specification/asyncapi.yaml:/app/asyncapi.yml \
@@ -20,7 +20,7 @@ docker run --rm -it \
 asyncapi/cli --help
 ```
 
-```
+```bash
 docker run --rm -it \
 --entrypoint='' \
 --user=root \
@@ -34,7 +34,7 @@ asyncapi validate /app/asyncapi.yml
 Разобрался с async api 3.0.0
 Пусть мне мой ИИ Друг поможет написать остаток спеки на исходящий запрос
 
-```
+```http
 Напиши async api specification версии 3.0.0
 на исходящий запрос из сервиса
 адрес канала url: http://localhost:40303/api/client/Api-clientId-01/wallet/balance
@@ -46,7 +46,7 @@ http заголовок:
 ```
 
 Результат:
-```
+```yaml
 asyncapi: 3.0.0
 info:
   title: Wallet Balance API
