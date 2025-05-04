@@ -15,6 +15,17 @@
 Ты читаешь исходник сервиса с переписанным куском бизнес-логики.
 Этот улучшенный кусок [встроен](https://git.codemonsters.team/guides/mq-rest-sync-adapter/-/blob/feature/02-vertical-slice-refactoring/src/main/kotlin/team/codemonsters/refactoringexample/service/PipelineServicePS.kt?ref_type=heads#L53) по вертикальному срезу с фича тоглом
 
+## Бранчи и история 
+- [0 01-dev-origin: исходное состояние проекта](https://git.codemonsters.team/guides/mq-rest-sync-adapter/-/tree/01-dev-origin?ref_type=heads)  
+- [01 01-readme: пишем основу - README.md](https://git.codemonsters.team/guides/mq-rest-sync-adapter/-/tree/feature/01-readme?ref_type=heads)  
+- [01 01-integration-tests : Пишем компонентный тест на бизнес-процесс](https://git.codemonsters.team/guides/mq-rest-sync-adapter/-/tree/feature/01-integration-tests?ref_type=heads)  
+- [02 02-vertical-slice : Описываем новый процесс в вертикальном срезе и пузырьке(Bubble context)](https://git.codemonsters.team/guides/mq-rest-sync-adapter/-/tree/feature/02-vertical-slice?ref_type=heads)  
+  - [ССылка на бизнес-логику в вертикальном срезе](https://git.codemonsters.team/guides/mq-rest-sync-adapter/-/tree/feature/02-vertical-slice/src/main/kotlin/team/codemonsters/refactoringexample/walletBalance?ref_type=heads)  
+  - [Ссылка на легаси точку входа в бизнес-процесс и фича тогл](https://git.codemonsters.team/guides/mq-rest-sync-adapter/-/blob/feature/02-vertical-slice/src/main/kotlin/team/codemonsters/refactoringexample/service/PipelineServicePS.kt?ref_type=heads)  
+- [02-vertical-slice-refactoring : Улучшенный код процесса с сохранением легаси](https://git.codemonsters.team/guides/mq-rest-sync-adapter/-/tree/feature/02-vertical-slice-refactoring?ref_type=heads)  
+- [main : кусок кода, который стремится к эталону (вмерджил 04.05)](https://git.codemonsters.team/guides/mq-rest-sync-adapter/-/tree/main?ref_type=heads)   
+
+
 ## Пример рефакторинга по кукбуку
 
 В серии статей я опишу, почему я прошу разработчиков читать книги  
