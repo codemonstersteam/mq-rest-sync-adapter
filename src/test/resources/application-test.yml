@@ -1,0 +1,26 @@
+logging:
+  level:
+    org.springframework: INFO
+    org.springframework.jms: DEBUG
+    team.codemonsters: DEBUG
+
+# конфигураця подключения к брокеру IBM MQ
+ibm:
+  mq:
+    queueManager: QM1
+    channel: DEV.ADMIN.SVRCONN
+    connName: localhost(1414)
+    user: admin
+    password: passw0rd
+
+features:
+  toggles:
+    test-feature:
+      enabled: true
+      description: "Включает тестовую фичу"
+    test-feature-disabled:
+      enabled: false
+      description: "Включает тестовую фичу"
+    wallet-balance-workflow:
+      enabled: false
+      description: "Включает переработанный код бизнес-процесса получения баланса кошелька"

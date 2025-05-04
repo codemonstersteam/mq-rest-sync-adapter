@@ -1,0 +1,34 @@
+# DinD service is required for Testcontainers
+services:
+  - name: docker:dind
+    # explicitly disable tls to avoid docker startup interruption
+    command: ["--tls=false"]
+
+variables:
+  # Instruct Testcontainers to use the daemon of DinD, use port 2375 for non-tls connections.
+  DOCKER_HOST: "tcp://docker:2375"
+  # Instruct Docker not to start over TLS.
+  DOCKER_TLS_CERTDIR: ""
+  # Improve performance with overlayfs.
+  DOCKER_DRIVER: overlay2
+
+
+stages:
+  - test-api-specification
+  - test
+
+test:
+  image: gradle:jdk21
+  stage: test
+  tags:
+    - testcontainers
+  script:
+    - ./gradlew test
+
+test-api-specification:
+  image:
+    name: asyncapi/cli:3.1.1
+    entrypoint: ['']
+  stage: test-api-specification
+  script:
+    - asyncapi validate ./api-specification/asyncapi.yml
