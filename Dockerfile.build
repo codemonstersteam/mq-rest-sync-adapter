@@ -1,0 +1,29 @@
+# Dockerfile.build
+FROM bellsoft/liberica-openjdk-alpine:21 AS builder
+
+# Аргументы для UID и GID
+ARG USER_ID
+ARG GROUP_ID
+
+# Устанавливаем необходимые инструменты
+RUN apk add --no-cache bash shadow sudo
+RUN addgroup -g ${GROUP_ID} runner;
+RUN adduser -u ${USER_ID} -G runner runner;
+# Даем пользователю runner права sudo без пароля
+RUN echo "runner ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/runner
+
+
+# Создаем рабочую директорию
+WORKDIR /app
+
+# Устанавливаем права на рабочую директорию
+RUN chown -R ${USER_ID}:${GROUP_ID} /app
+
+RUN mkdir -p /home/runner/.gradle && \
+    chown -R ${USER_ID}:${GROUP_ID} /home/runner/.gradle
+
+# Переключаемся на пользователя runner
+USER ${USER_ID}:${GROUP_ID}
+
+# Запускаем bash по умолчанию
+CMD ["sh"]

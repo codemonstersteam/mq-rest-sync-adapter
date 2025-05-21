@@ -1,0 +1,43 @@
+services:
+  # Сервис для сборки
+  builder:
+    build:
+      context: .
+      dockerfile: Dockerfile.build
+      args:
+        USER_ID: ${UID}
+        GROUP_ID: ${GID}
+    user: $UID:$GID
+    volumes:
+      - .:/app
+      - ${HOME}/.gradle:/home/runner/.gradle
+    command: | 
+        sh -c '
+          whoami
+          pwd
+          ls -la
+          ls -la /home/runner
+          ./gradlew build
+        '
+    profiles: 
+      - build
+
+  # Сервис для запуска приложения
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.runtime
+    ports:
+      - "8080:8080"
+    environment:
+      - JAVA_OPTS=-Xms64m -Xmx256m
+    profiles:
+      - run
+
+volumes:
+  gradle-cache:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${HOME}/.gradle
