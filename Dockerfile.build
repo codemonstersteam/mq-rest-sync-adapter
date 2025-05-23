@@ -7,8 +7,8 @@ ARG GROUP_ID
 
 # Устанавливаем необходимые инструменты
 RUN apk add --no-cache bash shadow sudo
-RUN addgroup -g ${GROUP_ID} runner;
-RUN adduser -u ${USER_ID} -G runner runner;
+RUN addgroup -g ${GROUP_ID} runner
+RUN adduser -D -u ${USER_ID} -G runner -s /sbin/nologin runner
 # Даем пользователю runner права sudo без пароля
 RUN echo "runner ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/runner
 
@@ -26,4 +26,4 @@ RUN mkdir -p /home/runner/.gradle && \
 USER ${USER_ID}:${GROUP_ID}
 
 # Запускаем bash по умолчанию
-CMD ["sh"]
+CMD ["/bin/bash"]

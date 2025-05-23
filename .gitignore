@@ -49,3 +49,4 @@ gradle-app.setting
 mqjms.*
 .vscode/
 /bin/
+gradle-cache/

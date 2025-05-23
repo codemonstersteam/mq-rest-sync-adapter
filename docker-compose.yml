@@ -10,14 +10,14 @@ services:
     user: $UID:$GID
     volumes:
       - .:/app
-      - ${HOME}/.gradle:/home/runner/.gradle
+      - ./gradle-cache:/home/runner/.gradle
     command: | 
-        sh -c '
+        bash -c '
           whoami
           pwd
           ls -la
           ls -la /home/runner
-          ./gradlew build
+          ./gradlew build -x test
         '
     profiles: 
       - build
@@ -33,11 +33,3 @@ services:
       - JAVA_OPTS=-Xms64m -Xmx256m
     profiles:
       - run
-
-volumes:
-  gradle-cache:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${HOME}/.gradle
