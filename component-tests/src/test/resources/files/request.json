@@ -1,0 +1,13 @@
+{
+    "correlationId": "correlationId",
+    "queue": "IN.QUEUE.PS",
+    "payload": "{\"correlationId\":\"correlationId\",\"method\":\"POST\",\"service\":\"api-gateway\",\"operation\":\"client-wallet-balance\",\"headers\":{\"Api-clientId\":\"Api-clientId-01\",\"RequestID\":\"request-01\"},\"body\":\"{\\\"requestType\\\":\\\"operationHistory\\\",\\\"dateFrom\\\":1746692161.068181222,\\\"dateTo\\\":1746692166.068311828,\\\"operTime\\\":1746692251.068322509}\"}",
+    "headers": {
+        "X_Method": "client-wallet-balance",
+        "jms_messageId": "de741c66-4eea-4316-a42c-a42bb15c8e32",
+        "X_TransactionID": "transaction-01",
+        "X_RequestID": "x-request-01",
+        "RequestID": "request-01",
+        "CorrelationID": "CorrelationID"
+    }
+}

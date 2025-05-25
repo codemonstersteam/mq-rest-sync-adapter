@@ -1,0 +1,60 @@
+plugins {
+    id 'java'
+}
+
+group = 'team.codemonsters.mqrestsyncadapter.test'
+version = '1.0.0-SNAPSHOT'
+sourceCompatibility = '21'
+
+repositories {
+    mavenCentral()
+}
+
+configurations {
+    cucumberRuntime {
+        extendsFrom testImplementation
+    }
+}
+
+dependencies {
+    // IBM MQ Client 
+    implementation 'com.ibm.mq:com.ibm.mq.allclient:9.3.3.0'
+    
+    // Cucumber for BDD testing
+    testImplementation 'io.cucumber:cucumber-java:7.14.0'
+    testImplementation 'io.cucumber:cucumber-junit:7.14.0'
+    
+    // REST client for testing REST endpoints and WireMock admin API
+    implementation 'org.apache.httpcomponents:httpclient:4.5.14'
+    
+    // JSON Processing
+    implementation 'org.json:json:20231013'
+    
+    // JUnit and assertion libraries
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.9.3'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.9.3'
+    testImplementation 'org.assertj:assertj-core:3.24.2'
+    
+    // Logging
+    implementation 'org.slf4j:slf4j-api:2.0.7'
+    implementation 'ch.qos.logback:logback-classic:1.4.8'
+}
+
+tasks.register('cucumber', JavaExec) {
+    dependsOn assemble, testClasses
+    classpath = configurations.testRuntimeClasspath + sourceSets.main.output + sourceSets.test.output
+    mainClass = "io.cucumber.core.cli.Main"
+    args = [
+        '--plugin', 'pretty',
+        '--plugin', 'html:build/reports/cucumber.html',
+        '--plugin', 'json:build/reports/cucumber.json',
+        '--glue', 'team.codemonsters.mqrestsyncadapter.test.stepdefs',
+        'src/test/resources/features'
+    ]
+}
+
+
+test {
+    useJUnitPlatform()
+    finalizedBy cucumber
+}
