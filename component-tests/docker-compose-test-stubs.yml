@@ -45,35 +45,6 @@ services:
       retries: 5
 
   
-  sut:
-    build:
-      context: ../
-      dockerfile: Dockerfile.runtime
-    container_name: sut
-    environment:
-      - spring.profiles.active=component-test
-      - ibm.mq.queueManager=QM1
-      - ibm.mq.channel=DEV.APP.SVRCONN
-      - ibm.mq.connName=ibmmq(1414)
-      - ibm.mq.user=app
-      - ibm.mq.password=passw0rd
-      - rest.configs.api-gateway.url=http://wiremock:8080
-      - rest.configs.api-gateway.basic-auth.user=client
-      - rest.configs.api-gateway.basic-auth.password=password
-    hostname: sut
-    networks:
-      - test-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
-      interval: 5s
-      timeout: 3s
-      retries: 5 
-    depends_on:
-      ibmmq:
-        condition: service_healthy
-      wiremock:
-        condition: service_healthy    
-  
   # Тестовый контейнер (если запускаете тесты как отдельный сервис)
   test-runner:
     image: codemonstersteam/jdk21-deps:0.0.4
@@ -97,7 +68,7 @@ services:
         id
         ls -la
         echo "pwd > $(pwd)"
-        ./gradlew cucumber -Dcucumber.filter.tags="@test-sut"
+        ./gradlew cucumber -Dcucumber.filter.tags="@test-stubs"
         chmod -R 777 ./build
         chown -R 988:986 ./build
         chmod -R 777 .gradle
@@ -110,8 +81,6 @@ services:
         condition: service_healthy
       wiremock:
         condition: service_healthy
-      # sut:
-      #   condition: service_healthy
 
 # MQ-REST-Sync-Adapter Service
 networks:

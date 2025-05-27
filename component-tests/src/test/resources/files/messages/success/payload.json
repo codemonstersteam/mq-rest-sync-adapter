@@ -1,0 +1,17 @@
+{
+    "correlationId": "correlationId",
+    "method": "POST",
+    "service": "api-gateway",
+    "operation": "client-wallet-balance",
+    "headers": {
+        "Api-clientId": "Api-clientId-01",
+        "RequestID": "request-01"
+    },
+    "body": {
+        "requestType": "operationHistory",
+        "dateFrom": 1747377682.865268036,
+        "dateTo": 1748241682.865268036,
+        "operTime": 1748241672.865268036
+    }
+}
+

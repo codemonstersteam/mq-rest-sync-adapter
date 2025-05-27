@@ -30,7 +30,7 @@ services:
     container_name: wiremock
     hostname: wiremock
     ports:
-      - "8080:8080"
+      - "8081:8080"
     volumes:
       - ./wiremock:/home/wiremock
     command: 
@@ -43,44 +43,6 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
-
-  
-  # Тестовый контейнер (если запускаете тесты как отдельный сервис)
-  test-runner:
-    image: codemonstersteam/jdk21-deps:0.0.4
-    container_name: test-runner
-    # user: "988:986"
-    environment:
-      - MQ_HOST=ibmmq
-      - MQ_PORT=1414
-      - MQ_QMGR_NAME=QM1
-      - MQ_CHANNEL=DEV.APP.SVRCONN
-      - MQ_USER=app
-      - MQ_PASSWORD=passw0rd
-      - WIREMOCK_HOST=wiremock
-      - WIREMOCK_PORT=8080
-    volumes:
-      - ./:/home/gitlab-runner/project:Z
-    working_dir: /home/gitlab-runner/project
-    command: |
-      bash -c '
-        echo "log of test-runner"
-        id
-        ls -la
-        echo "pwd > $(pwd)"
-        ./gradlew cucumber --tags "@test-stubs"
-        chmod -R 777 ./build
-        chown -R 988:986 ./build
-        chmod -R 777 .gradle
-        chown -R 988:986 .gradle
-      '
-    networks:
-      - test-network
-    depends_on:
-      ibmmq:
-        condition: service_healthy
-      wiremock:
-        condition: service_healthy
 
 # MQ-REST-Sync-Adapter Service
 networks:

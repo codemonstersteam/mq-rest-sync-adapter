@@ -1,0 +1,26 @@
+{
+  "correlationId": "correlationId",
+  "status": 200,
+  "message": "OK",
+  "method": "POST",
+  "service": "api-gateway",
+  "operation": "client-wallet-balance",
+  "body": {
+    "status": "success",
+    "actualTimestamp": 1607449018829,
+    "data": {
+      "createTime": 1600443296227,
+      "operationId": "01",
+      "balance": {
+        "value": 999.9,
+        "currency": "rub"
+      }
+    }
+  },
+  "headers": {
+    "Content-Type": ["application/json"],
+    "Matched-Stub-Id": ["ebdfff5a-ff41-4259-870e-e3e3015875a0"],
+    "Vary": ["Accept-Encoding, User-Agent"],
+    "Transfer-Encoding": ["chunked"]
+  }
+}

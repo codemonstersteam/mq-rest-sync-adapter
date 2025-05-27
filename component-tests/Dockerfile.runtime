@@ -9,7 +9,7 @@ ENV JAVA_OPTS="-Xms64m -Xmx256m"
 
 # Предполагаем, что JAR файл находится в build/libs/app.jar
 # Изменить путь, если он отличается в вашем проекте
-COPY build/libs/*.jar /app/app.jar
+COPY build/libs/mq-rest-sync-adapter-0.0.1.jar /app/app.jar
 COPY src/main/resources/application.yml /app/application.yml
 
 # Устанавливаем пользователя без привилегий root для запуска

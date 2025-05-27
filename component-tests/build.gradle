@@ -44,17 +44,27 @@ tasks.register('cucumber', JavaExec) {
     dependsOn assemble, testClasses
     classpath = configurations.testRuntimeClasspath + sourceSets.main.output + sourceSets.test.output
     mainClass = "io.cucumber.core.cli.Main"
-    args = [
+    
+    def baseArgs = [
         '--plugin', 'pretty',
         '--plugin', 'html:build/reports/cucumber.html',
         '--plugin', 'json:build/reports/cucumber.json',
         '--glue', 'team.codemonsters.mqrestsyncadapter.test.stepdefs',
-        'src/test/resources/features'
     ]
+    
+    // Добавляем поддержку тегов через системные свойства
+    def tags = System.getProperty('cucumber.filter.tags')
+    if (tags) {
+        baseArgs.addAll(['--tags', tags])
+    }
+    
+    baseArgs.add('src/test/resources/features')
+    args = baseArgs
 }
 
 
 test {
     useJUnitPlatform()
+    systemProperty 'cucumber.filter.tags', System.getProperty('cucumber.filter.tags')
     finalizedBy cucumber
 }
