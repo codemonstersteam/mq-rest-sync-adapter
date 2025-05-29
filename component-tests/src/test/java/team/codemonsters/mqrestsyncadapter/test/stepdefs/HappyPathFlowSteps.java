@@ -6,10 +6,9 @@ import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import javax.jms.Connection;
 import javax.jms.Message;
@@ -52,8 +51,6 @@ public class HappyPathFlowSteps {
         factory.setQueueManager(TestConfig.MQ_QMGR_NAME);
         factory.setChannel(TestConfig.MQ_CHANNEL); // Должен совпадать с MQ_CHANNEL в компоуз
         factory.setTransportType(1); // Client transport type
-
-        // Используем app пользователя, а не admin
         connection = factory.createConnection(TestConfig.MQ_USER, TestConfig.MQ_PASSWORD);
 
     }
@@ -86,7 +83,6 @@ public class HappyPathFlowSteps {
     }
 
     private String createValidBody() {
-        long requestLifetime = 60000;
         OffsetDateTime dateFrom = OffsetDateTime.now().minus(Duration.ofSeconds(10));
         OffsetDateTime dateTo = OffsetDateTime.now().minus(Duration.ofSeconds(5));
         OffsetDateTime operationTime = OffsetDateTime.now().plus(Duration.ofMillis(60000))
@@ -151,11 +147,11 @@ public class HappyPathFlowSteps {
             System.out.println("Received Message: " + receivedMessage.getText());
             receivedReceipts.add(receivedMessage);
             Map<String, Object> json = objectMapper.readValue(receivedMessage.getText(), new TypeReference<>() {});
-            verifyReceipt(flag, json);
+            assertReciept(flag, json);
         }
     }
     
-    private void verifyReceipt(String flag, Map<String, Object> json) throws Exception {
+    private void assertReciept(String flag, Map<String, Object> json) throws Exception {
         assertThat(json.get("requestType")).isEqualTo("operationHistory");
         assertThat(json.get("flag")).isEqualTo(flag);
         assertThat(json.get("errorCode")).isNull();
@@ -176,8 +172,27 @@ public class HappyPathFlowSteps {
             System.out.println("Received Message: " + receivedMessage.getText());
             receivedResponseMessage = receivedMessage;
             Map<String, Object> json = objectMapper.readValue(receivedMessage.getText(), new TypeReference<>() {});
-            
+            assertRespone(json); 
         }
+    }
+
+    private void assertRespone(Map<String, Object> json) throws Exception {
+        assertThat(json.get("correlationId")).isEqualTo("correlationId");
+        assertThat(json.get("status")).isEqualTo(200);
+        assertThat(json.get("message")).isEqualTo("OK");
+        assertThat(json.get("method")).isEqualTo("POST");
+        assertThat(json.get("service")).isEqualTo("api-gateway");
+        assertThat(json.get("operation")).isEqualTo("client-wallet-balance");
+        Map<String, Object> responseBody = objectMapper.readValue(json.get("body").toString(), new TypeReference<>() {});
+        System.out.println("Body: " + responseBody.toString());
+        assertThat(responseBody.get("status")).isEqualTo("success");
+        assertThat(responseBody.get("actualTimestamp")).isEqualTo(1607449018829L);
+        Map<String, Object> data = (Map<String, Object>) responseBody.get("data");
+        assertThat(data.get("createTime")).isEqualTo(1600443296227L);
+        assertThat(data.get("operationId")).isEqualTo("01");
+        Map<String, Object> balance = (Map<String, Object>) data.get("balance");
+        assertThat(balance.get("value")).isEqualTo(999.9);
+        assertThat(balance.get("currency")).isEqualTo("rub");
     }
 
 }
