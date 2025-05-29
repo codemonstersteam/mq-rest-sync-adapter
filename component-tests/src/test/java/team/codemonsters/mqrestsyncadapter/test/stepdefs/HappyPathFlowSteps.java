@@ -8,7 +8,6 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 import javax.jms.Connection;
 import javax.jms.Message;
@@ -125,11 +124,6 @@ public class HappyPathFlowSteps {
             producer.send(message);
             sentMessage = message;
         }
-    }
-
-    @Then("I wait for {int} seconds")
-    public void wait(int seconds) throws Exception {
-        TimeUnit.SECONDS.sleep(seconds);
     }
 
     @Then("I read the message from RECEIPT queue {string} with flag {string}")
