@@ -5,12 +5,9 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 
 import javax.jms.Connection;
-import javax.jms.Message;
 import javax.jms.MessageConsumer;
 import javax.jms.MessageProducer;
 import javax.jms.Queue;
@@ -34,14 +31,9 @@ import team.codemonsters.mqrestsyncadapter.test.utils.TestConfig;
 public class HappyPathFlowSteps {
     private final ObjectMapper objectMapper = new ObjectMapper();
     private ObjectNode validPayload;
-    private JsonNode headers;
     private JsonNode body;
-    private Message sentMessage;
     private MQQueueConnectionFactory factory;
     private Connection connection;
-    private List<TextMessage> receivedReceipts = new ArrayList<TextMessage>(2);
-    private TextMessage receivedResponseMessage;
-    
 
     private void setupMqConnection() throws Exception {
         factory = new MQQueueConnectionFactory();
@@ -51,11 +43,10 @@ public class HappyPathFlowSteps {
         factory.setChannel(TestConfig.MQ_CHANNEL); // Должен совпадать с MQ_CHANNEL в компоуз
         factory.setTransportType(1); // Client transport type
         connection = factory.createConnection(TestConfig.MQ_USER, TestConfig.MQ_PASSWORD);
-
     }
 
     @Given("MQ server is accessible")
-    public void verifyMqServerIsRunning() throws Exception {
+    public void mqServerIsAccessible() throws Exception {
         setupMqConnection();
     }
 
@@ -64,7 +55,6 @@ public class HappyPathFlowSteps {
         String expectedJson = Files.readString(Paths.get("src/test/resources/files/" + filePath));
         JsonNode message = objectMapper.readTree(expectedJson);
         JsonNode payload = message.get("payload");
-        headers = message.get("headers");
         body = payload.get("body");
         validPayload = payload.deepCopy();
         // Модифицируем временные поля
@@ -122,7 +112,6 @@ public class HappyPathFlowSteps {
             message.setStringProperty("RequestID", "request-01");
             message.setStringProperty("CorrelationID", "correlationId");
             producer.send(message);
-            sentMessage = message;
         }
     }
 
@@ -139,7 +128,6 @@ public class HappyPathFlowSteps {
             connection.start();
             TextMessage receivedMessage = (TextMessage) consumer.receive(5000);
             System.out.println("Received Message: " + receivedMessage.getText());
-            receivedReceipts.add(receivedMessage);
             Map<String, Object> json = objectMapper.readValue(receivedMessage.getText(), new TypeReference<>() {});
             assertReciept(flag, json);
         }
@@ -164,9 +152,8 @@ public class HappyPathFlowSteps {
             connection.start();
             TextMessage receivedMessage = (TextMessage) consumer.receive(5000);
             System.out.println("Received Message: " + receivedMessage.getText());
-            receivedResponseMessage = receivedMessage;
             Map<String, Object> json = objectMapper.readValue(receivedMessage.getText(), new TypeReference<>() {});
-            assertRespone(json); 
+            assertRespone(json);
         }
     }
 
