@@ -59,6 +59,7 @@ services:
       - rest.configs.api-gateway.url=http://wiremock:8080
       - rest.configs.api-gateway.basic-auth.user=client
       - rest.configs.api-gateway.basic-auth.password=password
+      - features.toggles.wallet-balance-workflow.enabled=$FT_ENABLED
     ports:
       - "8081:8080"
     networks:
@@ -73,7 +74,7 @@ services:
       ibmmq:
         condition: service_healthy
       wiremock:
-        condition: service_healthy    
+        condition: service_healthy
   
   # Тестовый контейнер (если запускаете тесты как отдельный сервис)
   test-runner:

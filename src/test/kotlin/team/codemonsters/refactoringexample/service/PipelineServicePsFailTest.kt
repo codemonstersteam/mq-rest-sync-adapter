@@ -101,10 +101,9 @@ class PipelineServicePsFailTest(
     private fun createValidRequest() = PsGetBalanceRequest(
         requestType = "operationHistory",
         dateFrom = OffsetDateTime.now().minus(Duration.ofSeconds(10)),
-        dateTo = OffsetDateTime.now().minus(Duration.ofSeconds(5)),
-        operTime = OffsetDateTime.now().plus(
-            Duration.ofMillis(mqConfig.timeout)
-        ).plus(Duration.ofSeconds(20))
+            dateTo = OffsetDateTime.now().minus(Duration.ofSeconds(5)),
+            operTime =
+                OffsetDateTime.now().minus(Duration.ofMillis(mqConfig.timeout))
     )
 
     private fun createEnvelope(

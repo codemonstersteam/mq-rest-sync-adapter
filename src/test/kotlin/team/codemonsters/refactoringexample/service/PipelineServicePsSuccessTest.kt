@@ -25,7 +25,6 @@ import team.codemonsters.refactoringexample.mq.enum.ReceiptStatus
 import team.codemonsters.refactoringexample.util.JsonUtil
 import java.time.Duration
 import java.time.OffsetDateTime
-import java.util.concurrent.TimeUnit
 
 @ActiveProfiles("test")
 @Tag("integration-test")
@@ -119,7 +118,8 @@ class PipelineServicePsSuccessTest(
             softly.assertThat(response.method).isEqualTo("POST")
             softly.assertThat(response.service).isEqualTo("api-gateway")
             softly.assertThat(response.operation).isEqualTo("client-wallet-balance")
-            softly.assertThat(response.body)
+            softly
+                .assertThat(response.body)
                 .contains(
                     "\"data\":{\"createTime\":1600443296227,\"operationId\":\"01\",\"balance\":{\"value\":999.9,\"currency\":\"rub\"}}",
                 )
@@ -143,14 +143,15 @@ class PipelineServicePsSuccessTest(
     private fun createEnvelope(
         correlationId: String,
         request: PsGetBalanceRequest,
-    ) = HttpRequestEnvelope.emerge(
-        correlationId = correlationId,
-        httpMethod = HttpMethod.POST.name(),
-        service = "api-gateway",
-        operation = "client-wallet-balance",
-        httpHeaders = mapOf("Api-clientId" to "Api-clientId-01", "RequestID" to "request-01"),
-        httpBody = JsonUtil.toJson(request),
-    ).getOrThrow()
+    ) = HttpRequestEnvelope
+        .emerge(
+            correlationId = correlationId,
+            httpMethod = HttpMethod.POST.name(),
+            service = "api-gateway",
+            operation = "client-wallet-balance",
+            httpHeaders = mapOf("Api-clientId" to "Api-clientId-01", "RequestID" to "request-01"),
+            httpBody = JsonUtil.toJson(request),
+        ).getOrThrow()
 
     private fun createValidRequest() =
         PsGetBalanceRequest(
@@ -158,9 +159,7 @@ class PipelineServicePsSuccessTest(
             dateFrom = OffsetDateTime.now().minus(Duration.ofSeconds(10)),
             dateTo = OffsetDateTime.now().minus(Duration.ofSeconds(5)),
             operTime =
-                OffsetDateTime.now().plus(
-                    Duration.ofMillis(mqConfig.timeout),
-                ).plus(Duration.ofSeconds(20)),
+                OffsetDateTime.now().minus(Duration.ofMillis(mqConfig.timeout)),
         )
 
     private fun createJmsHeaders() =
@@ -170,7 +169,7 @@ class PipelineServicePsSuccessTest(
             "X_TransactionID" to "transaction-01",
             "X_RequestID" to "x-request-01",
             "RequestID" to "request-01",
-            "CorrelationID" to "CorrelationID"
+            "CorrelationID" to "CorrelationID",
         )
 
     private fun publishToQueue(

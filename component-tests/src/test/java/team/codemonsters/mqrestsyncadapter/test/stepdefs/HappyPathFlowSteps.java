@@ -6,6 +6,10 @@ import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.Map;
+import java.util.Set;
+import java.util.HashSet;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import javax.jms.Connection;
 import javax.jms.MessageConsumer;
@@ -34,15 +38,19 @@ public class HappyPathFlowSteps {
     private JsonNode body;
     private MQQueueConnectionFactory factory;
     private Connection connection;
+    private static final int MAX_RETRIES = 5;
+    private static final int RETRY_DELAY_MS = 100;
+    private Set<Map<String, Object>> receipts = new HashSet<Map<String, Object>>();
 
     private void setupMqConnection() throws Exception {
         factory = new MQQueueConnectionFactory();
-        factory.setHostName(TestConfig.MQ_HOST); // Используем имя сервиса из docker-compose
+        factory.setHostName(TestConfig.MQ_HOST);
         factory.setPort(TestConfig.MQ_PORT);
         factory.setQueueManager(TestConfig.MQ_QMGR_NAME);
-        factory.setChannel(TestConfig.MQ_CHANNEL); // Должен совпадать с MQ_CHANNEL в компоуз
-        factory.setTransportType(1); // Client transport type
+        factory.setChannel(TestConfig.MQ_CHANNEL);
+        factory.setTransportType(1);
         connection = factory.createConnection(TestConfig.MQ_USER, TestConfig.MQ_PASSWORD);
+        connection.start();
     }
 
     @Given("MQ server is accessible")
@@ -73,9 +81,8 @@ public class HappyPathFlowSteps {
 
     private String createValidBody() {
         OffsetDateTime dateFrom = OffsetDateTime.now().minus(Duration.ofSeconds(10));
-        OffsetDateTime dateTo = OffsetDateTime.now().minus(Duration.ofSeconds(5));
-        OffsetDateTime operationTime = OffsetDateTime.now().plus(Duration.ofMillis(60000))
-                .plus(Duration.ofSeconds(20));
+        OffsetDateTime dateTo = OffsetDateTime.now().plus(Duration.ofSeconds(10));
+        OffsetDateTime operationTime = OffsetDateTime.now().minus(Duration.ofMillis(60000));
 
         // Преобразуем в Instant и получаем timestamp с дробной частью
         double dateFromTs = dateFrom.toInstant().getEpochSecond()
@@ -101,42 +108,59 @@ public class HappyPathFlowSteps {
             throw new IllegalStateException(
                     "MQ connection is not established. Make sure 'IBM MQ server is running and accessible' step is executed first.");
         }
-        try (Session session = connection.createSession()) {
-            Queue queue = session.createQueue(queueName);
-            MessageProducer producer = session.createProducer(queue);
+        Session session = connection.createSession();
+        Queue queue = session.createQueue(queueName);
+        MessageProducer producer = session.createProducer(queue);
 
-            TextMessage message = session.createTextMessage(validPayload.toString());
-            message.setStringProperty("X_Method", "client-wallet-balance");
-            message.setStringProperty("X_TransactionID", "transaction-01");
-            message.setStringProperty("X_RequestID", "x-request-01");
-            message.setStringProperty("RequestID", "request-01");
-            message.setStringProperty("CorrelationID", "correlationId");
-            producer.send(message);
-        }
+        TextMessage message = session.createTextMessage(validPayload.toString());
+        message.setStringProperty("X_Method", "client-wallet-balance");
+        message.setStringProperty("X_TransactionID", "transaction-01");
+        message.setStringProperty("X_RequestID", "x-request-01");
+        message.setStringProperty("RequestID", "request-01");
+        message.setStringProperty("CorrelationID", "correlationId");
+        producer.send(message);
+        producer.close();
+        TimeUnit.SECONDS.sleep(2);
     }
 
-    @Then("I read the message from RECEIPT queue {string} with flag {string}")
-    public void readMessage(String queueName, String flag) throws Exception {
-        if (connection == null) {
-            throw new IllegalStateException(
-                    "MQ connection is not established. Make sure 'IBM MQ server is running and accessible' step is executed first.");
-        }
+    @Then("I read the message from RECEIPT queue {string}")
+    public void readMessage(String queueName) throws Exception {
+        TextMessage receivedMessage = null;
+        int retryCount = 0;
+        connection = factory.createConnection(TestConfig.MQ_USER, TestConfig.MQ_PASSWORD);
+        connection.start();
+        Session session = connection.createSession();
+        Queue queue = session.createQueue(queueName);
+        MessageConsumer consumer = session.createConsumer(queue);
+        while (retryCount < MAX_RETRIES) {
 
-        try (Session session = connection.createSession()) {
-            Queue queue = session.createQueue(queueName);
-            MessageConsumer consumer = session.createConsumer(queue);
-            connection.start();
-            TextMessage receivedMessage = (TextMessage) consumer.receive(5000);
-            System.out.println("Received Message: " + receivedMessage.getText());
-            Map<String, Object> json = objectMapper.readValue(receivedMessage.getText(), new TypeReference<>() {});
-            assertReciept(flag, json);
+            receivedMessage = (TextMessage) consumer.receive(10000);
+            if (receivedMessage != null) {
+                String messageText = receivedMessage.getText();
+                System.out.println("Attempt " + (retryCount + 1) + " - Received message: " + messageText);
+                if (messageText != null) {
+                    Map<String, Object> json = objectMapper.readValue(messageText, new TypeReference<>() {
+                    });
+                    receipts.add(json);
+                    consumer.close();
+                    session.close();
+                    connection.close();
+                    break;
+                }
+            }
+            retryCount++;
+            if (retryCount < MAX_RETRIES) {
+                TimeUnit.MILLISECONDS.sleep(RETRY_DELAY_MS);
+            }
+
         }
-    }
-    
-    private void assertReciept(String flag, Map<String, Object> json) throws Exception {
-        assertThat(json.get("requestType")).isEqualTo("operationHistory");
-        assertThat(json.get("flag")).isEqualTo(flag);
-        assertThat(json.get("errorCode")).isNull();
+        consumer.close();
+        session.close();
+        connection.close();
+
+        if (receivedMessage == null) {
+            throw new IllegalStateException("Failed to receive message after " + MAX_RETRIES + " retries");
+        }
     }
 
     @Then("I read the message from response queue {string}")
@@ -146,15 +170,38 @@ public class HappyPathFlowSteps {
                     "MQ connection is not established. Make sure 'IBM MQ server is running and accessible' step is executed first.");
         }
 
-        try (Session session = connection.createSession()) {
-            Queue queue = session.createQueue(queueName);
-            MessageConsumer consumer = session.createConsumer(queue);
-            connection.start();
-            TextMessage receivedMessage = (TextMessage) consumer.receive(5000);
-            System.out.println("Received Message: " + receivedMessage.getText());
-            Map<String, Object> json = objectMapper.readValue(receivedMessage.getText(), new TypeReference<>() {});
-            assertRespone(json);
+        TextMessage receivedMessage = null;
+        int retryCount = 0;
+        connection = factory.createConnection(TestConfig.MQ_USER, TestConfig.MQ_PASSWORD);
+        connection.start();
+        Session session = connection.createSession();
+        Queue queue = session.createQueue(queueName);
+        MessageConsumer consumer = session.createConsumer(queue);
+        while (retryCount < MAX_RETRIES) {
+            receivedMessage = (TextMessage) consumer.receive(5000);
+            if (receivedMessage != null) {
+                String messageText = receivedMessage.getText();
+                System.out.println("Attempt " + (retryCount + 1) + " - Received message: " + messageText);
+                if (messageText != null) {
+                    break;
+                }
+            }
+            retryCount++;
+            if (retryCount < MAX_RETRIES) {
+                TimeUnit.MILLISECONDS.sleep(RETRY_DELAY_MS);
+            }
         }
+
+        if (receivedMessage == null) {
+            throw new IllegalStateException("Failed to receive message after " + MAX_RETRIES + " retries");
+        }
+
+        System.out.println("Successfully processed message");
+        Map<String, Object> json = objectMapper.readValue(receivedMessage.getText(), new TypeReference<>() {
+        });
+        assertRespone(json);
+        consumer.close();
+        session.close();
     }
 
     private void assertRespone(Map<String, Object> json) throws Exception {
@@ -164,7 +211,8 @@ public class HappyPathFlowSteps {
         assertThat(json.get("method")).isEqualTo("POST");
         assertThat(json.get("service")).isEqualTo("api-gateway");
         assertThat(json.get("operation")).isEqualTo("client-wallet-balance");
-        Map<String, Object> responseBody = objectMapper.readValue(json.get("body").toString(), new TypeReference<>() {});
+        Map<String, Object> responseBody = objectMapper.readValue(json.get("body").toString(), new TypeReference<>() {
+        });
         System.out.println("Body: " + responseBody.toString());
         assertThat(responseBody.get("status")).isEqualTo("success");
         assertThat(responseBody.get("actualTimestamp")).isEqualTo(1607449018829L);
@@ -174,6 +222,31 @@ public class HappyPathFlowSteps {
         Map<String, Object> balance = (Map<String, Object>) data.get("balance");
         assertThat(balance.get("value")).isEqualTo(999.9);
         assertThat(balance.get("currency")).isEqualTo("rub");
+    }
+
+    @Then("I wait for {int} seconds")
+    public void waitForSeconds(int seconds) throws Exception {
+        TimeUnit.SECONDS.sleep(seconds);
+    }
+
+    @Then("I check that i have {int} receipts with flag {string} and {string}")
+    public void checkReceipts(int count, String flag1, String flag2) {
+        assertThat(receipts).hasSize(count);
+        assertThat(receipts.stream()
+                .map(json -> (String) json.get("flag"))
+                .collect(Collectors.toSet()))
+                .containsExactlyInAnyOrder(flag1, flag2);
+
+        receipts.forEach(json -> {
+            assertReciept((String) json.get("flag"), json);
+
+        });
+    }
+
+    private void assertReciept(String flag, Map<String, Object> json) {
+        assertThat(json.get("requestType")).isEqualTo("operationHistory");
+        assertThat(json.get("flag")).isEqualTo(flag);
+        assertThat(json.get("errorCode")).isNull();
     }
 
 }

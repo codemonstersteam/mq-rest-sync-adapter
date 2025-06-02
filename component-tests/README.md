@@ -4,7 +4,9 @@
 
 ## Запуск проекта
 ````bash
-./scripts/run-tests
+export FT_ENABLED=true # true - включить новый поток, 
+export FT_ENABLED=false # false - работает старый поток
+./scripts/run-test-sut-v2.sh
 ````
 
 ## LOG Работы с ассистентами
