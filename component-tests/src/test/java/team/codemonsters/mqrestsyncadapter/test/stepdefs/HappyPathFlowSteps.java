@@ -5,18 +5,11 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-
-import javax.jms.Connection;
-import javax.jms.MessageConsumer;
-import javax.jms.MessageProducer;
-import javax.jms.Queue;
-import javax.jms.Session;
-import javax.jms.TextMessage;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -24,40 +17,28 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.ibm.mq.jms.MQQueueConnectionFactory;
 
 import io.cucumber.java.en.And;
 import io.cucumber.java.en.Given;
 import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
-import team.codemonsters.mqrestsyncadapter.test.utils.TestConfig;
-
+import team.codemonsters.mqrestsyncadapter.test.utils.IbmMqClient;
 
 public class HappyPathFlowSteps {
     protected final ObjectMapper objectMapper = new ObjectMapper();
     protected ObjectNode validPayload;
     protected JsonNode body;
-    protected MQQueueConnectionFactory factory;
-    protected Connection connection;
+    protected IbmMqClient mqClient;
     protected Set<Map<String, Object>> receipts = new HashSet<>();
     public Map<String, Object> response;
-    public static final int MAX_RETRIES = 5;
-    public static final int RETRY_DELAY_MS = 100;
 
-    public  void setupMqConnection() throws Exception {
-        factory = new MQQueueConnectionFactory();
-        factory.setHostName(TestConfig.MQ_HOST);
-        factory.setPort(TestConfig.MQ_PORT);
-        factory.setQueueManager(TestConfig.MQ_QMGR_NAME);
-        factory.setChannel(TestConfig.MQ_CHANNEL);
-        factory.setTransportType(1);
-        connection = factory.createConnection(TestConfig.MQ_USER, TestConfig.MQ_PASSWORD);
-        connection.start();
+    public HappyPathFlowSteps() {
+        this.mqClient = new IbmMqClient();
     }
 
     @Given("MQ server is online")
     public void mqServerIsAccessible() throws Exception {
-        setupMqConnection();
+        mqClient.setupConnection();
     }
 
     @And("Create valid message payload from {string}")
@@ -106,103 +87,28 @@ public class HappyPathFlowSteps {
 
     @When("I send the message to {string}")
     public void sendMessage(String queueName) throws Exception {
-        if (connection == null) {
-            throw new IllegalStateException(
-                    "MQ connection is not established. Make sure 'IBM MQ server is running and accessible' step is executed first.");
-        }
-        Session session = connection.createSession();
-        Queue queue = session.createQueue(queueName);
-        MessageProducer producer = session.createProducer(queue);
-
-        TextMessage message = session.createTextMessage(validPayload.toString());
-        message.setStringProperty("X_Method", "client-wallet-balance");
-        message.setStringProperty("X_TransactionID", "transaction-01");
-        message.setStringProperty("X_RequestID", "x-request-01");
-        message.setStringProperty("RequestID", "request-01");
-        message.setStringProperty("CorrelationID", "correlationId");
-        producer.send(message);
-        producer.close();
-        TimeUnit.SECONDS.sleep(2);
+        Map<String, String> properties = new HashMap<>();
+        properties.put("X_Method", "client-wallet-balance");
+        properties.put("X_TransactionID", "transaction-01");
+        properties.put("X_RequestID", "x-request-01");
+        properties.put("RequestID", "request-01");
+        properties.put("CorrelationID", "correlationId");
+        
+        mqClient.sendMessage(queueName, validPayload.toString(), properties);
     }
 
     @Then("I read the message from RECEIPT queue {string}")
     public void readMessage(String queueName) throws Exception {
-        TextMessage receivedMessage = null;
-        int retryCount = 0;
-        connection = factory.createConnection(TestConfig.MQ_USER, TestConfig.MQ_PASSWORD);
-        connection.start();
-        Session session = connection.createSession();
-        Queue queue = session.createQueue(queueName);
-        MessageConsumer consumer = session.createConsumer(queue);
-        while (retryCount < MAX_RETRIES) {
-
-            receivedMessage = (TextMessage) consumer.receive(10000);
-            if (receivedMessage != null) {
-                String messageText = receivedMessage.getText();
-                System.out.println("Attempt " + (retryCount + 1) + " - Received message: " + messageText);
-                if (messageText != null) {
-                    Map<String, Object> json = objectMapper.readValue(messageText, new TypeReference<>() {
-                    });
-                    receipts.add(json);
-                    consumer.close();
-                    session.close();
-                    connection.close();
-                    break;
-                }
-            }
-            retryCount++;
-            if (retryCount < MAX_RETRIES) {
-                TimeUnit.MILLISECONDS.sleep(RETRY_DELAY_MS);
-            }
-
-        }
-        consumer.close();
-        session.close();
-        connection.close();
-
-        if (receivedMessage == null) {
-            throw new IllegalStateException("Failed to receive message after " + MAX_RETRIES + " retries");
-        }
+        Map<String, Object> json = mqClient.readMessage(queueName, 10000);
+        assertThat(json).isNotNull();
+        receipts.add(json);
     }
 
     @Then("I read the message from response queue {string}")
     public void readResponseMessage(String queueName) throws Exception {
-        if (connection == null) {
-            throw new IllegalStateException(
-                    "MQ connection is not established. Make sure 'IBM MQ server is running and accessible' step is executed first.");
-        }
-
-        TextMessage receivedMessage = null;
-        int retryCount = 0;
-        connection = factory.createConnection(TestConfig.MQ_USER, TestConfig.MQ_PASSWORD);
-        connection.start();
-        Session session = connection.createSession();
-        Queue queue = session.createQueue(queueName);
-        MessageConsumer consumer = session.createConsumer(queue);
-        while (retryCount < MAX_RETRIES) {
-            receivedMessage = (TextMessage) consumer.receive(5000);
-            if (receivedMessage != null) {
-                String messageText = receivedMessage.getText();
-                System.out.println("Attempt " + (retryCount + 1) + " - Received message: " + messageText);
-                if (messageText != null) {
-                    break;
-                }
-            }
-            retryCount++;
-            if (retryCount < MAX_RETRIES) {
-                TimeUnit.MILLISECONDS.sleep(RETRY_DELAY_MS);
-            }
-        }
-
-        if (receivedMessage == null) {
-            throw new IllegalStateException("Failed to receive message after " + MAX_RETRIES + " retries");
-        }
-
-        System.out.println("Successfully processed message");
-        response = objectMapper.readValue(receivedMessage.getText(), new TypeReference<>() {});
+        response = mqClient.readMessage(queueName, 5000);
+        assertThat(response).isNotNull();
         assertRespone();
-        consumer.close();
-        session.close();
     }
 
     private void assertRespone() throws Exception {
@@ -225,7 +131,6 @@ public class HappyPathFlowSteps {
         assertThat(balance.get("currency")).isEqualTo("rub");
     }
 
-
     @Then("I check that i have 2 receipts with flag SUCCESS and ACCEPTED")
     public void checkReceipts() {
         int count = 2;
@@ -239,7 +144,6 @@ public class HappyPathFlowSteps {
 
         receipts.forEach(json -> {
             assertReciept((String) json.get("flag"), json);
-
         });
     }
 
@@ -248,5 +152,4 @@ public class HappyPathFlowSteps {
         assertThat(json.get("flag")).isEqualTo(flag);
         assertThat(json.get("errorCode")).isNull();
     }
-
 }
