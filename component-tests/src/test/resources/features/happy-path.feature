@@ -5,10 +5,10 @@ Feature: Happy Path Message Flow
   So that I can ensure all components work together correctly
 
   Scenario: Complete message flow for wallet balance request
-    Given MQ server is accessible
+    Given MQ server is online
     And Create valid message payload from "messages/success/request.json"
-    When I send the message to IN queue "IN.QUEUE.PS"
+    When I send the message to "IN.QUEUE.PS"
     Then I read the message from RECEIPT queue "RECEIPT.QUEUE.PS"
     Then I read the message from RECEIPT queue "RECEIPT.QUEUE.PS"
-    Then I check that i have 2 receipts with flag "SUCCESS" and "ACCEPTED"
+    Then I check that i have 2 receipts with flag SUCCESS and ACCEPTED
     Then I read the message from response queue "OUT.QUEUE.PS"

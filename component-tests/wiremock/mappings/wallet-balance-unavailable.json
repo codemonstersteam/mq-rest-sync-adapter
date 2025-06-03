@@ -1,0 +1,24 @@
+{
+  "mappings": [
+    {
+      "request": {
+        "method": "POST",
+        "url": "/api/client/Api-clientId-02/wallet/balance"
+      },
+      "response": {
+        "status": 500,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "jsonBody": {
+          "status": "error",
+          "actualTimestamp": 1607449018829,
+          "error": {
+            "errorCode": "500",
+            "errorMessage": "Internal Server Error"
+          }
+        }
+      }
+    }
+  ]
+}

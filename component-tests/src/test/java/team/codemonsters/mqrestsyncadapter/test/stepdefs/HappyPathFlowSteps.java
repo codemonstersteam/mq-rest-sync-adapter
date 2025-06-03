@@ -5,9 +5,9 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.HashSet;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -32,17 +32,19 @@ import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
 import team.codemonsters.mqrestsyncadapter.test.utils.TestConfig;
 
-public class HappyPathFlowSteps {
-    private final ObjectMapper objectMapper = new ObjectMapper();
-    private ObjectNode validPayload;
-    private JsonNode body;
-    private MQQueueConnectionFactory factory;
-    private Connection connection;
-    private static final int MAX_RETRIES = 5;
-    private static final int RETRY_DELAY_MS = 100;
-    private Set<Map<String, Object>> receipts = new HashSet<Map<String, Object>>();
 
-    private void setupMqConnection() throws Exception {
+public class HappyPathFlowSteps {
+    protected final ObjectMapper objectMapper = new ObjectMapper();
+    protected ObjectNode validPayload;
+    protected JsonNode body;
+    protected MQQueueConnectionFactory factory;
+    protected Connection connection;
+    protected Set<Map<String, Object>> receipts = new HashSet<>();
+    public Map<String, Object> response;
+    public static final int MAX_RETRIES = 5;
+    public static final int RETRY_DELAY_MS = 100;
+
+    public  void setupMqConnection() throws Exception {
         factory = new MQQueueConnectionFactory();
         factory.setHostName(TestConfig.MQ_HOST);
         factory.setPort(TestConfig.MQ_PORT);
@@ -53,7 +55,7 @@ public class HappyPathFlowSteps {
         connection.start();
     }
 
-    @Given("MQ server is accessible")
+    @Given("MQ server is online")
     public void mqServerIsAccessible() throws Exception {
         setupMqConnection();
     }
@@ -102,7 +104,7 @@ public class HappyPathFlowSteps {
         return jsonString;
     }
 
-    @When("I send the message to IN queue {string}")
+    @When("I send the message to {string}")
     public void sendMessage(String queueName) throws Exception {
         if (connection == null) {
             throw new IllegalStateException(
@@ -197,21 +199,20 @@ public class HappyPathFlowSteps {
         }
 
         System.out.println("Successfully processed message");
-        Map<String, Object> json = objectMapper.readValue(receivedMessage.getText(), new TypeReference<>() {
-        });
-        assertRespone(json);
+        response = objectMapper.readValue(receivedMessage.getText(), new TypeReference<>() {});
+        assertRespone();
         consumer.close();
         session.close();
     }
 
-    private void assertRespone(Map<String, Object> json) throws Exception {
-        assertThat(json.get("correlationId")).isEqualTo("correlationId");
-        assertThat(json.get("status")).isEqualTo(200);
-        assertThat(json.get("message")).isEqualTo("OK");
-        assertThat(json.get("method")).isEqualTo("POST");
-        assertThat(json.get("service")).isEqualTo("api-gateway");
-        assertThat(json.get("operation")).isEqualTo("client-wallet-balance");
-        Map<String, Object> responseBody = objectMapper.readValue(json.get("body").toString(), new TypeReference<>() {
+    private void assertRespone() throws Exception {
+        assertThat(response.get("correlationId")).isEqualTo("correlationId");
+        assertThat(response.get("status")).isEqualTo(200);
+        assertThat(response.get("message")).isEqualTo("OK");
+        assertThat(response.get("method")).isEqualTo("POST");
+        assertThat(response.get("service")).isEqualTo("api-gateway");
+        assertThat(response.get("operation")).isEqualTo("client-wallet-balance");
+        Map<String, Object> responseBody = objectMapper.readValue(response.get("body").toString(), new TypeReference<>() {
         });
         System.out.println("Body: " + responseBody.toString());
         assertThat(responseBody.get("status")).isEqualTo("success");
@@ -224,13 +225,12 @@ public class HappyPathFlowSteps {
         assertThat(balance.get("currency")).isEqualTo("rub");
     }
 
-    @Then("I wait for {int} seconds")
-    public void waitForSeconds(int seconds) throws Exception {
-        TimeUnit.SECONDS.sleep(seconds);
-    }
 
-    @Then("I check that i have {int} receipts with flag {string} and {string}")
-    public void checkReceipts(int count, String flag1, String flag2) {
+    @Then("I check that i have 2 receipts with flag SUCCESS and ACCEPTED")
+    public void checkReceipts() {
+        int count = 2;
+        String flag1 = "ACCEPTED";
+        String flag2 = "SUCCESS";
         assertThat(receipts).hasSize(count);
         assertThat(receipts.stream()
                 .map(json -> (String) json.get("flag"))
