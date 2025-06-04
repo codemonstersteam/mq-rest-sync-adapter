@@ -12,16 +12,14 @@ variables:
   # Improve performance with overlayfs.
   DOCKER_DRIVER: overlay2
 
-
 stages:
   - test-api-specification
-  - test
+  - unit-tests
+  - component-tests
 
-test:
+unit-tests:
   image: gradle:jdk21
-  stage: test
-  tags:
-    - testcontainers
+  stage: unit-tests
   script:
     - ./gradlew test
 
@@ -32,3 +30,12 @@ test-api-specification:
   stage: test-api-specification
   script:
     - asyncapi validate ./api-specification/asyncapi.yml
+
+component-tests:
+  tags:
+    - compose
+  stage: component-tests
+  script:
+    - export FT_ENABLED=true
+    - cd component-tests
+    - ./scripts/run-test-sut-v2.sh

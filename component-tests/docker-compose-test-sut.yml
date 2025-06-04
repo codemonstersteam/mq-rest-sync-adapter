@@ -111,8 +111,8 @@ services:
         condition: service_healthy
       wiremock:
         condition: service_healthy
-      # sut:
-      #   condition: service_healthy
+      sut:
+        condition: service_healthy
 
 # MQ-REST-Sync-Adapter Service
 networks:
