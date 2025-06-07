@@ -42,6 +42,8 @@ component-tests:
     - ls -la build/
     - cd component-tests
     - ./scripts/run-test-sut-v2.sh
+    - export FT_ENABLED=false
+    - ./scripts/run-test-sut-v2.sh
   artifacts:
     paths:
       - component-tests/build/
