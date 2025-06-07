@@ -5,19 +5,23 @@ services:
       context: .
       dockerfile: Dockerfile.build
       args:
-        USER_ID: ${UID}
-        GROUP_ID: ${GID}
-    user: $UID:$GID
+        USER_ID: ${USER_ID}
+        GROUP_ID: ${GROUP_ID}
+    user: $USER_ID:$GROUP_ID
     volumes:
       - .:/app
-      - ./gradle-cache:/home/runner/.gradle
+      - gradle-cache:/home/runner/.gradle
     command: | 
         bash -c '
           whoami
           pwd
           ls -la
           ls -la /home/runner
-          ./gradlew build -x test
+          ./gradlew build
+          chmod -R 777 ./build
+          chown -R $(id -u):$(id -g) ./build
+          chmod -R 777 .gradle
+          chown -R $(id -u):$(id -g) .gradle
         '
     profiles: 
       - build
@@ -33,3 +37,6 @@ services:
       - JAVA_OPTS=-Xms64m -Xmx256m
     profiles:
       - run
+
+volumes:
+  gradle-cache:

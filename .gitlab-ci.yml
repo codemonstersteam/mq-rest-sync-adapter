@@ -11,6 +11,8 @@ variables:
   DOCKER_TLS_CERTDIR: ""
   # Improve performance with overlayfs.
   DOCKER_DRIVER: overlay2
+  # Docker registry configuration
+  DOCKER_REGISTRY: docker.io
 
 stages:
   - test-api-specification
@@ -37,5 +39,10 @@ component-tests:
   stage: component-tests
   script:
     - export FT_ENABLED=true
+    - ls -la
+    - export USER_ID=$(id -u)
+    - export GROUP_ID=$(id -g)
+    - docker compose --profile build up
+    - ls -la build/
     - cd component-tests
     - ./scripts/run-test-sut-v2.sh

@@ -12,15 +12,17 @@ RUN adduser -D -u ${USER_ID} -G runner -s /sbin/nologin runner
 # Даем пользователю runner права sudo без пароля
 RUN echo "runner ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/runner
 
-
 # Создаем рабочую директорию
 WORKDIR /app
 
 # Устанавливаем права на рабочую директорию
 RUN chown -R ${USER_ID}:${GROUP_ID} /app
 
-RUN mkdir -p /home/runner/.gradle && \
-    chown -R ${USER_ID}:${GROUP_ID} /home/runner/.gradle
+# Создаем и настраиваем домашнюю директорию пользователя
+RUN mkdir -p /home/runner
+RUN mkdir -p /home/runner/.gradle/wrapper/dists
+RUN chown -R ${USER_ID}:${GROUP_ID} /home/runner
+RUN chmod -R 777 /home/runner
 
 # Переключаемся на пользователя runner
 USER ${USER_ID}:${GROUP_ID}
