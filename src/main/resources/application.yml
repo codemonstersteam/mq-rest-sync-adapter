@@ -23,6 +23,11 @@ management:
     export:
       atlas:
         enabled: false
+  info:
+    app:
+      name: ${spring.application.name}
+      version: ${project.version}
+      description: MQ REST Sync Adapter Service
 
 logging:
   level:
@@ -36,8 +41,6 @@ server:
     enabled: true
     mime-types: application/json
     min-response-size: 1024
-  servlet:
-    context-path: /${spring.application.name}
 
 webclient:
   connect-timeout-mills: 10000

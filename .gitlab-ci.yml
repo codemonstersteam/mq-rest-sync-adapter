@@ -1,29 +1,7 @@
-# DinD service is required for Testcontainers
-services:
-  - name: docker:dind
-    # explicitly disable tls to avoid docker startup interruption
-    command: ["--tls=false"]
-
-variables:
-  # Instruct Testcontainers to use the daemon of DinD, use port 2375 for non-tls connections.
-  DOCKER_HOST: "tcp://docker:2375"
-  # Instruct Docker not to start over TLS.
-  DOCKER_TLS_CERTDIR: ""
-  # Improve performance with overlayfs.
-  DOCKER_DRIVER: overlay2
-
-
 stages:
   - test-api-specification
-  - test
-
-test:
-  image: gradle:jdk21
-  stage: test
-  tags:
-    - testcontainers
-  script:
-    - ./gradlew test
+  - unit-tests
+  - component-tests
 
 test-api-specification:
   image:
@@ -32,3 +10,41 @@ test-api-specification:
   stage: test-api-specification
   script:
     - asyncapi validate ./api-specification/asyncapi.yml
+
+unit-tests:
+  tags:
+    - compose
+  stage: unit-tests
+  variables:
+    DOCKER_HOST: "unix:///var/run/docker.sock"
+  needs:
+    - test-api-specification
+  script:
+    - export USER_ID=$(id -u)
+    - export GROUP_ID=$(id -g)
+    - docker compose --profile build up
+    - ls -la build/
+  artifacts:
+    paths:
+      - build/
+    expire_in: 5 day
+
+component-tests:
+  tags:
+    - compose
+  stage: component-tests
+  variables:
+    DOCKER_HOST: "unix:///var/run/docker.sock"
+  needs:
+    - unit-tests
+  script:
+    - export FT_ENABLED=true
+    - ls -la build/
+    - cd component-tests
+    - ./scripts/run-test-sut-v2.sh
+    - export FT_ENABLED=false
+    - ./scripts/run-test-sut-v2.sh
+  artifacts:
+    paths:
+      - component-tests/build/
+    expire_in: 5 day

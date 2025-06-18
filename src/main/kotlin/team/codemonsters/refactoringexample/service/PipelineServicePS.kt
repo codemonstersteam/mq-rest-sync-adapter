@@ -60,7 +60,7 @@ class PipelineServicePS(
     }
 
     fun receiveMessage(message: Message<Any>) {
-        log.info("Incoming transmission into PipelineServicePS")
+        log.info("Incoming transmission into PipelineServicePS legacy flow")
         log.info("headers: ${message.headers}")
         log.info("payload: ${message.payload}")
         processMessage(message)
@@ -75,9 +75,6 @@ class PipelineServicePS(
     fun processMessage(message: Message<Any>) {
         val correlationId = message.headers[mqConfig.correlationID] as String? ?: UUID.randomUUID().toString()
         val url = message.headers["X_Method"] as String? ?: "/somemethod"
-
-        log.debug("msg class is: ${message.javaClass}")
-
         // TODO - Нужно найти способ получать msgId через стандартные методы
         val msgId = message.headers["jms_messageId"] as String?
         var httpReq: String = message.payload.toString()

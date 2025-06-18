@@ -1,0 +1,24 @@
+stages:
+  - test-environment
+
+test-environment:
+  stage: test-environment
+  tags:
+    - compose
+  script: 
+    - scripts/run-tests-v2.sh
+  artifacts:
+    paths:
+      - build/reports/
+    expire_in: 2 week
+    when: always
+  after_script:
+    - |
+      echo "🧹 Cleaning up..."
+      docker compose --file docker-compose.yml down
+      ./scripts/after-build.sh
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main"
+      when: always
+    - if: $CI_COMMIT_BRANCH == "feature/ci-experiment"
+      when: always

@@ -1,0 +1,22 @@
+# Второй этап - минимальный runtime образ
+FROM bellsoft/liberica-runtime-container:jre-21-slim-musl AS runner
+
+# Рабочая директория приложения
+WORKDIR /app
+
+# Переменные окружения
+ENV JAVA_OPTS="-Xms64m -Xmx256m"
+
+# Предполагаем, что JAR файл находится в build/libs/app.jar
+# Изменить путь, если он отличается в вашем проекте
+COPY build/libs/*.jar /app/app.jar
+COPY src/main/resources/application.yml /app/application.yml
+
+# Устанавливаем пользователя без привилегий root для запуска
+USER 1000
+
+# Указываем порт, который слушает приложение
+EXPOSE 8080
+
+# Запускаем приложение
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

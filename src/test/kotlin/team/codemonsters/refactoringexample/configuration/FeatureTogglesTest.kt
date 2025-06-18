@@ -9,7 +9,7 @@ import org.springframework.test.context.ActiveProfiles
 @SpringBootTest
 @ActiveProfiles("test")
 class FeatureTogglesTest (
-    @Autowired val featureToggles: FeatureToggles
+    @param:Autowired val featureToggles: FeatureToggles
 ) {
     @Test
     fun `the non-existent feature must be disabled`(){

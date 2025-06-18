@@ -1,5 +1,6 @@
 package team.codemonsters.refactoringexample.mq
 
+import org.slf4j.LoggerFactory
 import team.codemonsters.refactoringexample.mq.enum.OperationType
 import team.codemonsters.refactoringexample.mq.enum.getOperationType
 import team.codemonsters.refactoringexample.exceptions.ServiceCommunicationException
@@ -80,17 +81,18 @@ data class HttpRequestEnvelope private constructor(
                 onFailure = { error -> Result.failure(error) }
             )
 
+        private val log = LoggerFactory.getLogger(HttpRequestEnvelope::class.java)!!
+
         private fun validatePsRequest(data: HttpRequestEnvelope, timeout: Long): Result<HttpRequestEnvelope> =
             PsGetBalanceRequest.fromJsonString(data.body!!).fold(
                 onSuccess = { success ->
-                    if (OffsetDateTime.now().plus(Duration.ofMillis(timeout)).isAfter(success.operTime)) {
+                    if (!success.operTime.plus(Duration.ofMillis(timeout)).isBefore(OffsetDateTime.now())) {
                         return Result.failure(
                             ServiceCommunicationException("validation", "Истек скорок действия запроса")
                         )
                     }
                     if (OperationType.OPERATION_HISTORY == getOperationType(success.requestType)
                         && success.dateFrom.isBefore(success.dateTo ?: OffsetDateTime.now())
-                        && (success.dateTo == null || success.dateTo.isBefore(OffsetDateTime.now()))
                     ) {
                         return Result.success(data)
                     } else {
@@ -100,6 +102,7 @@ data class HttpRequestEnvelope private constructor(
                     }
                 },
                 onFailure = {
+                    log.info("failure")
                     Result.failure(
                         ServiceCommunicationException("validation", "Ошибка при валидации входных данных")
                     )
