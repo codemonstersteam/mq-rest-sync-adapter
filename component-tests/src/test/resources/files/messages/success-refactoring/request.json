@@ -1,0 +1,28 @@
+{
+  "correlationId": "correlationId",
+  "queue": "IN.QUEUE.PS",
+  "payload": {
+    "correlationId": "correlationId",
+    "method": "POST",
+    "service": "api-gateway",
+    "operation": "client-wallet-balance",
+    "headers": {
+      "Api-clientId": "Api-clientId-01",
+      "RequestID": "request-01"
+    },
+    "body": {
+      "requestType": "operationHistory",
+      "dateFrom": 1747906316.311742210,
+      "dateTo": 1747906321.311846918,
+      "operTime": 1747906266.311860794
+    }
+  },
+  "headers": {
+    "X_Method": "client-wallet-balance",
+    "jms_messageId": "de741c66-4eea-4316-a42c-a42bb15c8e32",
+    "X_TransactionID": "transaction-01",
+    "X_RequestID": "x-request-01",
+    "RequestID": "request-01",
+    "CorrelationID": "CorrelationID"
+  }
+}

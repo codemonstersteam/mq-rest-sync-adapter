@@ -1,0 +1,9 @@
+{
+  "requestType": "operationHistory",
+  "dateFrom": 1747907361.933240775,
+  "dateTo": 1747907366.933507394,
+  "operTime": 1747907451.933517393,
+  "flag": "ERROR",
+  "errorCode": 500,
+  "description": "Ошибка finishConnect(..) failed: Connection refused: localhost/[0:0:0:0:0:0:0:1]:8080 при выполнении запроса к сервису http://localhost:8080"
+}

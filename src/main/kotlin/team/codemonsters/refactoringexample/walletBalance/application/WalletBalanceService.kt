@@ -4,6 +4,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.messaging.Message
 import org.springframework.stereotype.Service
 import reactor.core.publisher.Mono
+import reactor.core.scheduler.Schedulers
 import reactor.kotlin.core.publisher.toMono
 import team.codemonsters.refactoringexample.configuration.MqConfiguration
 import team.codemonsters.refactoringexample.configuration.MqServiceCfg
@@ -38,12 +39,15 @@ class WalletBalanceService(
         Mono.just(
             ValidRequest.emerge(
                 UnvalidatedRequest(message, restConfiguration, mqConfig.timeout),
-            )
+            ),
         )
 
     private fun sendAcceptedReceipt(validRequest: ValidRequest): Mono<Result<ValidRequest>> =
-        ReceiptAcceptedFactory.emerge(validRequest, mqConfig).toMono()
+        ReceiptAcceptedFactory
+            .emerge(validRequest, mqConfig)
+            .toMono()
             .pipe { brokerGateway.sendReceipt(it) }
+            .subscribeOn(Schedulers.boundedElastic())
             .fold { validRequest }
 
     private fun getBalance(validRequest: ValidRequest): Mono<Result<WalletBalance>> =
@@ -51,22 +55,24 @@ class WalletBalanceService(
             .fold { WalletBalance(validRequest, it) }
 
     private fun sendTransactionReceipt(walletBalance: WalletBalance): Mono<Result<WalletBalance>> =
-        brokerGateway.sendReceipt(
-            TransactionReceiptFactory(walletBalance, mqConfig)
-        )
+        brokerGateway
+            .sendReceipt(TransactionReceiptFactory(walletBalance, mqConfig))
             .map { it.map { walletBalance } }
 
     private fun sendRestResponse(walletBalance: WalletBalance): Mono<Result<WalletBalance>> =
-        brokerGateway.sendReceipt(
-            ResponseReceiptFactory(walletBalance, mqConfig)
-        )
+        brokerGateway
+            .sendReceipt(ResponseReceiptFactory(walletBalance, mqConfig))
+            .subscribeOn(Schedulers.boundedElastic())
             .fold { walletBalance }
 
     private fun sendRestRequest(request: RestServiceRequest): Mono<Result<RestServiceResponse>> =
-        restClient.sendRequest(request)
+        restClient
+            .sendRequest(request)
+            .subscribeOn(Schedulers.boundedElastic())
 
     private fun logError(walletBalance: Result<WalletBalance>): Mono<Result<WalletBalance>> =
-        walletBalance.onFailure {
-            log.error("Error in wallet balance workflow ${walletBalance.exceptionOrNull()!!.message}")
-        }.toMono()
+        walletBalance
+            .onFailure {
+                log.error("Error in wallet balance workflow ${walletBalance.exceptionOrNull()!!.message}")
+            }.toMono()
 }

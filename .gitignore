@@ -28,7 +28,7 @@ replay_pid*
 .gradle
 **/build/
 !src/**/build/
-
+component-tests/build/
 # Ignore Gradle GUI config
 gradle-app.setting
 
@@ -49,3 +49,4 @@ gradle-app.setting
 mqjms.*
 .vscode/
 /bin/
+gradle-cache/

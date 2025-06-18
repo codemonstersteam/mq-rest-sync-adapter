@@ -1,0 +1,50 @@
+services:
+  # IBM MQ Service
+  ibmmq:
+    image: ibmcom/mq:9.2.4.0-r1-amd64
+    hostname: ibmmq  # Важно для корректной работы MQ!
+    container_name: ibmmq
+    ports:
+      - "1414:1414"
+      - "9443:9443"
+    environment:
+      - LICENSE=accept
+      - MQ_QMGR_NAME=QM1
+      - MQ_DEV=true
+      - MQ_ADMIN_PASSWORD=passw0rd
+      - MQ_APP_PASSWORD=passw0rd
+      - MQ_CHANNEL=DEV.APP.SVRCONN  # Канал по умолчанию
+    networks:
+      - test-network
+    volumes:
+      - ./scripts/mqsc/20-config.mqsc:/etc/mqm/20-config.mqsc:Z
+    healthcheck:
+      test: ["CMD-SHELL", "chkmqhealthy || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # WireMock REST API Stub
+  wiremock:
+    image: wiremock/wiremock:3.13.0
+    container_name: wiremock
+    hostname: wiremock
+    ports:
+      - "8081:8080"
+    volumes:
+      - ./wiremock:/home/wiremock
+    command: 
+      - --global-response-templating
+      - --verbose
+    networks:
+      - test-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/__admin/mappings"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+# MQ-REST-Sync-Adapter Service
+networks:
+  test-network:
+    driver: bridge

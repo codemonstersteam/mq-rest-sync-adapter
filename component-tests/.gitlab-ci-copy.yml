@@ -1,0 +1,73 @@
+default:
+  services:
+    - name: docker:28.1.1-dind
+      command: ["--tls=false"]
+
+
+variables:
+  DOCKER_TLS_CERTDIR: ""
+  DOCKER_DRIVER: overlay2
+  DOCKER_REGISTRY: "docker.io"
+
+stages:
+  - test-environment
+
+test-environment:
+  image: docker.io/docker:28
+  stage: test-environment
+  tags:
+    - testcontainers
+  before_script:
+    - docker compose version
+    - docker compose --file docker-compose.yml up -d
+    - sleep 15
+    - ls -la
+    - | 
+      docker run --name test-runner-2 --rm \
+      -v ./:/app codemonstersteam/jdk21-compose:0.0.1 \
+      /app/gradlew cucumber
+    - docker compose --file docker-compose.yml down
+  script:
+    - pwd
+    - whoami
+    - ls -la
+    - ./scripts/run-tests.sh
+  artifacts:
+    paths:
+      - ./build/reports/
+    expire_in: 2 week
+    when: always
+    reports:
+      junit: ./build/reports/cucumber.json
+  after_script:
+    - |
+      docker compose --file docker-compose.yml down
+      if [ -f "build/reports/cucumber.json" ]; then
+        echo "Test Results Summary:"
+        if grep -q '"status":"failed"' build/reports/cucumber.json; then
+          echo "❌ Some tests FAILED"
+          failed_count=$(grep -o '"status":"failed"' build/reports/cucumber.json | wc -l)
+          echo "   Failed tests count: $failed_count"
+        else
+          echo "🎉 All tests PASSED"
+        fi
+        passed_count=$(grep -o '"status":"passed"' build/reports/cucumber.json | wc -l)
+        echo "   Passed tests count: $passed_count"
+        total_count=$(($(grep -o '"status":"' build/reports/cucumber.json | wc -l)))
+        echo "   Total tests count: $total_count"
+      else
+        echo "⚠️ No test results found in build/reports/cucumber.json"
+      fi
+  retry:
+    max: 1
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - script_failure
+      - job_execution_timeout
+  when: always
+  timeout: 10m
+  # rules:
+  #   - if: $CI_PIPELINE_SOURCE == "merge_request"
+  #   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  #   - if: $CI_COMMIT_BRANCH == "ci-update-tests"

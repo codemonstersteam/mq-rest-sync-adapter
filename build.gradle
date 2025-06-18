@@ -13,6 +13,10 @@ if (project.hasProperty('projVersion')) {
     project.version = '0.0.1'
 }
 
+springBoot {
+    buildInfo()
+}
+
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(21)
@@ -30,6 +34,9 @@ dependencies {
     implementation 'io.projectreactor.kotlin:reactor-kotlin-extensions'
     implementation 'org.jetbrains.kotlin:kotlin-reflect'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-reactor'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'io.micrometer:micrometer-registry-prometheus'
+    implementation 'io.micrometer:micrometer-core'
 
     //kt jackson
     implementation 'com.fasterxml.jackson.module:jackson-module-kotlin:2.12.6'
@@ -42,9 +49,6 @@ dependencies {
     testImplementation 'io.projectreactor:reactor-test'
     testImplementation 'org.jetbrains.kotlin:kotlin-test-junit5'
     testImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-test'
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-    testImplementation 'org.springframework.boot:spring-boot-testcontainers:3.1.4'
-    testImplementation 'com.maciejwalkowiak.spring:wiremock-spring-boot:1.0.1'
 }
 
 kotlin {
