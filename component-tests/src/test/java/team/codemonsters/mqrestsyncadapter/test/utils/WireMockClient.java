@@ -1,4 +1,4 @@
-package team.codemonsters.mqrestsyncadapter.test.client;
+package team.codemonsters.mqrestsyncadapter.test.utils;
 
 import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpGet;

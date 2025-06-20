@@ -20,7 +20,7 @@ import io.cucumber.java.Before;
 import io.cucumber.java.en.Given;
 import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
-import team.codemonsters.mqrestsyncadapter.test.client.WireMockClient;
+import team.codemonsters.mqrestsyncadapter.test.utils.WireMockClient;
 import team.codemonsters.mqrestsyncadapter.test.model.HttpResponse;
 import team.codemonsters.mqrestsyncadapter.test.utils.TestConfig;
 
