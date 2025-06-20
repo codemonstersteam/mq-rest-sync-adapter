@@ -1,14 +1,9 @@
 package team.codemonsters.mqrestsyncadapter.test.utils;
 
-import org.apache.http.HttpResponse;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.http.util.EntityUtils;
+import io.restassured.RestAssured;
+import io.restassured.response.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.IOException;
 
 public class WireMockClient {
     private static final Logger LOG = LoggerFactory.getLogger(WireMockClient.class);
@@ -20,37 +15,40 @@ public class WireMockClient {
     }
     
     public boolean isRunning() {
-        try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
-            HttpGet request = new HttpGet(baseUrl + "/__admin/mappings");
-            HttpResponse response = httpClient.execute(request);
-            return response.getStatusLine().getStatusCode() == 200;
-        } catch (IOException e) {
+        try {
+            Response response = RestAssured.given()
+                .when()
+                .get(baseUrl + "/__admin/mappings");
+            return response.getStatusCode() == 200;
+        } catch (Exception e) {
             LOG.error("Error checking WireMock status", e);
             return false;
         }
     }
     
     public String getRequests() {
-        try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
-            HttpGet request = new HttpGet(baseUrl + "/__admin/requests");
-            HttpResponse response = httpClient.execute(request);
-            if (response.getStatusLine().getStatusCode() == 200) {
-                return EntityUtils.toString(response.getEntity());
+        try {
+            Response response = RestAssured.given()
+                .when()
+                .get(baseUrl + "/__admin/requests");
+            if (response.getStatusCode() == 200) {
+                return response.getBody().asString();
             } else {
-                LOG.error("Error getting WireMock requests: {}", response.getStatusLine());
+                LOG.error("Error getting WireMock requests: {}", response.getStatusCode());
                 return null;
             }
-        } catch (IOException e) {
+        } catch (Exception e) {
             LOG.error("Error getting WireMock requests", e);
             return null;
         }
     }
     
     public void resetRequests() {
-        try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
-            HttpGet request = new HttpGet(baseUrl + "/__admin/requests/reset");
-            httpClient.execute(request);
-        } catch (IOException e) {
+        try {
+            RestAssured.given()
+                .when()
+                .post(baseUrl + "/__admin/requests/reset");
+        } catch (Exception e) {
             LOG.error("Error resetting WireMock requests", e);
         }
     }
