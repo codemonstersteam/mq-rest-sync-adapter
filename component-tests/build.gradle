@@ -26,7 +26,11 @@ dependencies {
     
     // REST client for testing REST endpoints and WireMock admin API
     implementation 'org.apache.httpcomponents:httpclient:4.5.14'
-    testImplementation 'io.rest-assured:rest-assured:5.3.0'
+    
+    // REST Assured for API testing
+    testImplementation 'io.rest-assured:rest-assured:5.3.2'
+    testImplementation 'io.rest-assured:json-path:5.3.2'
+    testImplementation 'io.rest-assured:xml-path:5.3.2'
     
     // JSON Processing
     implementation 'org.json:json:20231013'

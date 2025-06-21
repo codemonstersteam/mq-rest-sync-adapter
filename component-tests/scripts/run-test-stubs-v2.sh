@@ -9,6 +9,7 @@ EXIT_CODE=$?
 if [ -f "./build/reports/cucumber.json" ]; then
     if grep -q '"status":"failed"' ./build/reports/cucumber.json; then
         echo "❌ Tests failed! Found failed scenarios  in cucumber.json"
+        docker logs unleash
         docker compose --file docker-compose-test-stubs.yml down
         exit 1
     fi
