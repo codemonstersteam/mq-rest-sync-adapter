@@ -10,4 +10,8 @@ Feature: Unleash Project and Feature Toggle Setup
     Given Project with name "default" exists
     Then I create a feature toggle "wallet-balance-workflow" in the project with type "experiment"
     Then the feature toggle should be created successfully in the project
-    And the toggle should be enabled
+    When I enable the feature toggle in environment "development"
+    Then the feature toggle should be enabled in environment "development"
+    When I disable the feature toggle in environment "development"
+    Then the feature toggle should be disabled in environment "development"
+    

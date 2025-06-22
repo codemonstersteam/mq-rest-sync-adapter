@@ -10,6 +10,7 @@ import io.restassured.response.Response;
 import io.restassured.specification.RequestSpecification;
 import io.restassured.config.HttpClientConfig;
 import io.restassured.config.RestAssuredConfig;
+import io.restassured.http.ContentType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import team.codemonsters.mqrestsyncadapter.test.utils.TestConfig;
@@ -209,8 +210,26 @@ public class UnleashStepDefinitions {
                 .isEqualTo(201);
     }
 
-    @And("the toggle should be enabled")
-    public void theToggleShouldBeEnabled() {
+    @When("I enable the feature toggle in environment {string}")
+    public void iEnableTheFeatureToggleInEnvironment(String environment) {
+        logger.info("Enabling toggle {} in project {} for environment {}", toggleName, projectName, environment);
+
+        lastResponse = given()
+                .cookie("unleash-session", sessionToken)
+                .contentType(ContentType.JSON)
+                .body("")
+                .when()
+                .post("/api/admin/projects/" + projectName + "/features/" + toggleName + "/environments/" + environment + "/on")
+                .then()
+                .extract()
+                .response();
+
+        logger.info("Toggle enable response: {} - {}", lastResponse.getStatusCode(), lastResponse.getBody().asString());
+        assertThat(lastResponse.getStatusCode()).isEqualTo(200);
+    }
+
+    @Then("the feature toggle should be enabled in environment {string}")
+    public void theFeatureToggleShouldBeEnabledInEnvironment(String environment) {
         Response getResponse = given()
                 .cookie("unleash-session", sessionToken)
                 .when()
@@ -220,16 +239,51 @@ public class UnleashStepDefinitions {
                 .extract()
                 .response();
 
-        logger.info("Toggle details: {}", getResponse.getBody().asString());
+        logger.info("Toggle details after enabling: {}", getResponse.getBody().asString());
 
-        //boolean enabled = getResponse.jsonPath().getBoolean("enabled");
-        // String name = getResponse.jsonPath().getString("name");
-        // String project = getResponse.jsonPath().getString("project");
-
-        // assertThat(enabled)
-        //         .as("Toggle should be enabled in development environment")
-        //         .isTrue();
+        // Check if the toggle is enabled in the specified environment
+        boolean enabled = getResponse.jsonPath().getBoolean("environments.find { it.name == '" + environment + "' }.enabled");
+        assertThat(enabled)
+                .as("Toggle should be enabled in environment: " + environment)
+                .isTrue();
     }
 
+    @When("I disable the feature toggle in environment {string}")
+    public void iDisableTheFeatureToggleInEnvironment(String environment) {
+        logger.info("Disabling toggle {} in project {} for environment {}", toggleName, projectName, environment);
+
+        lastResponse = given()
+                .cookie("unleash-session", sessionToken)
+                .contentType(ContentType.JSON)
+                .body("")
+                .when()
+                .post("/api/admin/projects/" + projectName + "/features/" + toggleName + "/environments/" + environment + "/off")
+                .then()
+                .extract()
+                .response();
+
+        logger.info("Toggle disable response: {} - {}", lastResponse.getStatusCode(), lastResponse.getBody().asString());
+        assertThat(lastResponse.getStatusCode()).isEqualTo(200);
+    }
+
+    @Then("the feature toggle should be disabled in environment {string}")
+    public void theFeatureToggleShouldBeDisabledInEnvironment(String environment) {
+        Response getResponse = given()
+                .cookie("unleash-session", sessionToken)
+                .when()
+                .get("/api/admin/projects/" + projectName + "/features/" + toggleName)
+                .then()
+                .statusCode(200)
+                .extract()
+                .response();
+
+        logger.info("Toggle details after disabling: {}", getResponse.getBody().asString());
+
+        // Check if the toggle is disabled in the specified environment
+        boolean enabled = getResponse.jsonPath().getBoolean("environments.find { it.name == '" + environment + "' }.enabled");
+        assertThat(enabled)
+                .as("Toggle should be disabled in environment: " + environment)
+                .isFalse();
+    }
 
 }
