@@ -90,6 +90,13 @@ rest:
         client-wallet-balance: /api/client/${Api-clientId}/wallet/balance
         client-wallet-status: /api/client/${Api-clientId}/wallet/status
 
+unleash:
+  appName: ${spring.application.name}
+  instanceId: instance-1
+  url: http://localhost:4242
+  token: default:development.unleash-insecure-api-token
+  environment: development
+
 features:
     toggles:
       wallet-balance-workflow:
