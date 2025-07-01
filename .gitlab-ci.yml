@@ -38,11 +38,9 @@ component-tests:
   needs:
     - unit-tests
   script:
-    - export FT_ENABLED=true
-    - ls -la build/
     - cd component-tests
-    - ./scripts/run-test-sut-v2.sh
-    - export FT_ENABLED=false
+    # скрипт отвечает за проверку с тоглами, если таковые есть
+    # за счет интеграции с unleash
     - ./scripts/run-test-sut-v2.sh
   artifacts:
     paths:

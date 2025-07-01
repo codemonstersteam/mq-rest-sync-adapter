@@ -1,5 +1,7 @@
 package team.codemonsters.mqrestsyncadapter.test.stepdefs;
 
+import java.sql.Time;
+
 import io.cucumber.datatable.DataTable;
 import io.cucumber.java.en.Given;
 import io.cucumber.java.en.When;
@@ -11,8 +13,10 @@ import io.restassured.specification.RequestSpecification;
 import io.restassured.config.HttpClientConfig;
 import io.restassured.config.RestAssuredConfig;
 import io.restassured.http.ContentType;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import team.codemonsters.mqrestsyncadapter.test.utils.TestConfig;
 
 import java.util.ArrayList;
@@ -22,8 +26,10 @@ import java.util.Map;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.util.concurrent.TimeUnit;
 
 import static io.restassured.RestAssured.given;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class UnleashStepDefinitions {
@@ -162,7 +168,7 @@ public class UnleashStepDefinitions {
         logger.info("Project list response: {} - {}", lastResponse.getStatusCode(), lastResponse.getBody().asString());
         assertThat(lastResponse.getStatusCode()).isEqualTo(200);
         Map<String, Object> toggleMap = TestConfig.jsonToMap(lastResponse.getBody().asString());
-    
+
     }
 
     @When("I create a feature toggle {string} in the project with type {string}")
@@ -219,7 +225,8 @@ public class UnleashStepDefinitions {
                 .contentType(ContentType.JSON)
                 .body("")
                 .when()
-                .post("/api/admin/projects/" + projectName + "/features/" + toggleName + "/environments/" + environment + "/on")
+                .post("/api/admin/projects/" + projectName + "/features/" + toggleName + "/environments/" + environment
+                        + "/on")
                 .then()
                 .extract()
                 .response();
@@ -228,12 +235,17 @@ public class UnleashStepDefinitions {
         assertThat(lastResponse.getStatusCode()).isEqualTo(200);
     }
 
+    @Then("I wait {int} seconds")
+    public void waitForToggle(int seconds) throws InterruptedException {
+        TimeUnit.SECONDS.sleep(seconds);
+    }
+
     @Then("the feature toggle should be enabled in environment {string}")
     public void theFeatureToggleShouldBeEnabledInEnvironment(String environment) {
         Response getResponse = given()
-                .cookie("unleash-session", sessionToken)
+                .header("Authorization", "Bearer " + clientApiToken)
                 .when()
-                .get("/api/admin/projects/" + projectName + "/features/" + toggleName)
+                .get("/api/client/features/" + toggleName)
                 .then()
                 .statusCode(200)
                 .extract()
@@ -241,8 +253,8 @@ public class UnleashStepDefinitions {
 
         logger.info("Toggle details after enabling: {}", getResponse.getBody().asString());
 
-        // Check if the toggle is enabled in the specified environment
-        boolean enabled = getResponse.jsonPath().getBoolean("environments.find { it.name == '" + environment + "' }.enabled");
+        // Check if the toggle is enabled - the 'enabled' field is at the root level
+        boolean enabled = getResponse.jsonPath().getBoolean("enabled");
         assertThat(enabled)
                 .as("Toggle should be enabled in environment: " + environment)
                 .isTrue();
@@ -257,21 +269,23 @@ public class UnleashStepDefinitions {
                 .contentType(ContentType.JSON)
                 .body("")
                 .when()
-                .post("/api/admin/projects/" + projectName + "/features/" + toggleName + "/environments/" + environment + "/off")
+                .post("/api/admin/projects/" + projectName + "/features/" + toggleName + "/environments/" + environment
+                        + "/off")
                 .then()
                 .extract()
                 .response();
 
-        logger.info("Toggle disable response: {} - {}", lastResponse.getStatusCode(), lastResponse.getBody().asString());
+        logger.info("Toggle disable response: {} - {}", lastResponse.getStatusCode(),
+                lastResponse.getBody().asString());
         assertThat(lastResponse.getStatusCode()).isEqualTo(200);
     }
 
     @Then("the feature toggle should be disabled in environment {string}")
     public void theFeatureToggleShouldBeDisabledInEnvironment(String environment) {
         Response getResponse = given()
-                .cookie("unleash-session", sessionToken)
+        .header("Authorization", "Bearer " + clientApiToken)
                 .when()
-                .get("/api/admin/projects/" + projectName + "/features/" + toggleName)
+                .get("/api/client/features/" + toggleName)
                 .then()
                 .statusCode(200)
                 .extract()
@@ -280,7 +294,7 @@ public class UnleashStepDefinitions {
         logger.info("Toggle details after disabling: {}", getResponse.getBody().asString());
 
         // Check if the toggle is disabled in the specified environment
-        boolean enabled = getResponse.jsonPath().getBoolean("environments.find { it.name == '" + environment + "' }.enabled");
+        boolean enabled = getResponse.jsonPath().getBoolean("enabled");
         assertThat(enabled)
                 .as("Toggle should be disabled in environment: " + environment)
                 .isFalse();

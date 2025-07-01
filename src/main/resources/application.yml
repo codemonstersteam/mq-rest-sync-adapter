@@ -94,7 +94,7 @@ rest:
 unleash:
   appName: ${spring.application.name}
   instanceId: instance-pod-id
-  url: http://localhost:4242
+  url: http://localhost:4242/api
   token: default:development.unleash-insecure-api-token
   environment: development
 

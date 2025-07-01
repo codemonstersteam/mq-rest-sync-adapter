@@ -76,9 +76,9 @@ services:
       - DATABASE_PASSWORD=unleash_password
       - DATABASE_SSL=false
       - LOG_LEVEL=info
-      - INIT_FRONTEND_API_TOKENS=default:development.unleash-insecure-frontend-api-token
-      - INIT_CLIENT_API_TOKENS=default:development.unleash-insecure-api-token
-      - UNLEASH_URL=http://localhost:4242
+      - INIT_FRONTEND_API_TOKENS=default:development.frontend-token-12345
+      - INIT_CLIENT_API_TOKENS=default:development.client-token-67890
+      - UNLEASH_URL=http://unleash:4242
       - DATABASE_URL=postgres://unleash:unleash_password@unleash-db:5432/unleash
       - INIT_ADMIN_USERNAME=admin
       - INIT_ADMIN_PASSWORD=unleash4all
@@ -108,8 +108,8 @@ services:
       - rest.configs.api-gateway.url=http://wiremock:8080
       - rest.configs.api-gateway.basic-auth.user=client
       - rest.configs.api-gateway.basic-auth.password=password
-      - unleash.url=http://unleash:4242
-      - unleash.token=default:development.unleash-insecure-api-token
+      - unleash.url=http://unleash:4242/api
+      - unleash.token=default:development.client-token-67890
       - unleash.environment=development
     ports:
       - "8081:8080"
@@ -142,8 +142,7 @@ services:
       - WIREMOCK_PORT=8080
       - UNLEASH_HOST=unleash
       - UNLEASH_PORT=4242
-      - UNLEASH_API_TOKEN=default:development.unleash-insecure-api-token
-      - UNLEASH_ADMIN_API_TOKEN=*:*.development.unleash-insecure-admin-api-token
+      - UNLEASH_API_TOKEN=default:development.client-token-67890
     volumes:
       - ./:/home/gitlab-runner/project:Z
     working_dir: /home/gitlab-runner/project
