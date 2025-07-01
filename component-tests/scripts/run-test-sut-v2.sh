@@ -3,14 +3,6 @@
 # Запоминаем время начала выполнения в миллисекундах
 START_TIME=$(date +%s%N | cut -b1-13)
 
-# Проверяем наличие переменной
-if [ -z "$FT_ENABLED" ]; then
-    echo "❌ Error: FT_ENABLED environment variable is not set"
-    exit 1
-fi
-
-# Формируем строку с переменными для docker-compose
-
 echo "🚀 Starting tests for sut with stubs in containers..."
 docker compose --file docker-compose-test-sut.yml up -d
 echo "⏳ Waiting for test-runner container to start..."
@@ -32,8 +24,9 @@ else
     echo "⚠️ Warning: cucumber.json not found in ./build/reports/"
     exit 1
 fi
-
+docker logs sut
 docker compose --file docker-compose-test-sut.yml down
+
 echo "✅ Test-runner container finished"
 docker rmi component-tests-sut:latest
 

@@ -34,6 +34,7 @@ logging:
     org.springframework: INFO
     org.springframework.jms: DEBUG
     team.codemonsters: DEBUG
+    io.getunleash.event: DEBUG
 
 server:
   port: 8080
@@ -92,7 +93,7 @@ rest:
 
 unleash:
   appName: ${spring.application.name}
-  instanceId: instance-1
+  instanceId: instance-pod-id
   url: http://localhost:4242
   token: default:development.unleash-insecure-api-token
   environment: development

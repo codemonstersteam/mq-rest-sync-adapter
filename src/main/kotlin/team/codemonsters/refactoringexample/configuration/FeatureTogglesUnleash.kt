@@ -29,24 +29,9 @@ data class FeatureTogglesUnleash(
             .unleashAPI(url)
             .apiKey(token)
             .environment(environment)
-            .subscriber(
-                object : UnleashSubscriber {
-                    override fun onReady(ready: UnleashReady) {
-                        println("Unleash is ready")
-                    }
+            .build()
 
-                    override fun togglesFetched(toggleResponse: FeatureToggleResponse) {
-                        println("Fetch toggles with status: ${toggleResponse.status}")
-                    }
-
-                    override fun togglesBackedUp(toggleCollection: ToggleCollection) {
-                        println("Backup stored.")
-                    }
-                },
-            ).build()
-
+    
     @Bean
-    fun unleash() = DefaultUnleash(unleashConfiguration())
-
-    fun isFeatureEnabled(name: String) = unleash().isEnabled(name)
+    fun unleash(): DefaultUnleash = DefaultUnleash(unleashConfiguration())
 }
