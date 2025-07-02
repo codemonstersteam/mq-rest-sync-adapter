@@ -152,4 +152,9 @@ public class HappyPathFlowSteps {
         assertThat(json.get("flag")).isEqualTo(flag);
         assertThat(json.get("errorCode")).isNull();
     }
+
+    @Then("I clear receipts state")
+    public void clearReceiptsState() {
+        receipts.clear();
+    }
 }

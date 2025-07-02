@@ -24,7 +24,13 @@ else
     echo "⚠️ Warning: cucumber.json not found in ./build/reports/"
     exit 1
 fi
-docker logs sut
+# docker logs sut
+# TODO: check logs for feature toggle was enabled/disabled
+echo "Checking feature toggle was enabled in logs: for wallet-balance workflow..."
+docker logs sut | grep -i "wallet-balance workflow is enabled"
+echo "Checking feature toggle was disabled in logs: for Incoming transmission into PipelineServicePS legacy flow..."
+docker logs sut | grep -i "Incoming transmission into PipelineServicePS legacy flow"
+
 docker compose --file docker-compose-test-sut.yml down
 
 echo "✅ Test-runner container finished"
