@@ -1,6 +1,6 @@
 #!/bin/bash
 echo "🚀 Starting tests for stubs containers..."
-docker compose --file docker-compose-stubs.yml up -d
+docker compose --file docker-compose-test-stubs.yml up -d
 echo "⏳ Waiting for test-runner container to start..."
 docker logs -f test-runner & docker wait test-runner
 EXIT_CODE=$?
@@ -8,8 +8,9 @@ EXIT_CODE=$?
 # Проверяем результат тестов
 if [ -f "./build/reports/cucumber.json" ]; then
     if grep -q '"status":"failed"' ./build/reports/cucumber.json; then
-        echo "❌ Tests failed! Found failed scenarios in cucumber.json"
-        docker compose --file docker-compose-stubs.yml down
+        echo "❌ Tests failed! Found failed scenarios  in cucumber.json"
+        docker logs unleash
+        docker compose --file docker-compose-test-stubs.yml down
         exit 1
     fi
 else
@@ -18,7 +19,7 @@ else
     exit 1
 fi
 
-docker compose --file docker-compose-stubs.yml down
+docker compose --file docker-compose-test-stubs.yml down
 echo "✅ Test-runner container finished"
 
 # Возвращаем код ошибки от контейнера
