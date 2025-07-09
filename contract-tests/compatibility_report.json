@@ -1,0 +1,33 @@
+{
+  "isCompatible": true,
+  "breakingChanges": [],
+  "warnings": [
+    {
+      "type": "schema",
+      "field": "components.schemas",
+      "message": "Schema definitions not found in one or both specifications",
+      "suggestion": "Ensure both consumer and provider have schema definitions"
+    },
+    {
+      "type": "channels",
+      "field": "channels",
+      "message": "Channel definitions not found in one or both specifications",
+      "suggestion": "Ensure both consumer and provider have channel definitions"
+    },
+    {
+      "type": "operations",
+      "field": "operations",
+      "message": "Operation definitions not found in one or both specifications",
+      "suggestion": "Ensure both consumer and provider have operation definitions"
+    },
+    {
+      "type": "messages",
+      "field": "components.messages",
+      "message": "Message definitions not found in one or both specifications",
+      "suggestion": "Ensure both consumer and provider have message definitions"
+    }
+  ],
+  "checkedAt": "2025-07-09T17:39:50.385772168+03:00",
+  "consumerVersion": "",
+  "providerVersion": ""
+}
