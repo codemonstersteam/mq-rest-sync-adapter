@@ -34,6 +34,7 @@ logging:
     org.springframework: INFO
     org.springframework.jms: DEBUG
     team.codemonsters: DEBUG
+    io.getunleash.event: DEBUG
 
 server:
   port: 8080
@@ -89,6 +90,13 @@ rest:
         client-reg: /api/client/register
         client-wallet-balance: /api/client/${Api-clientId}/wallet/balance
         client-wallet-status: /api/client/${Api-clientId}/wallet/status
+
+unleash:
+  appName: ${spring.application.name}
+  instanceId: instance-pod-id
+  url: http://localhost:4242/api
+  token: default:development.unleash-insecure-api-token
+  environment: development
 
 features:
     toggles:
