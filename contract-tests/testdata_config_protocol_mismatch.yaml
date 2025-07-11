@@ -1,0 +1,14 @@
+contract_tests:
+  consumer:
+    name: "test-consumer"
+    spec_path: "testdata_consumer_http.yml"
+    channels:
+      - "restGetBalanceRequest"
+  provider:
+    name: "test-provider"
+    spec_url: "testdata_provider_https.yml"
+  settings:
+    log_level: "debug"
+    save_json_report: true
+    json_report_file: "protocol_mismatch_report.json"
+    timeout: 30

@@ -4,11 +4,15 @@ contract_tests:
   consumer:
     spec_path: "../api-specification/asyncapi.yml"
     name: "mq-rest-sync-adapter"
+    channels:
+      - restGetBalanceRequest
     
   # Спецификация поставщика (удаленная)
   provider:
     spec_url: "https://git.codemonsters.team/guides/wallet-balance/-/raw/main/api-specification/asyncapi.yml"
     name: "wallet-balance-service"
+    # Ограничения проверки каналов для данного провайдера
+
     
   # Настройки проверки
   settings:

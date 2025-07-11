@@ -1,0 +1,167 @@
+# Словарь протоколов для AsyncAPI 3.0
+# Поддерживаемые протоколы для интеграции в организации
+# Основан на официальном списке протоколов AsyncAPI 3.0
+
+protocols:
+  # HTTP - для request/response взаимодействий
+  http:
+    name: "HTTP"
+    description: "Hypertext Transfer Protocol для request/response взаимодействий"
+    category: "web"
+    secure: false
+    
+  # WebSocket - для двунаправленной real-time коммуникации
+  ws:
+    name: "WebSocket"
+    description: "WebSocket для двунаправленной, real-time коммуникации"
+    category: "web"
+    secure: false
+    
+  wss:
+    name: "WebSocket Secure"
+    description: "WebSocket over SSL/TLS для защищенной real-time коммуникации"
+    category: "web"
+    secure: true
+    
+  # Kafka - distributed streaming platform
+  kafka:
+    name: "Apache Kafka"
+    description: "Apache Kafka - distributed streaming platform"
+    category: "streaming"
+    secure: false
+    
+  kafka-secure:
+    name: "Apache Kafka Secure"
+    description: "Apache Kafka с SSL/SASL authentication"
+    category: "streaming"
+    secure: true
+    
+  # MQTT - lightweight messaging для IoT устройств
+  mqtt:
+    name: "MQTT"
+    description: "MQTT - lightweight messaging protocol для IoT устройств"
+    category: "iot"
+    secure: false
+    
+  # MQTT5 - новейшая версия MQTT
+  mqtt5:
+    name: "MQTT 5.0"
+    description: "MQTT 5.0 - новейшая версия MQTT"
+    category: "iot"
+    secure: false
+    
+  # AMQP - messaging protocol часто используется с RabbitMQ
+  amqp:
+    name: "AMQP"
+    description: "Advanced Message Queuing Protocol, часто используется с RabbitMQ"
+    category: "messaging"
+    secure: false
+    
+  # AMQP 1.0 - обновленная версия AMQP
+  amqp1:
+    name: "AMQP 1.0"
+    description: "AMQP 1.0 - обновленная версия AMQP"
+    category: "messaging"
+    secure: false
+    
+  # Anypoint MQ - cloud messaging service
+  anypointmq:
+    name: "Anypoint MQ"
+    description: "Anypoint MQ - cloud messaging service"
+    category: "cloud"
+    secure: true
+    
+  # JMS - Java Message Service API
+  jms:
+    name: "JMS"
+    description: "Java Message Service API"
+    category: "messaging"
+    secure: false
+    
+  # SNS - Amazon Simple Notification Service
+  sns:
+    name: "Amazon SNS"
+    description: "Amazon Simple Notification Service"
+    category: "cloud"
+    secure: true
+    
+  # Solace - messaging platform
+  solace:
+    name: "Solace"
+    description: "Solace messaging platform"
+    category: "messaging"
+    secure: false
+    
+  # SQS - Amazon Simple Queue Service
+  sqs:
+    name: "Amazon SQS"
+    description: "Amazon Simple Queue Service"
+    category: "cloud"
+    secure: true
+    
+  # STOMP - Simple Text Oriented Messaging Protocol
+  stomp:
+    name: "STOMP"
+    description: "Simple Text Oriented Messaging Protocol"
+    category: "messaging"
+    secure: false
+    
+  # Redis - in-memory data structure store, также используется как message broker
+  redis:
+    name: "Redis"
+    description: "Redis - in-memory data structure store, используется как message broker"
+    category: "caching"
+    secure: false
+    
+  # Mercure - protocol для real-time updates
+  mercure:
+    name: "Mercure"
+    description: "Mercure - protocol для real-time updates"
+    category: "web"
+    secure: false
+    
+  # NATS - cloud-native messaging system
+  nats:
+    name: "NATS"
+    description: "NATS - cloud-native messaging system"
+    category: "messaging"
+    secure: false
+    
+  # Google Cloud Pub/Sub - fully managed real-time messaging service
+  googlepubsub:
+    name: "Google Cloud Pub/Sub"
+    description: "Google Cloud Pub/Sub - fully managed real-time messaging service"
+    category: "cloud"
+    secure: true
+    
+  # Pulsar - cloud-native distributed messaging and streaming platform
+  pulsar:
+    name: "Apache Pulsar"
+    description: "Apache Pulsar - cloud-native distributed messaging and streaming platform"
+    category: "streaming"
+    secure: false
+    
+  # IBM MQ - enterprise messaging
+  ibmmq:
+    name: "IBM MQ"
+    description: "IBM MQ - enterprise messaging solution"
+    category: "messaging"
+    secure: true
+
+# Правила совместимости протоколов
+compatibility:
+  # Строгое соответствие - протоколы должны быть идентичными
+  strict_matching: true
+  
+  # Категории протоколов
+  categories:
+    web: ["http", "ws", "wss", "mercure"]
+    messaging: ["amqp", "amqp1", "jms", "stomp", "nats", "solace", "ibmmq"]
+    streaming: ["kafka", "kafka-secure", "pulsar"]
+    iot: ["mqtt", "mqtt5"]
+    cloud: ["sns", "sqs", "anypointmq", "googlepubsub"]
+    caching: ["redis"]
+    
+  # Правила совместимости (если strict_matching: false)
+  # В текущей реализации используется strict_matching: true
+  compatible_groups: []

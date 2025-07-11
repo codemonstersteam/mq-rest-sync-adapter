@@ -1,0 +1,19 @@
+{
+  "isCompatible": false,
+  "breakingChanges": [
+    {
+      "type": "channel_missing_server_reference",
+      "field": "channels.restGetBalanceRequest.servers",
+      "oldValue": "[]",
+      "newValue": "required",
+      "description": "Канал 'restGetBalanceRequest' не содержит ссылки на сервер. Для определения протокола каждый канал должен содержать ссылку на сервер",
+      "severity": "high"
+    }
+  ],
+  "warnings": [],
+  "checkedAt": "2025-07-11T09:38:10.920004661+03:00",
+  "consumerVersion": "1.0.0",
+  "providerVersion": "1.0.0",
+  "consumerName": "test-consumer",
+  "providerName": "test-provider"
+}

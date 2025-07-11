@@ -1,0 +1,11 @@
+contract_tests:
+  consumer:
+    name: "test-consumer-https"
+    spec_path: "testdata_consumer_https.yml"
+    channels:
+      - "restGetBalanceRequest"
+  provider:
+    name: "test-provider-http"
+    spec_url: "testdata_provider_success.yml"
+  settings:
+    log_level: "debug"

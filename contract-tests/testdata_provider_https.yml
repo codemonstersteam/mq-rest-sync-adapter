@@ -1,0 +1,32 @@
+asyncapi: 3.0.0
+info:
+  title: Test Provider AsyncAPI Spec - HTTPS Protocol
+  version: 1.0.0
+  description: Тестовая спецификация провайдера с HTTPS протоколом
+servers:
+  httpsServer:
+    host: https://localhost:8080
+    protocol: https
+    pathname: '/api/client/{clientId}/wallet/balance'
+    description: HTTPS сервер для баланса кошельков
+channels:
+  walletBalanceRequest:
+    address: "/api/client/{clientId}/wallet/balance"
+    description: HTTPS канал для получения баланса кошелька
+    messages:
+      httpBalanceRequest:
+        contentType: application/json
+        payload:
+          type: object
+          properties:
+            clientId:
+              type: string
+      httpBalanceResponse:
+        contentType: application/json
+        payload:
+          type: object
+          properties:
+            balance:
+              type: number
+    servers:
+      - $ref: "#/servers/httpsServer"

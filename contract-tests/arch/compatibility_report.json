@@ -1,0 +1,65 @@
+{
+  "isCompatible": false,
+  "breakingChanges": [
+    {
+      "type": "rest_message_type_missing",
+      "field": "channels.restGetBalanceRequest.messages",
+      "oldValue": "#/components/messages/psGetBalanceRequest",
+      "newValue": "not_found",
+      "description": "Message type 'request' not found in provider for channel 'restGetBalanceRequest'",
+      "severity": "high"
+    },
+    {
+      "type": "schema_removed",
+      "field": "components.schemas.httpEnvelopePayload",
+      "oldValue": "exists",
+      "newValue": "not_exists",
+      "description": "Schema 'httpEnvelopePayload' was removed from provider specification",
+      "severity": "high"
+    },
+    {
+      "type": "schema_removed",
+      "field": "components.schemas.httpResponseEnvelopePayload",
+      "oldValue": "exists",
+      "newValue": "not_exists",
+      "description": "Schema 'httpResponseEnvelopePayload' was removed from provider specification",
+      "severity": "high"
+    },
+    {
+      "type": "schema_removed",
+      "field": "components.schemas.psGetBalanceRequestHeaders",
+      "oldValue": "exists",
+      "newValue": "not_exists",
+      "description": "Schema 'psGetBalanceRequestHeaders' was removed from provider specification",
+      "severity": "high"
+    },
+    {
+      "type": "schema_removed",
+      "field": "components.schemas.psGetBalanceRequestPayload",
+      "oldValue": "exists",
+      "newValue": "not_exists",
+      "description": "Schema 'psGetBalanceRequestPayload' was removed from provider specification",
+      "severity": "high"
+    },
+    {
+      "type": "schema_removed",
+      "field": "components.schemas.receiptValidationAcceptancePayload",
+      "oldValue": "exists",
+      "newValue": "not_exists",
+      "description": "Schema 'receiptValidationAcceptancePayload' was removed from provider specification",
+      "severity": "high"
+    },
+    {
+      "type": "schema_removed",
+      "field": "components.schemas.transactionReceiptPayload",
+      "oldValue": "exists",
+      "newValue": "not_exists",
+      "description": "Schema 'transactionReceiptPayload' was removed from provider specification",
+      "severity": "high"
+    }
+  ],
+  "warnings": [],
+  "checkedAt": "2025-07-10T20:10:50.097010664+03:00",
+  "consumerVersion": "1.0.0",
+  "providerVersion": "1.0.0"
+}

@@ -1,0 +1,25 @@
+asyncapi: 3.0.0
+info:
+  title: Test Consumer AsyncAPI Spec - Invalid (No Server Reference)
+  version: 1.0.0
+  description: Тестовая спецификация потребителя без ссылки на сервер для проверки предохранителя
+servers:
+  restServer:
+    host: https://localhost:8080
+    protocol: http
+    pathname: '/api/client/{clientId}/wallet/balance'
+channels:
+  restGetBalanceRequest:
+    address: "/api/client/{Api-clientId}/wallet/balance"
+    description: REST канал для получения баланса кошелька БЕЗ ссылки на сервер
+    messages:
+      httpBalanceRequest:
+        contentType: application/json
+        payload:
+          type: object
+          properties:
+            clientId:
+              type: string
+    # Намеренно НЕ добавляем ссылку на сервер для тестирования предохранителя
+    # servers:
+    #   - $ref: "#/servers/restServer"

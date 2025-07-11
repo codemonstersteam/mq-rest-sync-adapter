@@ -1,0 +1,19 @@
+{
+  "isCompatible": false,
+  "breakingChanges": [
+    {
+      "type": "channel_address_not_supported",
+      "field": "channels.restGetBalanceRequest.address",
+      "oldValue": "/api/client/{Api-clientId}/wallet/balance",
+      "newValue": "not_supported",
+      "description": "Channel 'restGetBalanceRequest' with address '/api/client/{Api-clientId}/wallet/balance' required by consumer but not supported by provider",
+      "severity": "high"
+    }
+  ],
+  "warnings": [],
+  "checkedAt": "2025-07-11T07:18:09.005528895+03:00",
+  "consumerVersion": "1.0.0",
+  "providerVersion": "1.0.0",
+  "consumerName": "test-consumer",
+  "providerName": "test-provider"
+}
