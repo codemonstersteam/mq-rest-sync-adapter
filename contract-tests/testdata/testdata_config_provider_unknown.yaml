@@ -1,11 +1,11 @@
 contract_tests:
   consumer:
     name: "test-consumer-http"
-    spec_path: "testdata_consumer_asyncapi.yml"
+    spec_path: "testdata/testdata_consumer_asyncapi.yml"
     channels:
       - "restGetBalanceRequest"
   provider:
     name: "test-provider-grpc"
-    spec_url: "testdata_provider_unknown_protocol_only.yml"
+    spec_url: "testdata/testdata_provider_unknown_protocol_only.yml"
   settings:
     log_level: "debug"

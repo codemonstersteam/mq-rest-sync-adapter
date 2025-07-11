@@ -140,10 +140,12 @@ contract-tests/
 ├── main.go                # Точка входа
 ├── protocols.yml          # Словарь протоколов AsyncAPI 3.0
 ├── contract-tests.yaml    # Основная конфигурация
-├── testdata-*.yaml        # Тестовые конфигурации
-├── testdata_*.yml         # Тестовые спецификации
+├── testdata/              # Тестовые данные
+│   ├── testdata-*.yaml    # Тестовые конфигурации
+│   └── testdata_*.yml     # Тестовые спецификации
 ├── README.md              # Документация
-└── TODO.md                # План развития
+├── TODO.md                # План развития
+└── CLAUDE.md              # Описание состояния проекта
 ```
 
 ## Поддерживаемые форматы
@@ -189,17 +191,17 @@ contract-tests/
 
 ```bash
 # Потребитель с неизвестным протоколом
-testdata_consumer_https.yml
-testdata_config_consumer_https.yaml
+testdata/testdata_consumer_https.yml
+testdata/testdata_config_consumer_https.yaml
 
 # Провайдер с неизвестным протоколом  
-testdata_provider_unknown_protocol_only.yml
-testdata_config_provider_unknown.yaml
+testdata/testdata_provider_unknown_protocol_only.yml
+testdata/testdata_config_provider_unknown.yaml
 
 # Оба с неизвестными протоколами
-testdata_consumer_unknown_protocol.yml
-testdata_provider_unknown_protocol.yml
-testdata_config_unknown_protocol.yaml
+testdata/testdata_consumer_unknown_protocol.yml
+testdata/testdata_provider_unknown_protocol.yml
+testdata/testdata_config_unknown_protocol.yaml
 ```
 
 ### JSON отчет с ошибками о неизвестных протоколах:

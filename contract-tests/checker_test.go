@@ -7,7 +7,7 @@ import (
 
 func TestCheckChannels(t *testing.T) {
 	// Загружаем тестовую конфигурацию
-	config, err := LoadConfig("testdata-contract-tests.yaml")
+	config, err := LoadConfig("testdata/testdata-contract-tests.yaml")
 	if err != nil {
 		t.Fatalf("Failed to load test config: %v", err)
 	}
@@ -130,7 +130,7 @@ func TestNormalizeAddress(t *testing.T) {
 }
 
 func TestLoadSpecs(t *testing.T) {
-	config, err := LoadConfig("testdata-contract-tests.yaml")
+	config, err := LoadConfig("testdata/testdata-contract-tests.yaml")
 	if err != nil {
 		t.Fatalf("Failed to load test config: %v", err)
 	}
@@ -172,12 +172,12 @@ func TestCheckChannelsIncompatible(t *testing.T) {
 	config := &Config{
 		ContractTests: ContractTestsConfig{
 			Consumer: ConsumerConfig{
-				SpecPath: "testdata_consumer_asyncapi.yml",
+				SpecPath: "testdata/testdata_consumer_asyncapi.yml",
 				Name:     "test-consumer",
 				Channels: []string{"restGetBalanceRequest"},
 			},
 			Provider: ProviderConfig{
-				SpecURL: "testdata_provider_fails_channel.yml",
+				SpecURL: "testdata/testdata_provider_fails_channel.yml",
 				Name:    "test-provider",
 			},
 			Settings: SettingsConfig{
@@ -234,7 +234,7 @@ func TestCheckChannelsIncompatible(t *testing.T) {
 
 func TestCheckChannelsIncompatibleWithConfigFile(t *testing.T) {
 	// Загружаем конфигурацию с каналом, который не поддерживает провайдер
-	config, err := LoadConfig("testdata-contract-tests-fail-channel-not-supported.yaml")
+	config, err := LoadConfig("testdata/testdata-contract-tests-fail-channel-not-supported.yaml")
 	if err != nil {
 		t.Fatalf("Failed to load test config: %v", err)
 	}
@@ -350,7 +350,7 @@ func TestExtractServerName(t *testing.T) {
 
 func TestChannelMissingServerReference(t *testing.T) {
 	// Загружаем конфигурацию с невалидной спецификацией потребителя (без ссылки на сервер)
-	config, err := LoadConfig("testdata_config_missing_server.yaml")
+	config, err := LoadConfig("testdata/testdata_config_missing_server.yaml")
 	if err != nil {
 		t.Fatalf("Failed to load test config: %v", err)
 	}
@@ -417,7 +417,7 @@ func TestChannelMissingServerReference(t *testing.T) {
 
 func TestProviderChannelMissingServerReference(t *testing.T) {
 	// Загружаем конфигурацию где у потребителя есть ссылка на сервер, а у провайдера нет
-	config, err := LoadConfig("testdata_config_provider_missing_server.yaml")
+	config, err := LoadConfig("testdata/testdata_config_provider_missing_server.yaml")
 	if err != nil {
 		t.Fatalf("Failed to load test config: %v", err)
 	}
@@ -484,7 +484,7 @@ func TestProviderChannelMissingServerReference(t *testing.T) {
 
 func TestProtocolMismatch(t *testing.T) {
 	// Загружаем конфигурацию где у потребителя HTTP протокол, а у провайдера HTTPS
-	config, err := LoadConfig("testdata_config_protocol_mismatch.yaml")
+	config, err := LoadConfig("testdata/testdata_config_protocol_mismatch.yaml")
 	if err != nil {
 		t.Fatalf("Failed to load test config: %v", err)
 	}
@@ -607,12 +607,12 @@ func TestIsProtocolKnown(t *testing.T) {
 		ContractTests: ContractTestsConfig{
 			Consumer: ConsumerConfig{
 				Name:     "test-consumer",
-				SpecPath: "testdata_consumer_asyncapi.yml",
+				SpecPath: "testdata/testdata_consumer_asyncapi.yml",
 				Channels: []string{"restGetBalanceRequest"},
 			},
 			Provider: ProviderConfig{
 				Name:    "test-provider",
-				SpecURL: "testdata_provider_success.yml",
+				SpecURL: "testdata/testdata_provider_success.yml",
 			},
 			Settings: SettingsConfig{
 				LogLevel: "info",
@@ -675,12 +675,12 @@ func TestUnknownProtocolBreakingChanges(t *testing.T) {
 		ContractTests: ContractTestsConfig{
 			Consumer: ConsumerConfig{
 				Name:     "test-consumer",
-				SpecPath: "testdata_consumer_unknown_protocol.yml",
+				SpecPath: "testdata/testdata_consumer_unknown_protocol.yml",
 				Channels: []string{"testChannel"},
 			},
 			Provider: ProviderConfig{
 				Name:    "test-provider",
-				SpecURL: "testdata_provider_unknown_protocol.yml",
+				SpecURL: "testdata/testdata_provider_unknown_protocol.yml",
 			},
 			Settings: SettingsConfig{
 				LogLevel: "info",
@@ -739,12 +739,12 @@ func TestConsumerUnknownProtocol(t *testing.T) {
 		ContractTests: ContractTestsConfig{
 			Consumer: ConsumerConfig{
 				Name:     "test-consumer-https",
-				SpecPath: "testdata_consumer_https.yml",
+				SpecPath: "testdata/testdata_consumer_https.yml",
 				Channels: []string{"restGetBalanceRequest"},
 			},
 			Provider: ProviderConfig{
 				Name:    "test-provider-http",
-				SpecURL: "testdata_provider_success.yml",
+				SpecURL: "testdata/testdata_provider_success.yml",
 			},
 			Settings: SettingsConfig{
 				LogLevel: "debug",
@@ -802,12 +802,12 @@ func TestProviderUnknownProtocol(t *testing.T) {
 		ContractTests: ContractTestsConfig{
 			Consumer: ConsumerConfig{
 				Name:     "test-consumer-http",
-				SpecPath: "testdata_consumer_asyncapi.yml",
+				SpecPath: "testdata/testdata_consumer_asyncapi.yml",
 				Channels: []string{"restGetBalanceRequest"},
 			},
 			Provider: ProviderConfig{
 				Name:    "test-provider-grpc",
-				SpecURL: "testdata_provider_unknown_protocol_only.yml",
+				SpecURL: "testdata/testdata_provider_unknown_protocol_only.yml",
 			},
 			Settings: SettingsConfig{
 				LogLevel: "debug",
@@ -871,7 +871,7 @@ func TestProtocolValidationIntegration(t *testing.T) {
 	}{
 		{
 			name:                   "Consumer with unknown protocol (https)",
-			configFile:             "testdata_config_consumer_https.yaml",
+			configFile:             "testdata/testdata_config_consumer_https.yaml",
 			expectedCompatible:     false,
 			expectedBreakingType:   "unknown_protocol",
 			expectedProtocol:       "https",
@@ -879,7 +879,7 @@ func TestProtocolValidationIntegration(t *testing.T) {
 		},
 		{
 			name:                   "Provider with unknown protocol (grpc)",
-			configFile:             "testdata_config_provider_unknown.yaml",
+			configFile:             "testdata/testdata_config_provider_unknown.yaml",
 			expectedCompatible:     false,
 			expectedBreakingType:   "unknown_protocol",
 			expectedProtocol:       "grpc",
@@ -887,7 +887,7 @@ func TestProtocolValidationIntegration(t *testing.T) {
 		},
 		{
 			name:                   "Both with unknown protocols (custom)",
-			configFile:             "testdata_config_unknown_protocol.yaml",
+			configFile:             "testdata/testdata_config_unknown_protocol.yaml",
 			expectedCompatible:     false,
 			expectedBreakingType:   "unknown_protocol",
 			expectedProtocol:       "custom-protocol",

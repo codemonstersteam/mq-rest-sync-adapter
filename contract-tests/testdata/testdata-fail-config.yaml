@@ -1,12 +1,12 @@
 contract_tests:
   consumer:
-    spec_path: "testdata_consumer_asyncapi.yml"
+    spec_path: "testdata/testdata_consumer_asyncapi.yml"
     name: "test-consumer"
     channels:
       - restGetBalanceRequest
     
   provider:
-    spec_url: "testdata_provider_fails_channel.yml"
+    spec_url: "testdata/testdata_provider_fails_channel.yml"
     name: "test-provider"
     
   settings:

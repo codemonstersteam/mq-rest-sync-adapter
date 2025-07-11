@@ -2,14 +2,15 @@
 contract_tests:
   # Спецификация потребителя (локальная)
   consumer:
-    spec_path: "testdata_consumer_asyncapi.yml"
+    spec_path: "testdata/testdata_consumer_asyncapi.yml"
     name: "test-consumer"
     channels:
       - restGetBalanceRequest
+      - sendRestResponse
     
   # Спецификация поставщика (удаленная)
   provider:
-    spec_url: "testdata_provider_success.yml"
+    spec_url: "testdata/testdata_provider_success.yml"
     name: "test-provider"
     
   # Настройки проверки

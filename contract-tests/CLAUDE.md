@@ -52,11 +52,12 @@ contract-tests/
 ├── main.go                    # Точка входа
 ├── protocols.yml              # Словарь протоколов AsyncAPI 3.0
 ├── contract-tests.yaml        # Основная конфигурация
+├── testdata/                  # Тестовые данные
+│   ├── testdata-*.yaml        # Тестовые конфигурации
+│   └── testdata_*.yml         # Тестовые спецификации
 ├── README.md                  # Документация
 ├── TODO.md                    # План развития
 ├── CLAUDE.md                  # Этот файл
-├── testdata-*.yaml            # Тестовые конфигурации
-├── testdata_*.yml             # Тестовые спецификации
 └── arch/                      # Архивные файлы старой версии
 ```
 

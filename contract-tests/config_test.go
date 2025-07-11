@@ -6,7 +6,7 @@ import (
 
 func TestLoadConfig(t *testing.T) {
 	// Тест загрузки валидной конфигурации
-	config, err := LoadConfig("testdata-contract-tests.yaml")
+	config, err := LoadConfig("testdata/testdata-contract-tests.yaml")
 	if err != nil {
 		t.Fatalf("Failed to load config: %v", err)
 	}
