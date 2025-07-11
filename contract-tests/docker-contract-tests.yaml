@@ -1,0 +1,21 @@
+# Конфигурация для запуска в Docker
+contract_tests:
+  # Спецификация потребителя (монтируется как volume)
+  consumer:
+    spec_path: "specs/asyncapi.yml"
+    name: "mq-rest-sync-adapter"
+    channels:
+      - restGetBalanceRequest
+    
+  # Спецификация провайдера (локальный файл для примера)
+  provider:
+    spec_url: "https://git.codemonsters.team/guides/wallet-balance/-/raw/main/api-specification/asyncapi.yml"  # Используем ту же спецификацию для демо
+    name: "wallet-balance-service"
+    
+  # Настройки
+  settings:
+    log_level: "info"
+    save_json_report: true
+    json_report_file: "reports/compatibility_report.json"
+    timeout: 30
+    ignore_warnings: false

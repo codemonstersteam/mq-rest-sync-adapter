@@ -1,0 +1,30 @@
+services:
+  contract-checker:
+    build: 
+      context: .
+      pull: true
+    image: contract-checker:latest
+    container_name: contract-checker
+    volumes:
+      # Монтируем конфигурацию
+      - ./docker-contract-tests.yaml:/app/contract-tests.yaml:ro
+      # Монтируем спецификации потребителя (если локальные)
+      - ../api-specification/asyncapi.yml:/app/specs/asyncapi.yml:ro
+      # Директория для сохранения отчетов
+      - ./reports:/app/reports
+    working_dir: /app
+    # Переопределяем команду для сохранения отчетов в примонтированную директорию
+    command: ["contract-tests.yaml"]
+    
+  # Пример для запуска с кастомной конфигурацией
+  contract-checker-custom:
+    build: .
+    image: contract-checker:latest
+    container_name: contract-checker-custom
+    volumes:
+      - ./config:/app/config:ro
+      - ../api-specification:/app/specs:ro
+      - ./reports:/app/reports
+    working_dir: /app
+    command: ["config/custom-config.yaml"]
+    profiles: ["custom"]

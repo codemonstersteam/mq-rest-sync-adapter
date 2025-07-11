@@ -8,6 +8,13 @@ missing_server_report.json
 protocol_mismatch_report.json
 provider_missing_server_report.json
 
+# Отчеты в reports директории
+reports/*.json
+
+# Собранные бинарники
+contract-checker
+contract-tests
+
 # Временные файлы Go
 *.tmp
 *.log

@@ -28,6 +28,8 @@ go mod tidy
 
 ### Использование
 
+#### Локальный запуск (требуется Go)
+
 ```bash
 # Запуск с конфигурацией по умолчанию
 go run . 
@@ -40,6 +42,58 @@ go build -o contract-checker .
 
 # Запуск скомпилированной утилиты
 ./contract-checker contract-tests.yaml
+```
+
+#### Запуск в Docker (не требуется Go)
+
+```bash
+# Сборка Docker образа
+docker build -t contract-checker .
+
+# Запуск с базовой конфигурацией
+docker run --rm \
+  -v $(pwd)/contract-tests.yaml:/app/contract-tests.yaml:ro \
+  -v $(pwd)/../api-specification:/app/specs:ro \
+  -v $(pwd)/reports:/app/reports \
+  contract-checker
+
+# Запуск с кастомной конфигурацией
+docker run --rm \
+  -v $(pwd)/config/my-config.yaml:/app/my-config.yaml:ro \
+  -v $(pwd)/../api-specification:/app/specs:ro \
+  -v $(pwd)/reports:/app/reports \
+  contract-checker my-config.yaml
+
+# Использование docker-compose
+docker compose up --build contract-checker
+docker compose up contract-checker
+
+# Использование docker-compose с кастомной конфигурацией
+docker compose --profile custom up contract-checker-custom
+
+# Простой запуск через скрипт (рекомендуется)
+./docker-run.sh
+
+# Запуск с кастомной конфигурацией через скрипт
+./docker-run.sh my-config.yaml
+```
+
+#### Запуск в CI/CD
+
+```bash
+# GitLab CI пример
+docker run --rm \
+  -v $CI_PROJECT_DIR/contract-tests.yaml:/app/contract-tests.yaml:ro \
+  -v $CI_PROJECT_DIR/api-specification:/app/specs:ro \
+  -v $CI_PROJECT_DIR/reports:/app/reports \
+  contract-checker
+
+# GitHub Actions пример
+docker run --rm \
+  -v $GITHUB_WORKSPACE/contract-tests.yaml:/app/contract-tests.yaml:ro \
+  -v $GITHUB_WORKSPACE/api-specification:/app/specs:ro \
+  -v $GITHUB_WORKSPACE/reports:/app/reports \
+  contract-checker
 ```
 
 ## Конфигурация
@@ -129,6 +183,45 @@ go test -v -run="UnknownProtocol"
   • protocol_mismatch: Канал 'restGetBalanceRequest' использует протокол 'https', но провайдер поддерживает протокол 'http'. Протоколы несовместимы
 ```
 
+## Docker
+
+### Особенности Docker образа
+
+- **Минимальный размер** - использует Alpine Linux
+- **Безопасность** - запуск от непривилегированного пользователя
+- **Multi-stage build** - оптимизированный размер образа
+- **Статический бинарник** - нет зависимостей от runtime
+
+### Конфигурация для Docker
+
+При запуске в Docker учитывайте пути к файлам:
+
+```yaml
+# config/docker-config.yaml
+contract_tests:
+  consumer:
+    spec_path: "specs/asyncapi.yml"  # Путь внутри контейнера
+    name: "mq-rest-sync-adapter"
+    channels:
+      - restGetBalanceRequest
+    
+  provider:
+    spec_url: "https://api.example.com/spec.yml"  # Удаленный URL
+    name: "external-service"
+    
+  settings:
+    log_level: "info"
+    save_json_report: true
+    json_report_file: "reports/compatibility_report.json"  # Сохранение в volume
+```
+
+### Volumes
+
+- **Конфигурация**: `/app/contract-tests.yaml` - основной конфигурационный файл
+- **Спецификации**: `/app/specs/` - локальные спецификации потребителя
+- **Отчеты**: `/app/reports/` - директория для сохранения JSON отчетов
+- **Кастом конфиги**: `/app/config/` - дополнительные конфигурации
+
 ## Структура проекта
 
 ```
@@ -140,9 +233,17 @@ contract-tests/
 ├── main.go                # Точка входа
 ├── protocols.yml          # Словарь протоколов AsyncAPI 3.0
 ├── contract-tests.yaml    # Основная конфигурация
+├── Dockerfile             # Docker образ
+├── docker-compose.yml     # Docker Compose конфигурация
+├── .dockerignore          # Исключения для Docker
 ├── testdata/              # Тестовые данные
 │   ├── testdata-*.yaml    # Тестовые конфигурации
 │   └── testdata_*.yml     # Тестовые спецификации
+├── config/                # Примеры конфигураций
+│   └── example-docker-config.yaml
+├── reports/               # Директория для отчетов (Docker volumes)
+├── docker-contract-tests.yaml  # Конфигурация для Docker
+├── docker-run.sh          # Скрипт для простого запуска в Docker
 ├── README.md              # Документация
 ├── TODO.md                # План развития
 └── CLAUDE.md              # Описание состояния проекта

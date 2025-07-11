@@ -32,7 +32,9 @@ func main() {
 	// Выводим результат
 	fmt.Printf("📊 Результат проверки совместимости контрактов\n")
 	fmt.Printf("📋 Потребитель: %s v%s\n", result.ConsumerName, result.ConsumerVersion)
+	fmt.Printf("   📄 Спецификация: %s\n", config.ContractTests.Consumer.SpecPath)
 	fmt.Printf("🏢 Провайдер: %s v%s\n", result.ProviderName, result.ProviderVersion)
+	fmt.Printf("   🌐 Спецификация: %s\n", config.ContractTests.Provider.SpecURL)
 
 	// Выводим информацию о проверяемых каналах
 	fmt.Printf("\n📡 Проверяемые каналы взаимодействия:\n")
