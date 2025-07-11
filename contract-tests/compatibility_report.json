@@ -2,7 +2,7 @@
   "isCompatible": true,
   "breakingChanges": [],
   "warnings": [],
-  "checkedAt": "2025-07-11T11:13:57.253499125+03:00",
+  "checkedAt": "2025-07-11T15:07:04.37841098+03:00",
   "consumerVersion": "1.0.0",
   "providerVersion": "1.0.0",
   "consumerName": "mq-rest-sync-adapter",
