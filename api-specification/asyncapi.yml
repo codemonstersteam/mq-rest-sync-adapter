@@ -91,9 +91,9 @@ channels:
       Канал используется для обращения по REST-у в сервис
       для получения баланса кошелька
     messages:
-      httpBalanceRequest:
+      request:
         $ref: '#/components/messages/psGetBalanceRequest'
-      httpBalanceResponse:
+      response:
         $ref: '#/components/messages/psGetBalanceResponse'
     servers:
       - $ref: "#/servers/restServer"
