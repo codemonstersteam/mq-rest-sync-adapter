@@ -53,11 +53,12 @@ type CompatibilityWarning struct {
 
 // AsyncAPISpec структура для работы с AsyncAPI спецификацией
 type AsyncAPISpec struct {
-	AsyncAPI   string                     `yaml:"asyncapi"`
-	Info       AsyncAPIInfo               `yaml:"info"`
-	Servers    map[string]AsyncAPIServer  `yaml:"servers"`
-	Channels   map[string]AsyncAPIChannel `yaml:"channels"`
-	Components map[string]interface{}     `yaml:"components"`
+	AsyncAPI   string                        `yaml:"asyncapi"`
+	Info       AsyncAPIInfo                  `yaml:"info"`
+	Servers    map[string]AsyncAPIServer     `yaml:"servers"`
+	Channels   map[string]AsyncAPIChannel    `yaml:"channels"`
+	Operations map[string]AsyncAPIOperation  `yaml:"operations"`
+	Components AsyncAPIComponents            `yaml:"components"`
 }
 
 // AsyncAPIServer сервер в спецификации
@@ -76,10 +77,10 @@ type AsyncAPIInfo struct {
 
 // AsyncAPIChannel канал в спецификации
 type AsyncAPIChannel struct {
-	Address     string                 `yaml:"address"`
-	Description string                 `yaml:"description"`
-	Messages    map[string]interface{} `yaml:"messages"`
-	Servers     []AsyncAPIServerRef    `yaml:"servers"`
+	Address     string                         `yaml:"address"`
+	Description string                         `yaml:"description"`
+	Messages    map[string]AsyncAPIMessageRef  `yaml:"messages"`
+	Servers     []AsyncAPIServerRef            `yaml:"servers"`
 }
 
 // AsyncAPIServerRef ссылка на сервер
@@ -181,7 +182,7 @@ func (cc *ContractChecker) loadProviderSpec() (*AsyncAPISpec, error) {
 	var err error
 
 	// Проверяем, является ли SpecURL файлом или URL
-	if cc.config.ContractTests.Provider.SpecURL[:4] == "http" {
+	if cc.config.ContractTests.Provider.SpecURL != "" && len(cc.config.ContractTests.Provider.SpecURL) >= 4 && cc.config.ContractTests.Provider.SpecURL[:4] == "http" {
 		// Загружаем по HTTP
 		client := &http.Client{
 			Timeout: cc.config.GetTimeout(),
@@ -203,7 +204,11 @@ func (cc *ContractChecker) loadProviderSpec() (*AsyncAPISpec, error) {
 		}
 	} else {
 		// Загружаем из файла
-		content, err = os.ReadFile(cc.config.ContractTests.Provider.SpecURL)
+		specPath := cc.config.ContractTests.Provider.SpecPath
+		if specPath == "" {
+			specPath = cc.config.ContractTests.Provider.SpecURL
+		}
+		content, err = os.ReadFile(specPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read provider spec file: %w", err)
 		}
@@ -513,4 +518,44 @@ func (cc *ContractChecker) isProtocolKnown(protocol string) bool {
 	// Проверяем наличие протокола в словаре
 	_, exists := registry.Protocols[protocol]
 	return exists
+}
+
+// AsyncAPIOperation операция в спецификации
+type AsyncAPIOperation struct {
+	Action      string              `yaml:"action"`
+	Channel     AsyncAPIChannelRef  `yaml:"channel"`
+	Summary     string              `yaml:"summary"`
+	Description string              `yaml:"description"`
+	Reply       *AsyncAPIReply      `yaml:"reply"`
+}
+
+// AsyncAPIChannelRef ссылка на канал
+type AsyncAPIChannelRef struct {
+	Ref string `yaml:"$ref"`
+}
+
+// AsyncAPIReply ответ операции
+type AsyncAPIReply struct {
+	Channel  AsyncAPIChannelRef     `yaml:"channel"`
+	Messages []AsyncAPIMessageRef   `yaml:"messages"`
+}
+
+// AsyncAPIMessageRef ссылка на сообщение
+type AsyncAPIMessageRef struct {
+	Ref string `yaml:"$ref"`
+}
+
+// AsyncAPIComponents компоненты спецификации
+type AsyncAPIComponents struct {
+	Messages map[string]AsyncAPIMessage `yaml:"messages"`
+	Schemas  map[string]interface{}     `yaml:"schemas"`
+}
+
+// AsyncAPIMessage сообщение в спецификации
+type AsyncAPIMessage struct {
+	Name        string                 `yaml:"name"`
+	Title       string                 `yaml:"title"`
+	ContentType string                 `yaml:"contentType"`
+	Headers     map[string]interface{} `yaml:"headers"`
+	Payload     map[string]interface{} `yaml:"payload"`
 }

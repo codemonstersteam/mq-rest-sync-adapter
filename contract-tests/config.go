@@ -29,8 +29,9 @@ type ConsumerConfig struct {
 
 // ProviderConfig содержит настройки поставщика
 type ProviderConfig struct {
-	SpecURL string `yaml:"spec_url"`
-	Name    string `yaml:"name"`
+	SpecURL  string `yaml:"spec_url"`
+	SpecPath string `yaml:"spec_path"`
+	Name     string `yaml:"name"`
 }
 
 // SettingsConfig содержит общие настройки
@@ -71,8 +72,8 @@ func (c *Config) Validate() error {
 	if c.ContractTests.Consumer.Name == "" {
 		return fmt.Errorf("consumer name is required")
 	}
-	if c.ContractTests.Provider.SpecURL == "" {
-		return fmt.Errorf("provider spec_url is required")
+	if c.ContractTests.Provider.SpecURL == "" && c.ContractTests.Provider.SpecPath == "" {
+		return fmt.Errorf("provider spec_url or spec_path is required")
 	}
 	if c.ContractTests.Provider.Name == "" {
 		return fmt.Errorf("provider name is required")
