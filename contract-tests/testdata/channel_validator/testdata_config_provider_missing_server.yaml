@@ -1,12 +1,12 @@
 contract_tests:
   consumer:
     name: "test-consumer"
-    spec_path: "testdata/testdata_consumer_asyncapi.yml"
+    spec_path: "testdata/channel_validator/testdata_consumer_asyncapi.yml"
     channels:
       - "restGetBalanceRequest"
   provider:
     name: "test-provider"
-    spec_url: "testdata/testdata_provider_invalid_no_server.yml"
+    spec_url: "testdata/channel_validator/testdata_provider_invalid_no_server.yml"
   settings:
     log_level: "debug"
     save_json_report: true
