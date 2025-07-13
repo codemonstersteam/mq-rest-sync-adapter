@@ -890,3 +890,71 @@ func (mv *MessageValidator) validateExtraConsumerHeaders(consumerFields []Messag
 
 	return errors
 }
+
+// FindProviderOutboundMessage находит исходящее сообщение (send) у провайдера для указанного канала
+func (mv *MessageValidator) FindProviderOutboundMessage(channelName string, providerSpec *AsyncAPISpec) (*AsyncAPIMessage, error) {
+	// Ищем операцию с action: send для данного канала
+	var sendOperation *AsyncAPIOperation
+	channelRef := fmt.Sprintf("#/channels/%s", channelName)
+	
+	for _, operation := range providerSpec.Operations {
+		if operation.Action == "send" && operation.Channel.Ref == channelRef {
+			sendOperation = &operation
+			break
+		}
+	}
+	
+	if sendOperation == nil {
+		return nil, fmt.Errorf("no send operation found for channel %s", channelName)
+	}
+	
+	// Получаем канал
+	channel, exists := providerSpec.Channels[channelName]
+	if !exists {
+		return nil, fmt.Errorf("channel %s not found in spec", channelName)
+	}
+	
+	// Ищем исходящее сообщение провайдера
+	for _, messageRef := range channel.Messages {
+		message := mv.resolveMessageRef(messageRef, providerSpec)
+		if message != nil {
+			return message, nil
+		}
+	}
+	
+	return nil, fmt.Errorf("no outbound message found for channel %s", channelName)
+}
+
+// FindConsumerInboundMessage находит входящее сообщение (receive) у потребителя для указанного канала
+func (mv *MessageValidator) FindConsumerInboundMessage(channelName string, consumerSpec *AsyncAPISpec) (*AsyncAPIMessage, error) {
+	// Ищем операцию с action: receive для данного канала
+	var receiveOperation *AsyncAPIOperation
+	channelRef := fmt.Sprintf("#/channels/%s", channelName)
+	
+	for _, operation := range consumerSpec.Operations {
+		if operation.Action == "receive" && operation.Channel.Ref == channelRef {
+			receiveOperation = &operation
+			break
+		}
+	}
+	
+	if receiveOperation == nil {
+		return nil, fmt.Errorf("no receive operation found for channel %s", channelName)
+	}
+	
+	// Получаем канал
+	channel, exists := consumerSpec.Channels[channelName]
+	if !exists {
+		return nil, fmt.Errorf("channel %s not found in spec", channelName)
+	}
+	
+	// Ищем входящее сообщение потребителя
+	for _, messageRef := range channel.Messages {
+		message := mv.resolveMessageRef(messageRef, consumerSpec)
+		if message != nil {
+			return message, nil
+		}
+	}
+	
+	return nil, fmt.Errorf("no inbound message found for channel %s", channelName)
+}

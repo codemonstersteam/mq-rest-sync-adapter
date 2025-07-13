@@ -42,6 +42,7 @@
 - **Валидация совместимости** между потребителем и провайдером
 - **Проверка полей headers и payload** с типами и обязательностью
 - **Логика сервис-провайдера** - требования провайдера должны выполняться потребителем
+- **Поддержка request-reply паттерна** - полная валидация асинхронного взаимодействия
 - **Разбиение на логические блоки** для удобства сопровождения
 
 #### ✅ Предохранители безопасности:
@@ -61,6 +62,7 @@ contract-tests/
 ├── message_structure_test.go  # Тесты поиска и извлечения сообщений
 ├── message_compatibility_test.go # Тесты совместимости сообщений
 ├── message_missing_required_field_consumer_test.go # Тест отсутствия обязательных полей у потребителя
+├── message_async_request_reply_test.go # Тест асинхронного request-reply паттерна (RabbitMQ)
 ├── message_validator_test.go  # Интеграционные тесты валидатора
 ├── main.go                    # Точка входа
 ├── protocols.yml              # Словарь протоколов AsyncAPI 3.0
@@ -70,10 +72,12 @@ contract-tests/
 │   │   ├── testdata-*.yaml    # Тестовые конфигурации
 │   │   └── testdata_*.yml     # Тестовые спецификации каналов
 │   └── structure_validator/   # Данные для тестов сообщений
-│       ├── valid_consumer_asyncapi.yml  # Спецификация потребителя
-│       ├── valid_provider_asyncapi.yml  # Спецификация провайдера
+│       ├── valid_consumer_asyncapi.yml  # Спецификация потребителя (HTTP)
+│       ├── valid_provider_asyncapi.yml  # Спецификация провайдера (HTTP)
 │       ├── consumer_missing_required_field_consumer_asyncapi.yml # Потребитель без обязательного поля
-│       └── consumer_missing_required_field_provider_asyncapi.yml # Провайдер, требующий дополнительное поле
+│       ├── consumer_missing_required_field_provider_asyncapi.yml # Провайдер, требующий дополнительное поле
+│       ├── request_reply_consumer_asyncapi.yml # Потребитель для асинхронного request-reply (RabbitMQ)
+│       └── request_reply_provider_asyncapi.yml # Провайдер для асинхронного request-reply (RabbitMQ)
 ├── README.md                  # Документация
 ├── TODO.md                    # План развития
 ├── CLAUDE.md                  # Этот файл
@@ -101,19 +105,20 @@ contract-tests/
 16. **TestLoadConfig** - Загрузка конфигурации
 17. **TestConfigValidation** - Валидация конфигурации
 
-#### Тесты валидации структуры сообщений (10 тестов):
+#### Тесты валидации структуры сообщений (11 тестов):
 1. **TestFindConsumerOutboundMessage** - Поиск исходящих сообщений потребителя
 2. **TestFindProviderInboundMessage** - Поиск входящих сообщений провайдера
 3. **TestExtractMessageHeaderFields** - Извлечение полей заголовков
 4. **TestExtractMessagePayloadFields** - Извлечение полей payload
-5. **TestValidateConsumerToProviderMessageCompatibility** - Полная совместимость сообщений
+5. **TestValidateConsumerToProviderMessageCompatibility** - Полная совместимость сообщений (HTTP)
 6. **TestValidatePayloadFieldsCompatibility** - Совместимость полей payload
 7. **TestValidateConsumerMissingRequiredField** - Критический тест: отсутствие у потребителя обязательного поля, требуемого провайдером
-8. **TestValidateMessageStructure** - Интеграционная валидация
-9. **TestFindMessageByDirection** - Определение направления сообщений
-10. **TestExtractProviderInboundMessagePayloadFields** - Поля провайдера
+8. **TestValidateAsyncRequestReplyMessageCompatibility** - Асинхронный request-reply паттерн (RabbitMQ)
+9. **TestValidateMessageStructure** - Интеграционная валидация
+10. **TestFindMessageByDirection** - Определение направления сообщений
+11. **TestExtractProviderInboundMessagePayloadFields** - Поля провайдера
 
-#### Покрытие: 100% критических функций (30 тестов)
+#### Покрытие: 100% критических функций (31 тест)
 
 ### Использование
 
@@ -171,6 +176,14 @@ go test -v -run="Protocol"
 - **Severity levels** - high для критических ошибок
 
 ### Последние изменения
+
+**Сессия 2025-07-13 (продолжение)** - Добавление поддержки асинхронного request-reply паттерна:
+- 🔄 **Request-Reply паттерн**: Полная поддержка асинхронного взаимодействия через RabbitMQ
+- 📝 **Спецификации AsyncAPI 3.0**: Корректные спецификации для RabbitMQ с AMQP протоколом
+- 🔗 **correlationId в headers**: Правильное использование AMQP message properties вместо адресов каналов
+- 🎯 **Новый тест модуль**: `message_async_request_reply_test.go` с проверкой request и response направлений
+- 🔧 **Расширенный API**: Добавлены функции `FindProviderOutboundMessage` и `FindConsumerInboundMessage`
+- ✅ **31 тест**: Полное покрытие включая асинхронные паттерны с RabbitMQ
 
 **Сессия 2025-07-13** - Рефакторинг тестовой структуры и добавление валидации критических полей:
 - 📂 **Переименование модулей**: `checker.go` → `channel_validator.go` для лучшей ясности
@@ -239,7 +252,10 @@ go test -v -run="Protocol"
 #### ✅ Поиск сообщений:
 - `FindConsumerOutboundMessage()` - находит исходящие сообщения потребителя через операции send
 - `FindProviderInboundMessage()` - находит входящие сообщения провайдера через операции receive
+- `FindProviderOutboundMessage()` - находит исходящие сообщения провайдера через операции send
+- `FindConsumerInboundMessage()` - находит входящие сообщения потребителя через операции receive
 - Универсальная логика работает с любыми спецификациями AsyncAPI
+- Полная поддержка request-reply паттерна в обе стороны
 
 #### ✅ Извлечение полей:
 - `ExtractMessageHeaderFields()` - извлекает поля заголовков с типами и обязательностью
@@ -253,11 +269,14 @@ go test -v -run="Protocol"
 - Логические блоки: validateContentTypeCompatibility, validatePayloadCompatibility, validateHeaderCompatibility
 
 #### ✅ Тестовые данные:
-- `testdata/structure_validator/valid_consumer_asyncapi.yml` - корректная спецификация потребителя
-- `testdata/structure_validator/valid_provider_asyncapi.yml` - корректная спецификация провайдера
+- `testdata/structure_validator/valid_consumer_asyncapi.yml` - корректная спецификация потребителя (HTTP)
+- `testdata/structure_validator/valid_provider_asyncapi.yml` - корректная спецификация провайдера (HTTP)
 - `testdata/structure_validator/consumer_missing_required_field_consumer_asyncapi.yml` - потребитель без обязательного поля
 - `testdata/structure_validator/consumer_missing_required_field_provider_asyncapi.yml` - провайдер, требующий дополнительное поле
+- `testdata/structure_validator/request_reply_consumer_asyncapi.yml` - потребитель для асинхронного request-reply (RabbitMQ)
+- `testdata/structure_validator/request_reply_provider_asyncapi.yml` - провайдер для асинхронного request-reply (RabbitMQ)
 - Совместимые схемы headers и payload между потребителем и провайдером
+- Поддержка протоколов HTTP и AMQP с корректными паттернами взаимодействия
 
 ### Следующие шаги:
 1. **Интеграция с основным модулем** - объединить валидацию каналов и сообщений в единый процесс
@@ -267,5 +286,5 @@ go test -v -run="Protocol"
 ---
 
 *Обновлено: 2025-07-13*
-*Версия: 1.2.0 (рефакторинг структуры и критические тесты)*
-*Статус: Активная разработка - модули валидации каналов и сообщений завершены*
+*Версия: 1.3.0 (поддержка асинхронного request-reply паттерна)*
+*Статус: Активная разработка - полная поддержка HTTP и AMQP протоколов*
