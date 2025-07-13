@@ -178,8 +178,8 @@ func TestValidatePayloadFieldsCompatibility(t *testing.T) {
 
 // TestValidateIncompatibleMessages тестирует случай несовместимых сообщений
 func TestValidateIncompatibleMessages(t *testing.T) {
-	// Этот тест будет использовать модифицированные спецификации с несовместимыми полями
-	// Пока пропускаем - реализуем после создания базовой функциональности
-	t.Skip("TODO: Implement test for incompatible messages with modified test data")
+	// Этот тест перенесен в отдельный модуль message_missing_required_field_consumer_test.go
+	// для лучшей организации тестовой базы - один тест кейс на модуль
+	t.Skip("Test moved to message_missing_required_field_consumer_test.go")
 }
 
