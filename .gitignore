@@ -51,3 +51,4 @@ mqjms.*
 /bin/
 gradle-cache/
 contract-tests/compatibility_report.json
+*_report.json
