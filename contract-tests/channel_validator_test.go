@@ -138,7 +138,7 @@ func TestLoadSpecs(t *testing.T) {
 	checker := NewContractChecker(config)
 
 	// Тест загрузки спецификации потребителя
-	consumerSpec, err := checker.loadConsumerSpec()
+	consumerSpec, err := checker.specLoader.GetConsumerSpec()
 	if err != nil {
 		t.Fatalf("Failed to load consumer spec: %v", err)
 	}
@@ -148,7 +148,7 @@ func TestLoadSpecs(t *testing.T) {
 	}
 
 	// Тест загрузки спецификации провайдера
-	providerSpec, err := checker.loadProviderSpec()
+	providerSpec, err := checker.specLoader.GetProviderSpec()
 	if err != nil {
 		t.Fatalf("Failed to load provider spec: %v", err)
 	}

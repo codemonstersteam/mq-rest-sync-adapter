@@ -2,10 +2,7 @@ package main
 
 import (
 	"fmt"
-	"io"
-	"net/http"
 	"os"
-	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -13,24 +10,37 @@ import (
 
 // ContractChecker основная структура для проверки контрактов
 type ContractChecker struct {
-	config *Config
+	config     *Config
+	specLoader *SpecLoader
 }
 
 // NewContractChecker создает новый экземпляр проверки контрактов
 func NewContractChecker(config *Config) *ContractChecker {
-	return &ContractChecker{config: config}
+	return &ContractChecker{
+		config:     config,
+		specLoader: NewSpecLoader(config),
+	}
+}
+
+// NewContractCheckerWithSpecLoader создает новый экземпляр проверки контрактов с SpecLoader
+func NewContractCheckerWithSpecLoader(config *Config, specLoader *SpecLoader) *ContractChecker {
+	return &ContractChecker{
+		config:     config,
+		specLoader: specLoader,
+	}
 }
 
 // CompatibilityResult результат проверки совместимости
 type CompatibilityResult struct {
-	IsCompatible    bool                   `json:"isCompatible"`
-	BreakingChanges []BreakingChange       `json:"breakingChanges"`
-	Warnings        []CompatibilityWarning `json:"warnings"`
-	CheckedAt       time.Time              `json:"checkedAt"`
-	ConsumerVersion string                 `json:"consumerVersion"`
-	ProviderVersion string                 `json:"providerVersion"`
-	ConsumerName    string                 `json:"consumerName"`
-	ProviderName    string                 `json:"providerName"`
+	IsCompatible      bool                   `json:"isCompatible"`
+	BreakingChanges   []BreakingChange       `json:"breakingChanges"`
+	Warnings          []CompatibilityWarning `json:"warnings"`
+	CheckedAt         time.Time              `json:"checkedAt"`
+	ConsumerVersion   string                 `json:"consumerVersion"`
+	ProviderVersion   string                 `json:"providerVersion"`
+	ConsumerName      string                 `json:"consumerName"`
+	ProviderName      string                 `json:"providerName"`
+	ValidatedChannels []ValidatedChannel     `json:"validatedChannels"` // Информация о валидных каналах
 }
 
 // BreakingChange описание критического изменения
@@ -117,28 +127,28 @@ func (cc *ContractChecker) CheckCompatibility() (*CompatibilityResult, error) {
 		fmt.Printf("🏢 Провайдер: %s\n", cc.config.ContractTests.Provider.Name)
 	}
 
-	// Загружаем спецификацию потребителя
-	consumerSpec, err := cc.loadConsumerSpec()
+	// Загружаем спецификации через SpecLoader
+	consumerSpec, err := cc.specLoader.GetConsumerSpec()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load consumer spec: %w", err)
 	}
 
-	// Загружаем спецификацию провайдера
-	providerSpec, err := cc.loadProviderSpec()
+	providerSpec, err := cc.specLoader.GetProviderSpec()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load provider spec: %w", err)
 	}
 
 	// Создаем результат проверки
 	result := &CompatibilityResult{
-		IsCompatible:    true,
-		BreakingChanges: []BreakingChange{},
-		Warnings:        []CompatibilityWarning{},
-		CheckedAt:       time.Now(),
-		ConsumerVersion: consumerSpec.Info.Version,
-		ProviderVersion: providerSpec.Info.Version,
-		ConsumerName:    cc.config.ContractTests.Consumer.Name,
-		ProviderName:    cc.config.ContractTests.Provider.Name,
+		IsCompatible:      true,
+		BreakingChanges:   []BreakingChange{},
+		Warnings:          []CompatibilityWarning{},
+		CheckedAt:         time.Now(),
+		ConsumerVersion:   consumerSpec.Info.Version,
+		ProviderVersion:   providerSpec.Info.Version,
+		ConsumerName:      cc.config.ContractTests.Consumer.Name,
+		ProviderName:      cc.config.ContractTests.Provider.Name,
+		ValidatedChannels: []ValidatedChannel{}, // Инициализируем список валидных каналов
 	}
 
 	// Выполняем проверку каналов
@@ -152,75 +162,14 @@ func (cc *ContractChecker) CheckCompatibility() (*CompatibilityResult, error) {
 	return result, nil
 }
 
-// loadConsumerSpec загружает спецификацию потребителя из файла
+// loadConsumerSpec загружает спецификацию потребителя из файла (обертка для обратной совместимости)
 func (cc *ContractChecker) loadConsumerSpec() (*AsyncAPISpec, error) {
-	if cc.config.GetLogLevel() == "debug" {
-		fmt.Printf("📖 Загружаем спецификацию потребителя: %s\n", cc.config.ContractTests.Consumer.SpecPath)
-	}
-
-	content, err := os.ReadFile(cc.config.ContractTests.Consumer.SpecPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read consumer spec file: %w", err)
-	}
-
-	var spec AsyncAPISpec
-	err = yaml.Unmarshal(content, &spec)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse consumer spec: %w", err)
-	}
-
-	return &spec, nil
+	return cc.specLoader.GetConsumerSpec()
 }
 
-// loadProviderSpec загружает спецификацию провайдера из URL или файла
+// loadProviderSpec загружает спецификацию провайдера (обертка для обратной совместимости)
 func (cc *ContractChecker) loadProviderSpec() (*AsyncAPISpec, error) {
-	if cc.config.GetLogLevel() == "debug" {
-		fmt.Printf("🌐 Загружаем спецификацию провайдера: %s\n", cc.config.ContractTests.Provider.SpecURL)
-	}
-
-	var content []byte
-	var err error
-
-	// Проверяем, является ли SpecURL файлом или URL
-	if cc.config.ContractTests.Provider.SpecURL != "" && len(cc.config.ContractTests.Provider.SpecURL) >= 4 && cc.config.ContractTests.Provider.SpecURL[:4] == "http" {
-		// Загружаем по HTTP
-		client := &http.Client{
-			Timeout: cc.config.GetTimeout(),
-		}
-
-		resp, err := client.Get(cc.config.ContractTests.Provider.SpecURL)
-		if err != nil {
-			return nil, fmt.Errorf("failed to fetch provider spec: %w", err)
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("failed to fetch provider spec: HTTP %d", resp.StatusCode)
-		}
-
-		content, err = io.ReadAll(resp.Body)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read provider spec: %w", err)
-		}
-	} else {
-		// Загружаем из файла
-		specPath := cc.config.ContractTests.Provider.SpecPath
-		if specPath == "" {
-			specPath = cc.config.ContractTests.Provider.SpecURL
-		}
-		content, err = os.ReadFile(specPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read provider spec file: %w", err)
-		}
-	}
-
-	var spec AsyncAPISpec
-	err = yaml.Unmarshal(content, &spec)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse provider spec: %w", err)
-	}
-
-	return &spec, nil
+	return cc.specLoader.GetProviderSpec()
 }
 
 // checkChannels проверяет совместимость каналов по адресам
@@ -357,6 +306,14 @@ func (cc *ContractChecker) checkChannels(consumer, provider *AsyncAPISpec, resul
 					if cc.config.GetLogLevel() == "debug" {
 						fmt.Printf("    ✅ Канал '%s' (протокол: %s, адрес: %s) поддерживается провайдером (канал '%s', протокол: %s)\n", channelName, channelType, consumerAddress, providerChannelName, providerChannelType)
 					}
+					
+					// Добавляем информацию о валидном канале в результат
+					result.ValidatedChannels = append(result.ValidatedChannels, ValidatedChannel{
+						ConsumerChannelName: channelName,
+						ProviderChannelName: providerChannelName,
+						Address:             consumerAddress,
+						Protocol:            channelType,
+					})
 				}
 			}
 		}
@@ -383,7 +340,7 @@ func (cc *ContractChecker) getChannelType(channel AsyncAPIChannel, spec *AsyncAP
 	if len(channel.Servers) > 0 {
 		// Берем первый сервер
 		serverRef := channel.Servers[0].Ref
-		serverName := cc.extractServerName(serverRef)
+		serverName := cc.specLoader.GetRefExtractor().ExtractServerName(serverRef)
 		if server, exists := spec.Servers[serverName]; exists {
 			return server.Protocol
 		}
@@ -393,14 +350,9 @@ func (cc *ContractChecker) getChannelType(channel AsyncAPIChannel, spec *AsyncAP
 	return cc.getChannelTypeByAddress(channel.Address)
 }
 
-// extractServerName извлекает имя сервера из ссылки
+// extractServerName извлекает имя сервера из ссылки (обертка для обратной совместимости)
 func (cc *ContractChecker) extractServerName(ref string) string {
-	// Парсим ссылку вида "#/servers/serverName"
-	parts := strings.Split(ref, "/")
-	if len(parts) >= 3 && parts[0] == "#" && parts[1] == "servers" {
-		return parts[2]
-	}
-	return ""
+	return cc.specLoader.GetRefExtractor().ExtractServerName(ref)
 }
 
 // getChannelTypeByAddress определяет протокол канала по адресу (fallback)
@@ -434,11 +386,11 @@ func LoadProtocols() (*ProtocolRegistry, error) {
 
 // areProtocolsCompatible проверяет совместимость протоколов
 func (cc *ContractChecker) areProtocolsCompatible(consumerProtocol, providerProtocol string) bool {
-	// Загружаем реестр протоколов
-	registry, err := LoadProtocols()
+	// Загружаем реестр протоколов через SpecLoader
+	registry, err := cc.specLoader.GetProtocolRegistry()
 	if err != nil {
-		// Если не удалось загрузить словарь, используем старую логику
-		return cc.areProtocolsCompatibleFallback(consumerProtocol, providerProtocol)
+		// Если не удалось загрузить словарь, это критическая ошибка
+		return false
 	}
 
 	// Проверяем, что оба протокола существуют в словаре
@@ -507,12 +459,11 @@ func (cc *ContractChecker) normalizeAddress(address string) string {
 
 // isProtocolKnown проверяет, известен ли протокол в словаре
 func (cc *ContractChecker) isProtocolKnown(protocol string) bool {
-	// Загружаем реестр протоколов
-	registry, err := LoadProtocols()
+	// Загружаем реестр протоколов через SpecLoader
+	registry, err := cc.specLoader.GetProtocolRegistry()
 	if err != nil {
-		// Если не удалось загрузить словарь, считаем протокол известным
-		// чтобы не генерировать ложные предупреждения
-		return true
+		// Если не удалось загрузить словарь, это критическая ошибка
+		return false
 	}
 
 	// Проверяем наличие протокола в словаре

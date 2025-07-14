@@ -126,11 +126,6 @@ func extractValidatedChannels(channelResult *CompatibilityResult, config *Config
 	return validatedChannels
 }
 
-func TestValidateMessageStructureIncompatible(t *testing.T) {
-	// Этот тест будет проверять случай, когда структуры сообщений несовместимы
-	// Пока что пропускаем - добавим после создания базовой функциональности
-	t.Skip("TODO: Implement test for incompatible message structures")
-}
 
 func TestFindMessageByDirection(t *testing.T) {
 	// Тест для проверки определения направления сообщений через operations

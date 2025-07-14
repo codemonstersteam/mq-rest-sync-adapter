@@ -31,21 +31,24 @@ func TestValidateConsumerToProviderMessageCompatibility(t *testing.T) {
 		},
 	}
 
-	// Создаем message validator
-	messageValidator := NewMessageValidator(consumerConfig)
+	// Создаем message validator с конфигурацией потребителя
+	consumerValidator := NewMessageValidator(consumerConfig)
 
-	// Загружаем спецификации
-	consumerSpec, err := messageValidator.loadConsumerSpec()
+	// Загружаем спецификацию потребителя
+	consumerSpec, err := consumerValidator.specLoader.GetConsumerSpec()
 	if err != nil {
 		t.Fatalf("Failed to load consumer spec: %v", err)
 	}
 
-	// Обновляем конфигурацию для загрузки провайдера
-	messageValidator.config = providerConfig
-	providerSpec, err := messageValidator.loadProviderSpec()
+	// Создаем отдельный SpecLoader для провайдера
+	providerSpecLoader := NewSpecLoader(providerConfig)
+	providerSpec, err := providerSpecLoader.GetProviderSpec()
 	if err != nil {
 		t.Fatalf("Failed to load provider spec: %v", err)
 	}
+
+	// Используем первый validator для проверки совместимости
+	messageValidator := consumerValidator
 
 	// Находим исходящее сообщение потребителя
 	consumerChannelName := "restGetBalanceRequest"
@@ -124,12 +127,14 @@ func TestValidatePayloadFieldsCompatibility(t *testing.T) {
 		},
 	}
 
-	messageValidator := NewMessageValidator(consumerConfig)
+	consumerValidator := NewMessageValidator(consumerConfig)
 
 	// Загружаем спецификации и находим сообщения
-	consumerSpec, _ := messageValidator.loadConsumerSpec()
-	messageValidator.config = providerConfig
-	providerSpec, _ := messageValidator.loadProviderSpec()
+	consumerSpec, _ := consumerValidator.specLoader.GetConsumerSpec()
+	providerSpecLoader := NewSpecLoader(providerConfig)
+	providerSpec, _ := providerSpecLoader.GetProviderSpec()
+	
+	messageValidator := consumerValidator
 
 	consumerOutboundMessage, _ := messageValidator.FindConsumerOutboundMessage("restGetBalanceRequest", consumerSpec)
 	providerInboundMessage, _ := messageValidator.FindProviderInboundMessage("walletBalanceRequest", providerSpec)

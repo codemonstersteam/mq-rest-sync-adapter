@@ -2,23 +2,27 @@ package main
 
 import (
 	"fmt"
-	"io"
-	"net/http"
-	"os"
-	"strings"
-	
-	"gopkg.in/yaml.v3"
 )
 
 // MessageValidator валидирует структуру сообщений между потребителем и провайдером
 type MessageValidator struct {
-	config *Config
+	config     *Config
+	specLoader *SpecLoader
 }
 
 // NewMessageValidator создает новый валидатор сообщений
 func NewMessageValidator(config *Config) *MessageValidator {
 	return &MessageValidator{
-		config: config,
+		config:     config,
+		specLoader: NewSpecLoader(config),
+	}
+}
+
+// NewMessageValidatorWithSpecLoader создает новый валидатор сообщений с SpecLoader
+func NewMessageValidatorWithSpecLoader(config *Config, specLoader *SpecLoader) *MessageValidator {
+	return &MessageValidator{
+		config:     config,
+		specLoader: specLoader,
 	}
 }
 
@@ -30,6 +34,15 @@ type ValidatedChannel struct {
 	Protocol            string
 }
 
+// ValidatedMessage информация о валидированном сообщении
+type ValidatedMessage struct {
+	Name        string `json:"name"`
+	ContentType string `json:"content_type"`
+	Direction   string `json:"direction"` // "send" или "receive"
+	Compatible  bool   `json:"compatible"` // Совместимо ли с соответствующим сообщением
+	Channel     string `json:"channel"`    // Имя канала для этого сообщения
+}
+
 // MessageValidationResult результат валидации сообщений
 type MessageValidationResult struct {
 	IsValid          bool                     `json:"is_valid"`
@@ -37,6 +50,11 @@ type MessageValidationResult struct {
 	ProviderName     string                   `json:"provider_name"`
 	ValidatedChannels []ValidatedChannel      `json:"validated_channels"`
 	MessageErrors    []MessageValidationError `json:"message_errors"`
+	// Детальная информация о сообщениях (плоская структура)
+	ConsumerOutbound []ValidatedMessage `json:"consumer_outbound"` // Исходящие от потребителя
+	ProviderInbound  []ValidatedMessage `json:"provider_inbound"`  // Входящие к провайдеру
+	ProviderOutbound []ValidatedMessage `json:"provider_outbound"` // Исходящие от провайдера  
+	ConsumerInbound  []ValidatedMessage `json:"consumer_inbound"`  // Входящие к потребителю
 }
 
 // MessageValidationError ошибка валидации сообщения
@@ -71,15 +89,19 @@ func (mv *MessageValidator) ValidateMessages(validatedChannels []ValidatedChanne
 		ProviderName:      mv.config.ContractTests.Provider.Name,
 		ValidatedChannels: validatedChannels,
 		MessageErrors:     []MessageValidationError{},
+		ConsumerOutbound:  []ValidatedMessage{},
+		ProviderInbound:   []ValidatedMessage{},
+		ProviderOutbound:  []ValidatedMessage{},
+		ConsumerInbound:   []ValidatedMessage{},
 	}
 
-	// Загружаем спецификации
-	consumerSpec, err := mv.loadConsumerSpec()
+	// Загружаем спецификации через SpecLoader
+	consumerSpec, err := mv.specLoader.GetConsumerSpec()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load consumer spec: %v", err)
 	}
 
-	providerSpec, err := mv.loadProviderSpec()
+	providerSpec, err := mv.specLoader.GetProviderSpec()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load provider spec: %v", err)
 	}
@@ -103,21 +125,27 @@ func (mv *MessageValidator) validateChannelMessages(
 ) error {
 	// Находим исходящие сообщения потребителя (то что потребитель отправляет)
 	consumerOutbound := mv.findOutboundMessages(channel.ConsumerChannelName, consumerSpec)
+	result.ConsumerOutbound = append(result.ConsumerOutbound, mv.convertToValidatedMessages(consumerOutbound, "send", channel.ConsumerChannelName, consumerSpec)...)
 	
 	// Находим входящие сообщения провайдера (то что провайдер принимает)
 	providerInbound := mv.findInboundMessages(channel.ProviderChannelName, providerSpec)
+	result.ProviderInbound = append(result.ProviderInbound, mv.convertToValidatedMessages(providerInbound, "receive", channel.ProviderChannelName, providerSpec)...)
 	
 	// Валидируем совместимость: исходящие потребителя должны совпадать с входящими провайдера
 	mv.validateMessageCompatibility(channel, consumerOutbound, providerInbound, "outbound->inbound", consumerSpec, providerSpec, result)
 	
 	// Находим входящие сообщения потребителя (то что потребитель ожидает получить)
 	consumerInbound := mv.findInboundMessages(channel.ConsumerChannelName, consumerSpec)
+	result.ConsumerInbound = append(result.ConsumerInbound, mv.convertToValidatedMessages(consumerInbound, "receive", channel.ConsumerChannelName, consumerSpec)...)
 	
 	// Находим исходящие сообщения провайдера (то что провайдер отправляет)
 	providerOutbound := mv.findOutboundMessages(channel.ProviderChannelName, providerSpec)
+	result.ProviderOutbound = append(result.ProviderOutbound, mv.convertToValidatedMessages(providerOutbound, "send", channel.ProviderChannelName, providerSpec)...)
 	
 	// Валидируем совместимость: исходящие провайдера должны совпадать с входящими потребителя
 	mv.validateMessageCompatibility(channel, providerOutbound, consumerInbound, "inbound<-outbound", providerSpec, consumerSpec, result)
+	
+	// Валидация уже выполнена выше для всех направлений сообщений
 
 	return nil
 }
@@ -132,13 +160,27 @@ func (mv *MessageValidator) findOutboundMessages(channelName string, spec *Async
 	
 	for _, operation := range spec.Operations {
 		if operation.Action == "send" && mv.isOperationForChannel(operation, channelName) {
-			// Получаем сообщения канала
+			// Для операций send исходящие - это основные сообщения операции (не reply)
 			if channel, exists := spec.Channels[channelName]; exists {
-				for _, msgRef := range channel.Messages {
-					outbound = append(outbound, MessageDirection{
-						MessageRef: msgRef,
-						Action:     "send",
-					})
+				// Получаем все сообщения канала
+				allMessages := channel.Messages
+				
+				// Исключаем сообщения из reply (если есть)
+				replyMessages := make(map[string]bool)
+				if operation.Reply != nil && len(operation.Reply.Messages) > 0 {
+					for _, replyMsg := range operation.Reply.Messages {
+						replyMessages[replyMsg.Ref] = true
+					}
+				}
+				
+				// Добавляем только сообщения, которые НЕ являются reply
+				for _, msgRef := range allMessages {
+					if !replyMessages[msgRef.Ref] {
+						outbound = append(outbound, MessageDirection{
+							MessageRef: msgRef,
+							Action:     "send",
+						})
+					}
 				}
 			}
 		}
@@ -147,7 +189,7 @@ func (mv *MessageValidator) findOutboundMessages(channelName string, spec *Async
 	return outbound
 }
 
-// findInboundMessages находит входящие сообщения для канала (action: receive)
+// findInboundMessages находит входящие сообщения для канала (action: receive или reply от send)
 func (mv *MessageValidator) findInboundMessages(channelName string, spec *AsyncAPISpec) []MessageDirection {
 	var inbound []MessageDirection
 	
@@ -157,12 +199,22 @@ func (mv *MessageValidator) findInboundMessages(channelName string, spec *AsyncA
 	
 	for _, operation := range spec.Operations {
 		if operation.Action == "receive" && mv.isOperationForChannel(operation, channelName) {
-			// Получаем сообщения канала
+			// Для операций receive входящие - это все сообщения канала
 			if channel, exists := spec.Channels[channelName]; exists {
 				for _, msgRef := range channel.Messages {
 					inbound = append(inbound, MessageDirection{
 						MessageRef: msgRef,
 						Action:     "receive",
+					})
+				}
+			}
+		} else if operation.Action == "send" && mv.isOperationForChannel(operation, channelName) {
+			// Для операций send входящие - это сообщения из reply
+			if operation.Reply != nil && len(operation.Reply.Messages) > 0 {
+				for _, replyMsg := range operation.Reply.Messages {
+					inbound = append(inbound, MessageDirection{
+						MessageRef: replyMsg,
+						Action:     "receive", // reply messages являются входящими
 					})
 				}
 			}
@@ -220,7 +272,7 @@ func (mv *MessageValidator) validateMessageCompatibility(
 		return
 	}
 	
-	// Простая валидация - проверяем, что есть хотя бы одно совместимое сообщение
+	// Используем универсальный метод сравнения сообщений
 	for _, sourceMsg := range sourceMessages {
 		sourceMessage := mv.resolveMessageRef(sourceMsg.MessageRef, sourceSpec)
 		if sourceMessage == nil {
@@ -234,7 +286,7 @@ func (mv *MessageValidator) validateMessageCompatibility(
 				continue
 			}
 			
-			if mv.areMessagesStructurallyCompatible(sourceMessage, targetMessage) {
+			if mv.compareMessageStructuresWithSpecs(sourceMessage, targetMessage, sourceSpec, targetSpec) {
 				compatible = true
 				break
 			}
@@ -253,23 +305,134 @@ func (mv *MessageValidator) validateMessageCompatibility(
 	}
 }
 
-// areMessagesStructurallyCompatible проверяет структурную совместимость сообщений
-func (mv *MessageValidator) areMessagesStructurallyCompatible(source, target *AsyncAPIMessage) bool {
+// compareMessageStructuresWithSpecs сравнивает две структуры сообщений с доступом к спецификациям
+func (mv *MessageValidator) compareMessageStructuresWithSpecs(source, target *AsyncAPIMessage, sourceSpec, targetSpec *AsyncAPISpec) bool {
 	// Проверяем ContentType
 	if source.ContentType != target.ContentType {
 		return false
 	}
 	
-	// Здесь должна быть более сложная логика сравнения schema payload,
-	// пока делаем базовую проверку
-	return true // Упрощение для начального теста
+	// Проверяем совместимость headers
+	if !mv.compareMessageHeaders(source, target) {
+		return false
+	}
+	
+	// Проверяем совместимость payload с доступом к спецификациям
+	if !mv.compareMessagePayloadWithSpecs(source, target, sourceSpec, targetSpec) {
+		return false
+	}
+	
+	return true
+}
+
+// compareMessageStructures сравнивает две структуры сообщений (deprecated)
+func (mv *MessageValidator) compareMessageStructures(source, target *AsyncAPIMessage) bool {
+	return mv.compareMessageStructuresWithSpecs(source, target, nil, nil)
+}
+
+// compareMessageHeaders сравнивает заголовки сообщений
+func (mv *MessageValidator) compareMessageHeaders(source, target *AsyncAPIMessage) bool {
+	// Базовая проверка наличия headers
+	if source.Headers == nil && target.Headers == nil {
+		return true
+	}
+	
+	if source.Headers == nil || target.Headers == nil {
+		return false
+	}
+	
+	// Здесь должна быть более детальная проверка схем headers
+	return true
+}
+
+// compareMessagePayload сравнивает payload сообщений
+func (mv *MessageValidator) compareMessagePayload(source, target *AsyncAPIMessage) bool {
+	// Базовая проверка наличия payload
+	if source.Payload == nil && target.Payload == nil {
+		return true
+	}
+	
+	if source.Payload == nil || target.Payload == nil {
+		return false
+	}
+	
+	// Используем существующие методы для извлечения полей
+	sourceFields, err := mv.ExtractMessagePayloadFields(source, nil)
+	if err != nil {
+		return false
+	}
+	
+	targetFields, err := mv.ExtractMessagePayloadFields(target, nil)
+	if err != nil {
+		return false
+	}
+	
+	// Создаем map для быстрого поиска
+	sourceFieldMap := make(map[string]MessageField)
+	for _, field := range sourceFields {
+		sourceFieldMap[field.Name] = field
+	}
+	
+	targetFieldMap := make(map[string]MessageField)
+	for _, field := range targetFields {
+		targetFieldMap[field.Name] = field
+	}
+	
+	// Проверяем, что все обязательные поля source есть в target
+	for fieldName, sourceField := range sourceFieldMap {
+		if sourceField.Required {
+			if targetField, exists := targetFieldMap[fieldName]; !exists {
+				return false // Обязательное поле отсутствует
+			} else if targetField.Type != sourceField.Type {
+				return false // Типы полей не совпадают
+			}
+		}
+	}
+	
+	return true
+}
+
+// compareMessagePayloadWithSpecs сравнивает payload сообщений с доступом к спецификациям
+func (mv *MessageValidator) compareMessagePayloadWithSpecs(source, target *AsyncAPIMessage, sourceSpec, targetSpec *AsyncAPISpec) bool {
+	// Базовая проверка наличия payload
+	if source.Payload == nil && target.Payload == nil {
+		return true
+	}
+	
+	if source.Payload == nil || target.Payload == nil {
+		return false
+	}
+	
+	// Используем существующие методы для извлечения полей
+	sourceFields, err := mv.ExtractMessagePayloadFields(source, sourceSpec)
+	if err != nil {
+		return false
+	}
+	
+	targetFields, err := mv.ExtractMessagePayloadFields(target, targetSpec)
+	if err != nil {
+		return false
+	}
+	
+	// Используем существующий метод детального сравнения
+	compatible, _, err := mv.ValidatePayloadFieldsCompatibility(sourceFields, targetFields)
+	if err != nil {
+		return false
+	}
+	
+	return compatible
+}
+
+// areMessagesStructurallyCompatible проверяет структурную совместимость сообщений (deprecated)
+func (mv *MessageValidator) areMessagesStructurallyCompatible(source, target *AsyncAPIMessage) bool {
+	return mv.compareMessageStructures(source, target)
 }
 
 // resolveMessageRef разрешает ссылку на сообщение
 func (mv *MessageValidator) resolveMessageRef(msgRef AsyncAPIMessageRef, spec *AsyncAPISpec) *AsyncAPIMessage {
 	if msgRef.Ref != "" {
 		// Извлекаем имя компонента из ссылки (например, "#/components/messages/psGetBalanceRequest")
-		componentName := mv.extractComponentName(msgRef.Ref)
+		componentName := mv.specLoader.GetRefExtractor().ExtractComponentName(msgRef.Ref)
 		if componentName != "" && spec.Components.Messages != nil {
 			if msg, exists := spec.Components.Messages[componentName]; exists {
 				return &msg
@@ -279,70 +442,62 @@ func (mv *MessageValidator) resolveMessageRef(msgRef AsyncAPIMessageRef, spec *A
 	return nil
 }
 
-// extractComponentName извлекает имя компонента из ссылки
+// extractComponentName извлекает имя компонента из ссылки (обертка для обратной совместимости)
 func (mv *MessageValidator) extractComponentName(ref string) string {
-	// Ожидаем формат "#/components/messages/componentName"
-	const prefix = "#/components/messages/"
-	if len(ref) > len(prefix) && strings.HasPrefix(ref, prefix) {
-		return ref[len(prefix):]
-	}
-	return ""
+	return mv.specLoader.GetRefExtractor().ExtractComponentName(ref)
 }
 
 // addMessageError добавляет ошибку валидации сообщения
 func (mv *MessageValidator) addMessageError(result *MessageValidationResult, error MessageValidationError) {
 	result.MessageErrors = append(result.MessageErrors, error)
-	result.IsValid = false
+	// Только ошибки высокого уровня делают контракт несовместимым
+	if error.Severity == "high" {
+		result.IsValid = false
+	}
 }
 
-// loadConsumerSpec загружает спецификацию потребителя
+// loadConsumerSpec загружает спецификацию потребителя (обертка для обратной совместимости)
 func (mv *MessageValidator) loadConsumerSpec() (*AsyncAPISpec, error) {
-	content, err := os.ReadFile(mv.config.ContractTests.Consumer.SpecPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read consumer spec file: %w", err)
-	}
-
-	var spec AsyncAPISpec
-	err = yaml.Unmarshal(content, &spec)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse consumer spec: %w", err)
-	}
-
-	return &spec, nil
+	return mv.specLoader.GetConsumerSpec()
 }
 
-// loadProviderSpec загружает спецификацию провайдера
+// loadProviderSpec загружает спецификацию провайдера (обертка для обратной совместимости)
 func (mv *MessageValidator) loadProviderSpec() (*AsyncAPISpec, error) {
-	var content []byte
-	var err error
+	return mv.specLoader.GetProviderSpec()
+}
 
-	if mv.config.ContractTests.Provider.SpecURL != "" {
-		// Загружаем из URL
-		resp, err := http.Get(mv.config.ContractTests.Provider.SpecURL)
-		if err != nil {
-			return nil, fmt.Errorf("failed to fetch provider spec from URL: %w", err)
-		}
-		defer resp.Body.Close()
+// convertToValidatedMessages преобразует MessageDirection в ValidatedMessage
+func (mv *MessageValidator) convertToValidatedMessages(messages []MessageDirection, direction, channelName string, spec *AsyncAPISpec) []ValidatedMessage {
+	var validatedMessages []ValidatedMessage
+	
+	for _, msg := range messages {
+		messageName := mv.specLoader.GetRefExtractor().ExtractMessageName(msg.MessageRef.Ref)
+		contentType := mv.extractMessageContentType(msg.MessageRef, spec)
+		
+		validatedMessages = append(validatedMessages, ValidatedMessage{
+			Name:        messageName,
+			ContentType: contentType,
+			Direction:   direction,
+			Compatible:  true, // Будет обновлено при валидации совместимости
+			Channel:     channelName,
+		})
+	}
+	
+	return validatedMessages
+}
 
-		content, err = io.ReadAll(resp.Body)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read provider spec response: %w", err)
-		}
-	} else {
-		// Загружаем из файла
-		content, err = os.ReadFile(mv.config.ContractTests.Provider.SpecPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read provider spec file: %w", err)
+// extractMessageContentType извлекает Content-Type сообщения
+func (mv *MessageValidator) extractMessageContentType(messageRef AsyncAPIMessageRef, spec *AsyncAPISpec) string {
+	if messageRef.Ref != "" {
+		// Извлекаем имя сообщения из ссылки
+		messageName := mv.specLoader.GetRefExtractor().ExtractMessageName(messageRef.Ref)
+		if message, exists := spec.Components.Messages[messageName]; exists {
+			if message.ContentType != "" {
+				return message.ContentType
+			}
 		}
 	}
-
-	var spec AsyncAPISpec
-	err = yaml.Unmarshal(content, &spec)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse provider spec: %w", err)
-	}
-
-	return &spec, nil
+	return "application/json" // По умолчанию
 }
 
 // FindConsumerOutboundMessage находит исходящее сообщение (send) от потребителя для указанного канала
@@ -373,7 +528,7 @@ func (mv *MessageValidator) FindConsumerOutboundMessage(channelName string, cons
 	if sendOperation.Reply != nil && sendOperation.Reply.Messages != nil {
 		for _, replyMsgRef := range sendOperation.Reply.Messages {
 			// Извлекаем имя сообщения из ссылки
-			if msgName := mv.extractMessageName(replyMsgRef.Ref); msgName != "" {
+			if msgName := mv.specLoader.GetRefExtractor().ExtractMessageName(replyMsgRef.Ref); msgName != "" {
 				replyMessageRefs[msgName] = true
 			}
 		}
@@ -382,7 +537,7 @@ func (mv *MessageValidator) FindConsumerOutboundMessage(channelName string, cons
 	// Ищем исходящее сообщение потребителя - это сообщение в канале, которое НЕ является reply
 	for _, messageRef := range channel.Messages {
 		// Извлекаем имя сообщения из ссылки messageRef
-		msgRefName := mv.extractMessageName(messageRef.Ref)
+		msgRefName := mv.specLoader.GetRefExtractor().ExtractMessageName(messageRef.Ref)
 		
 		// Если это не reply сообщение - значит это исходящее сообщение потребителя
 		if !replyMessageRefs[msgRefName] {
@@ -415,7 +570,7 @@ func (mv *MessageValidator) ExtractMessageHeaderFields(message *AsyncAPIMessage,
 	// Разрешаем ссылку на схему headers
 	if refValue, ok := message.Headers["$ref"].(string); ok {
 		// Извлекаем имя схемы из ссылки
-		schemaName := mv.extractSchemaName(refValue)
+		schemaName := mv.specLoader.GetRefExtractor().ExtractSchemaName(refValue)
 		if schemaName != "" && spec.Components.Schemas != nil {
 			if schema, exists := spec.Components.Schemas[schemaName]; exists {
 				return mv.extractFieldsFromSchema(schema, schemaName)
@@ -438,7 +593,7 @@ func (mv *MessageValidator) ExtractMessagePayloadFields(message *AsyncAPIMessage
 	// Разрешаем ссылку на схему payload
 	if refValue, ok := message.Payload["$ref"].(string); ok {
 		// Извлекаем имя схемы из ссылки
-		schemaName := mv.extractSchemaName(refValue)
+		schemaName := mv.specLoader.GetRefExtractor().ExtractSchemaName(refValue)
 		if schemaName != "" && spec.Components.Schemas != nil {
 			if schema, exists := spec.Components.Schemas[schemaName]; exists {
 				return mv.extractFieldsFromSchema(schema, schemaName)
@@ -450,24 +605,14 @@ func (mv *MessageValidator) ExtractMessagePayloadFields(message *AsyncAPIMessage
 	return mv.extractFieldsFromSchema(message.Payload, "payload")
 }
 
-// extractSchemaName извлекает имя схемы из ссылки
+// extractSchemaName извлекает имя схемы из ссылки (обертка для обратной совместимости)
 func (mv *MessageValidator) extractSchemaName(ref string) string {
-	// Ожидаем формат "#/components/schemas/schemaName"
-	const prefix = "#/components/schemas/"
-	if len(ref) > len(prefix) && strings.HasPrefix(ref, prefix) {
-		return ref[len(prefix):]
-	}
-	return ""
+	return mv.specLoader.GetRefExtractor().ExtractSchemaName(ref)
 }
 
-// extractMessageName извлекает имя сообщения из ссылки
+// extractMessageName извлекает имя сообщения из ссылки (обертка для обратной совместимости)
 func (mv *MessageValidator) extractMessageName(ref string) string {
-	// Ожидаем формат "#/components/messages/messageName"
-	const prefix = "#/components/messages/"
-	if len(ref) > len(prefix) && strings.HasPrefix(ref, prefix) {
-		return ref[len(prefix):]
-	}
-	return ""
+	return mv.specLoader.GetRefExtractor().ExtractMessageName(ref)
 }
 
 // extractFieldsFromSchema извлекает поля из схемы JSON Schema
@@ -548,14 +693,14 @@ func (mv *MessageValidator) FindProviderInboundMessage(channelName string, provi
 		// Получаем список reply сообщений (это исходящие сообщения провайдера)
 		replyMessageRefs := make(map[string]bool)
 		for _, replyMsgRef := range receiveOperation.Reply.Messages {
-			if msgName := mv.extractMessageName(replyMsgRef.Ref); msgName != "" {
+			if msgName := mv.specLoader.GetRefExtractor().ExtractMessageName(replyMsgRef.Ref); msgName != "" {
 				replyMessageRefs[msgName] = true
 			}
 		}
 		
 		// Ищем входящее сообщение провайдера - это сообщение в канале, которое НЕ является reply
 		for _, messageRef := range channel.Messages {
-			msgRefName := mv.extractMessageName(messageRef.Ref)
+			msgRefName := mv.specLoader.GetRefExtractor().ExtractMessageName(messageRef.Ref)
 			
 			// Если это не reply сообщение - значит это входящее сообщение провайдера
 			if !replyMessageRefs[msgRefName] {

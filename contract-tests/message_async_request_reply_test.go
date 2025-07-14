@@ -38,20 +38,24 @@ func TestValidateAsyncRequestReplyMessageCompatibility(t *testing.T) {
 		},
 	}
 
-	// Создаем message validator
-	messageValidator := NewMessageValidator(consumerConfig)
+	// Создаем message validator с конфигурацией потребителя
+	consumerValidator := NewMessageValidator(consumerConfig)
 
-	// Загружаем спецификации
-	consumerSpec, err := messageValidator.loadConsumerSpec()
+	// Загружаем спецификацию потребителя
+	consumerSpec, err := consumerValidator.specLoader.GetConsumerSpec()
 	if err != nil {
 		t.Fatalf("Failed to load consumer spec: %v", err)
 	}
 
-	messageValidator.config = providerConfig
-	providerSpec, err := messageValidator.loadProviderSpec()
+	// Создаем отдельный SpecLoader для провайдера
+	providerSpecLoader := NewSpecLoader(providerConfig)
+	providerSpec, err := providerSpecLoader.GetProviderSpec()
 	if err != nil {
 		t.Fatalf("Failed to load provider spec: %v", err)
 	}
+
+	// Используем первый validator для проверки совместимости
+	messageValidator := consumerValidator
 
 	// Проверяем совместимость запроса: потребитель отправляет -> провайдер получает
 	t.Run("Request Compatibility", func(t *testing.T) {
