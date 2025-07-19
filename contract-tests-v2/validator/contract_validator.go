@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/codemonsters/contract-tests-v2/parser"
 )
 
 // ContractValidator основная структура валидатора контрактов
@@ -69,12 +71,21 @@ func (v *ContractValidator) Validate(configPath string) (*ValidationResult, erro
 	}
 
 	// Шаг 5: Валидация каналов
-	validationResult, err := v.validateChannels(contractValidate)
+	_, err = v.channelValidator.ValidateChannels(contractValidate)
 	if err != nil {
 		return nil, fmt.Errorf("channel validation failed: %w", err)
 	}
 
-	return validationResult, nil
+	// Формируем финальный результат валидации
+	result := &ValidationResult{
+		IsValid:             true,
+		ConsumerChannelName: contractValidate.ConsumerChannelName,
+		ConsumerSpec:        contractValidate.ConsumerSpec,
+		ProviderSpec:        contractValidate.ProviderSpec,
+		Errors:              []string{},
+	}
+
+	return result, nil
 }
 
 // loadConfig загружает конфигурацию из YAML файла
@@ -104,7 +115,7 @@ func (v *ContractValidator) loadConfig(configPath string) (*Config, error) {
 }
 
 // parseSpec парсит спецификацию из файла или URL
-func (v *ContractValidator) parseSpec(pathOrURL string) (*AsyncAPISpec, error) {
+func (v *ContractValidator) parseSpec(pathOrURL string) (*parser.AsyncAPISpec, error) {
 	var data []byte
 	var err error
 
@@ -158,30 +169,3 @@ func (v *ContractValidator) loadFromURL(url string) ([]byte, error) {
 	return data, nil
 }
 
-// validateChannels валидирует совместимость каналов
-func (v *ContractValidator) validateChannels(contract *ContractValidate) (*ValidationResult, error) {
-	// Передаем структуру ContractValidate в channel validator
-	channelResult, err := v.channelValidator.ValidateChannels(contract)
-	if err != nil {
-		return nil, fmt.Errorf("channel validation failed: %w", err)
-	}
-
-	// Преобразуем результат из channel validator в наш ValidationResult
-	result := &ValidationResult{
-		IsValid:             true,
-		ConsumerChannelName: contract.ConsumerChannelName,
-		ConsumerSpec:        contract.ConsumerSpec,
-		ProviderSpec:        contract.ProviderSpec,
-		Errors:              []string{},
-	}
-
-	// Здесь можно добавить дополнительную логику валидации
-	// на основе результата от channel validator
-	if channelResult == nil {
-		result.IsValid = false
-		result.Errors = append(result.Errors, "channel validation returned nil result")
-		return result, fmt.Errorf("channel validation returned nil result")
-	}
-
-	return result, nil
-}

@@ -2,10 +2,9 @@ package validator
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
-	"gopkg.in/yaml.v3"
+	"github.com/codemonsters/contract-tests-v2/parser"
 )
 
 // ChannelValidator структура валидатора каналов
@@ -16,82 +15,16 @@ func NewChannelValidator() *ChannelValidator {
 	return &ChannelValidator{}
 }
 
-// ValidateChannels принимает готовую структуру ContractValidate
+// ValidateChannels принимает структуру ContractValidate и возвращает полную информацию о каналах
 func (v *ChannelValidator) ValidateChannels(contractValidate *ContractValidate) (*ChannelValidationResult, error) {
-	// Здесь channel validator работает только с уже подготовленными данными
-	// Он не знает откуда пришли спецификации - из файлов или URLs
-	
-	// Логика валидации на основе структуры ContractValidate
-	result := &ChannelValidationResult{
-		ConsumerChannel: ChannelInfo{
-			Name:     contractValidate.ConsumerChannelName,
-			Protocol: "unknown", // Будет определен из спецификации
-		},
-		ProviderChannel: ChannelInfo{
-			Name:     "unknown", // Будет найден подходящий канал
-			Protocol: "unknown",
-		},
-	}
-
-	// Проверяем наличие канала потребителя
-	parser := NewParser()
-	consumerChannel, err := parser.GetChannelByName(contractValidate.ConsumerSpec, contractValidate.ConsumerChannelName)
-	if err != nil {
-		return nil, fmt.Errorf("consumer channel not found: %w", err)
-	}
-
-	// Извлекаем протокол канала потребителя
-	consumerProtocol, err := parser.ExtractChannelProtocol(contractValidate.ConsumerSpec, consumerChannel)
-	if err != nil {
-		return nil, fmt.Errorf("failed to extract consumer protocol: %w", err)
-	}
-
-	result.ConsumerChannel.Protocol = consumerProtocol
-
-	// Ищем совместимый канал поставщика
-	found := false
-	foundChannelName := ""
-	for channelName, providerChannel := range contractValidate.ProviderSpec.Channels {
-		providerProtocol, err := parser.ExtractChannelProtocol(contractValidate.ProviderSpec, &providerChannel)
-		if err != nil {
-			continue
-		}
-
-		if providerProtocol == consumerProtocol {
-			found = true
-			foundChannelName = channelName
-			result.ProviderChannel.Protocol = providerProtocol
-			break
-		}
-	}
-
-	if !found {
-		return nil, fmt.Errorf("no compatible provider channel found for protocol %s", consumerProtocol)
-	}
-
-	result.ProviderChannel.Name = foundChannelName
-
-	return result, nil
-}
-
-// ValidateChannelsFromFiles старая функция для обратной совместимости
-func (v *ChannelValidator) ValidateChannelsFromFiles(config LegacyChannelConfig) (*ChannelValidationResult, error) {
-	consumerSpec, err := loadAsyncAPISpec(config.Consumer.SpecPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load consumer spec: %w", err)
-	}
-
-	providerSpec, err := loadAsyncAPISpec(config.Provider.SpecPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load provider spec: %w", err)
-	}
-
-	consumerChannel, err := extractChannelInfo(consumerSpec, config.Consumer.Channel)
+	// Извлекаем информацию о канале потребителя
+	consumerChannel, err := v.extractConsumerChannel(contractValidate)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract consumer channel: %w", err)
 	}
 
-	providerChannel, err := findMatchingProviderChannel(providerSpec, consumerChannel)
+	// Ищем соответствующий канал поставщика
+	providerChannel, err := v.findMatchingProviderChannel(contractValidate, consumerChannel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find matching provider channel: %w", err)
 	}
@@ -102,37 +35,28 @@ func (v *ChannelValidator) ValidateChannelsFromFiles(config LegacyChannelConfig)
 	}, nil
 }
 
-// ===== LEGACY FUNCTIONS =====
+// extractConsumerChannel извлекает информацию о канале потребителя
+func (v *ChannelValidator) extractConsumerChannel(contractValidate *ContractValidate) (*ChannelInfo, error) {
+	channelName := contractValidate.ConsumerChannelName
+	spec := contractValidate.ConsumerSpec
 
-func loadAsyncAPISpec(path string) (map[string]interface{}, error) {
-	data, err := os.ReadFile(path)
+	// Проверяем существование канала
+	channel, exists := spec.Channels[channelName]
+	if !exists {
+		return nil, fmt.Errorf("channel %s not found in consumer spec", channelName)
+	}
+
+	// Извлекаем протокол канала
+	protocol, err := v.extractChannelProtocol(spec, &channel)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to extract protocol for channel %s: %w", channelName, err)
 	}
 
-	var spec map[string]interface{}
-	if err := yaml.Unmarshal(data, &spec); err != nil {
-		return nil, err
+	// Извлекаем сообщения из операций
+	outMessage, inMessage, err := v.extractConsumerMessages(spec, channelName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract messages for channel %s: %w", channelName, err)
 	}
-
-	return spec, nil
-}
-
-func extractChannelInfo(spec map[string]interface{}, channelName string) (*ChannelInfo, error) {
-	channels, ok := spec["channels"].(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("channels not found in spec")
-	}
-
-	channelData, ok := channels[channelName].(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("channel %s not found", channelName)
-	}
-
-	protocol := extractProtocol(spec, channelData)
-	
-	operations := spec["operations"].(map[string]interface{})
-	outMessage, inMessage := extractMessagesFromOperations(spec, operations, channelName)
 
 	return &ChannelInfo{
 		Name:       channelName,
@@ -142,40 +66,166 @@ func extractChannelInfo(spec map[string]interface{}, channelName string) (*Chann
 	}, nil
 }
 
-func extractProtocol(spec map[string]interface{}, channelData map[string]interface{}) string {
-	if servers, ok := channelData["servers"].([]interface{}); ok && len(servers) > 0 {
-		if serverRef, ok := servers[0].(map[string]interface{})["$ref"].(string); ok {
-			serverPath := serverRef[len("#/servers/"):]
-			if serversData, ok := spec["servers"].(map[string]interface{}); ok {
-				if server, ok := serversData[serverPath].(map[string]interface{}); ok {
-					if protocol, ok := server["protocol"].(string); ok {
-						return protocol
-					}
+// findMatchingProviderChannel находит соответствующий канал поставщика
+func (v *ChannelValidator) findMatchingProviderChannel(contractValidate *ContractValidate, consumerChannel *ChannelInfo) (*ChannelInfo, error) {
+	spec := contractValidate.ProviderSpec
+
+	// Перебираем все каналы поставщика
+	for channelName, channel := range spec.Channels {
+		// Проверяем протокол
+		protocol, err := v.extractChannelProtocol(spec, &channel)
+		if err != nil {
+			continue // Пропускаем каналы с проблемными протоколами
+		}
+
+		if protocol != consumerChannel.Protocol {
+			continue // Протокол не совпадает
+		}
+
+		// Извлекаем сообщения поставщика
+		inMessage, outMessage, err := v.extractProviderMessages(spec, channelName)
+		if err != nil {
+			continue // Пропускаем каналы с проблемными сообщениями
+		}
+
+		// Проверяем совместимость сообщений
+		// Если сообщения не найдены или не совместимы - канал не подходит
+		if consumerChannel.OutMessage != nil && inMessage != nil {
+			if v.areMessagesCompatible(consumerChannel.OutMessage, inMessage) {
+				return &ChannelInfo{
+					Name:       channelName,
+					Protocol:   protocol,
+					InMessage:  inMessage,
+					OutMessage: outMessage,
+				}, nil
+			}
+		}
+		// Если сообщения не найдены или не совместимы - продолжаем поиск
+	}
+
+	return nil, fmt.Errorf("no compatible provider channel found for protocol %s", consumerChannel.Protocol)
+}
+
+// extractChannelProtocol извлекает протокол канала из серверов
+func (v *ChannelValidator) extractChannelProtocol(spec *parser.AsyncAPISpec, channel *parser.Channel) (string, error) {
+	if len(channel.Servers) == 0 {
+		return "", fmt.Errorf("no servers defined for channel")
+	}
+
+	// Берем первый сервер
+	serverRef := channel.Servers[0].Ref
+	if !strings.HasPrefix(serverRef, "#/servers/") {
+		return "", fmt.Errorf("invalid server reference: %s", serverRef)
+	}
+
+	serverName := strings.TrimPrefix(serverRef, "#/servers/")
+	server, exists := spec.Servers[serverName]
+	if !exists {
+		return "", fmt.Errorf("server %s not found", serverName)
+	}
+
+	return server.Protocol, nil
+}
+
+// extractConsumerMessages извлекает сообщения потребителя из операций
+func (v *ChannelValidator) extractConsumerMessages(spec *parser.AsyncAPISpec, channelName string) (*MessageInfo, *MessageInfo, error) {
+	var outMessage, inMessage *MessageInfo
+
+	// Экранируем имя канала для поиска в ссылках
+	escapedChannelName := v.escapeChannelName(channelName)
+	channelRef := "#/channels/" + escapedChannelName
+
+	// Ищем операции, которые ссылаются на этот канал
+	for _, operation := range spec.Operations {
+		if operation.Channel.Ref == channelRef && operation.Action == "send" {
+			// Для потребителя action "send" означает исходящее сообщение
+			if len(operation.Messages) > 0 {
+				msg, err := v.extractMessageInfo(spec, operation.Messages[0])
+				if err == nil {
+					outMessage = msg
 				}
+			}
+
+			// Проверяем есть ли reply для входящего сообщения
+			if operation.Reply != nil && len(operation.Reply.Messages) > 0 {
+				msg, err := v.extractMessageInfo(spec, operation.Reply.Messages[0])
+				if err == nil {
+					inMessage = msg
+				}
+			}
+			break
+		}
+	}
+
+	return outMessage, inMessage, nil
+}
+
+// extractProviderMessages извлекает сообщения поставщика из операций
+func (v *ChannelValidator) extractProviderMessages(spec *parser.AsyncAPISpec, channelName string) (*MessageInfo, *MessageInfo, error) {
+	var inMessage, outMessage *MessageInfo
+
+	// Экранируем имя канала для поиска в ссылках
+	escapedChannelName := v.escapeChannelName(channelName)
+	channelRef := "#/channels/" + escapedChannelName
+
+	// Ищем операции, которые ссылаются на этот канал
+	for _, operation := range spec.Operations {
+		if operation.Channel.Ref == channelRef && operation.Action == "receive" {
+			// Для поставщика action "receive" означает входящее сообщение
+			if len(operation.Messages) > 0 {
+				msg, err := v.extractMessageInfo(spec, operation.Messages[0])
+				if err == nil {
+					inMessage = msg
+				}
+			}
+
+			// Проверяем есть ли reply для исходящего сообщения
+			if operation.Reply != nil && len(operation.Reply.Messages) > 0 {
+				msg, err := v.extractMessageInfo(spec, operation.Reply.Messages[0])
+				if err == nil {
+					outMessage = msg
+				}
+			}
+			break
+		}
+	}
+
+	return inMessage, outMessage, nil
+}
+
+// extractMessageInfo извлекает информацию о сообщении
+func (v *ChannelValidator) extractMessageInfo(spec *parser.AsyncAPISpec, msgRef parser.MessageRef) (*MessageInfo, error) {
+	// Проверяем ссылку на компонент
+	if strings.HasPrefix(msgRef.Ref, "#/components/messages/") {
+		msgName := strings.TrimPrefix(msgRef.Ref, "#/components/messages/")
+		if spec.Components != nil && spec.Components.Messages != nil {
+			if msg, exists := spec.Components.Messages[msgName]; exists {
+				return &MessageInfo{
+					Name:        msg.Name,
+					ContentType: msg.ContentType,
+					Payload:     v.convertSchema(msg.Payload),
+				}, nil
 			}
 		}
 	}
-	return ""
-}
 
-func extractMessagesFromOperations(spec map[string]interface{}, operations map[string]interface{}, channelName string) (*MessageInfo, *MessageInfo) {
-	var outMessage, inMessage *MessageInfo
+	// Проверяем ссылку на сообщение в канале
+	if strings.Contains(msgRef.Ref, "/messages/") {
+		parts := strings.Split(msgRef.Ref, "/messages/")
+		if len(parts) == 2 {
+			channelPath := parts[0]
+			messageName := parts[1]
 
-	for _, op := range operations {
-		operation, ok := op.(map[string]interface{})
-		if !ok {
-			continue
-		}
+			// Извлекаем имя канала из пути
+			channelParts := strings.Split(channelPath, "/")
+			if len(channelParts) >= 2 {
+				channelName := v.unescapeChannelName(channelParts[len(channelParts)-1])
 
-		if channel, ok := operation["channel"].(map[string]interface{}); ok {
-			if ref, ok := channel["$ref"].(string); ok && containsChannel(ref, channelName) {
-				if action, ok := operation["action"].(string); ok && action == "send" {
-					if messages, ok := operation["messages"].([]interface{}); ok && len(messages) > 0 {
-						outMessage = extractMessage(spec, messages[0])
-					}
-					if reply, ok := operation["reply"].(map[string]interface{}); ok {
-						if replyMessages, ok := reply["messages"].([]interface{}); ok && len(replyMessages) > 0 {
-							inMessage = extractMessage(spec, replyMessages[0])
+				if channel, exists := spec.Channels[channelName]; exists && channel.Messages != nil {
+					if msgData, exists := channel.Messages[messageName]; exists {
+						// Если это ссылка на компонент, разыменовываем её
+						if msgData.Ref != "" {
+							return v.extractMessageInfo(spec, parser.MessageRef{Ref: msgData.Ref})
 						}
 					}
 				}
@@ -183,134 +233,61 @@ func extractMessagesFromOperations(spec map[string]interface{}, operations map[s
 		}
 	}
 
-	return outMessage, inMessage
+	return nil, fmt.Errorf("message not found: %s", msgRef.Ref)
 }
 
-func containsChannel(ref, channelName string) bool {
-	escapedName := escapeChannelName(channelName)
-	return ref == "#/channels/"+escapedName
-}
-
-func escapeChannelName(name string) string {
-	result := ""
-	for _, c := range name {
-		if c == '/' {
-			result += "~1"
-		} else {
-			result += string(c)
-		}
+// convertSchema преобразует схему в map[string]interface{}
+func (v *ChannelValidator) convertSchema(schema *parser.Schema) map[string]interface{} {
+	if schema == nil {
+		return nil
 	}
+
+	result := make(map[string]interface{})
+	result["type"] = schema.Type
+
+	if len(schema.Properties) > 0 {
+		properties := make(map[string]interface{})
+		for name, prop := range schema.Properties {
+			properties[name] = v.convertSchema(&prop)
+		}
+		result["properties"] = properties
+	}
+
+	if len(schema.Required) > 0 {
+		result["required"] = schema.Required
+	}
+
 	return result
 }
 
-func extractMessage(spec map[string]interface{}, messageRef interface{}) *MessageInfo {
-	if msgRef, ok := messageRef.(map[string]interface{}); ok {
-		if ref, ok := msgRef["$ref"].(string); ok {
-			if strings.HasPrefix(ref, "#/components/messages/") {
-				if components, ok := spec["components"].(map[string]interface{}); ok {
-					if messages, ok := components["messages"].(map[string]interface{}); ok {
-						msgName := ref[len("#/components/messages/"):]
-						if msgData, ok := messages[msgName].(map[string]interface{}); ok {
-							return &MessageInfo{
-								Name:        msgName,
-								ContentType: getStringValue(msgData, "contentType"),
-								Payload:     getMapValue(msgData, "payload"),
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-	return nil
-}
-
-func findMatchingProviderChannel(spec map[string]interface{}, consumerChannel *ChannelInfo) (*ChannelInfo, error) {
-	channels, ok := spec["channels"].(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("channels not found in provider spec")
-	}
-
-	operations := spec["operations"].(map[string]interface{})
-
-	for channelName, channelData := range channels {
-		channel, ok := channelData.(map[string]interface{})
-		if !ok {
-			continue
-		}
-
-		protocol := extractProtocol(spec, channel)
-		if protocol != consumerChannel.Protocol {
-			continue
-		}
-
-		inMessage, outMessage := extractProviderMessages(spec, operations, channelName)
-		
-		if inMessage != nil && messageMatches(inMessage, consumerChannel.OutMessage) {
-			return &ChannelInfo{
-				Name:       channelName,
-				Protocol:   protocol,
-				InMessage:  inMessage,
-				OutMessage: outMessage,
-			}, nil
-		}
-	}
-
-	return nil, fmt.Errorf("no matching provider channel found")
-}
-
-func extractProviderMessages(spec map[string]interface{}, operations map[string]interface{}, channelName string) (*MessageInfo, *MessageInfo) {
-	var inMessage, outMessage *MessageInfo
-
-	for _, op := range operations {
-		operation, ok := op.(map[string]interface{})
-		if !ok {
-			continue
-		}
-
-		if channel, ok := operation["channel"].(map[string]interface{}); ok {
-			if ref, ok := channel["$ref"].(string); ok && containsChannel(ref, channelName) {
-				if action, ok := operation["action"].(string); ok && action == "receive" {
-					if messages, ok := operation["messages"].([]interface{}); ok && len(messages) > 0 {
-						inMessage = extractMessage(spec, messages[0])
-					}
-					if reply, ok := operation["reply"].(map[string]interface{}); ok {
-						if replyMessages, ok := reply["messages"].([]interface{}); ok && len(replyMessages) > 0 {
-							outMessage = extractMessage(spec, replyMessages[0])
-						}
-					}
-				}
-			}
-		}
-	}
-
-	return inMessage, outMessage
-}
-
-func messageMatches(msg1, msg2 *MessageInfo) bool {
+// areMessagesCompatible проверяет совместимость сообщений
+func (v *ChannelValidator) areMessagesCompatible(msg1, msg2 *MessageInfo) bool {
 	if msg1 == nil || msg2 == nil {
 		return false
 	}
 
-	payload1, ok1 := msg1.Payload["properties"].(map[string]interface{})
-	payload2, ok2 := msg2.Payload["properties"].(map[string]interface{})
-	
+	// Проверяем наличие свойств
+	props1, ok1 := msg1.Payload["properties"].(map[string]interface{})
+	props2, ok2 := msg2.Payload["properties"].(map[string]interface{})
+
 	if !ok1 || !ok2 {
 		return false
 	}
 
-	required1 := getRequiredFields(msg1.Payload)
-	required2 := getRequiredFields(msg2.Payload)
+	// Проверяем обязательные поля
+	required1 := v.getRequiredFields(msg1.Payload)
+	required2 := v.getRequiredFields(msg2.Payload)
 
 	if len(required1) != len(required2) {
 		return false
 	}
 
+	// Проверяем, что все обязательные поля присутствуют в обеих схемах
 	for _, field := range required1 {
-		if _, exists := payload2[field]; !exists {
+		if _, exists := props2[field]; !exists {
 			return false
 		}
-		if _, exists := payload1[field]; !exists {
+		if _, exists := props1[field]; !exists {
 			return false
 		}
 	}
@@ -318,7 +295,8 @@ func messageMatches(msg1, msg2 *MessageInfo) bool {
 	return true
 }
 
-func getRequiredFields(payload map[string]interface{}) []string {
+// getRequiredFields извлекает список обязательных полей
+func (v *ChannelValidator) getRequiredFields(payload map[string]interface{}) []string {
 	if required, ok := payload["required"].([]interface{}); ok {
 		result := make([]string, len(required))
 		for i, field := range required {
@@ -331,16 +309,12 @@ func getRequiredFields(payload map[string]interface{}) []string {
 	return []string{}
 }
 
-func getStringValue(m map[string]interface{}, key string) string {
-	if val, ok := m[key].(string); ok {
-		return val
-	}
-	return ""
+// escapeChannelName экранирует имя канала для использования в JSON Pointer
+func (v *ChannelValidator) escapeChannelName(name string) string {
+	return strings.ReplaceAll(name, "/", "~1")
 }
 
-func getMapValue(m map[string]interface{}, key string) map[string]interface{} {
-	if val, ok := m[key].(map[string]interface{}); ok {
-		return val
-	}
-	return nil
+// unescapeChannelName разэкранирует имя канала
+func (v *ChannelValidator) unescapeChannelName(name string) string {
+	return strings.ReplaceAll(name, "~1", "/")
 }

@@ -7,40 +7,96 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/codemonsters/contract-tests-v2/parser"
 )
 
 func TestContractValidator(t *testing.T) {
 	t.Run("should validate channels from ContractValidate structure", func(t *testing.T) {
 		// Создаем mock спецификации
-		consumerSpec := &AsyncAPISpec{
+		consumerSpec := &parser.AsyncAPISpec{
 			AsyncAPI: "3.0.0",
-			Servers: map[string]Server{
+			Servers: map[string]parser.Server{
 				"rabbitmq": {
 					Host:     "localhost:5672",
 					Protocol: "amqp",
 				},
 			},
-			Channels: map[string]Channel{
+			Channels: map[string]parser.Channel{
 				"user/signedup": {
-					Servers: []ServerRef{
+					Servers: []parser.ServerRef{
 						{Ref: "#/servers/rabbitmq"},
+					},
+				},
+			},
+			Operations: map[string]parser.Operation{
+				"sendUserSignup": {
+					Action: "send",
+					Channel: parser.ChannelRef{
+						Ref: "#/channels/user~1signedup",
+					},
+					Messages: []parser.MessageRef{
+						{Ref: "#/components/messages/UserSignup"},
+					},
+				},
+			},
+			Components: &parser.Components{
+				Messages: map[string]parser.Message{
+					"UserSignup": {
+						Name:        "UserSignup",
+						ContentType: "application/json",
+						Payload: &parser.Schema{
+							Type: "object",
+							Properties: map[string]parser.Schema{
+								"userId": {Type: "string"},
+								"email":  {Type: "string"},
+							},
+							Required: []string{"userId", "email"},
+						},
 					},
 				},
 			},
 		}
 
-		providerSpec := &AsyncAPISpec{
+		providerSpec := &parser.AsyncAPISpec{
 			AsyncAPI: "3.0.0",
-			Servers: map[string]Server{
+			Servers: map[string]parser.Server{
 				"rabbitmq": {
 					Host:     "localhost:5672",
 					Protocol: "amqp",
 				},
 			},
-			Channels: map[string]Channel{
+			Channels: map[string]parser.Channel{
 				"notifications/user-events": {
-					Servers: []ServerRef{
+					Servers: []parser.ServerRef{
 						{Ref: "#/servers/rabbitmq"},
+					},
+				},
+			},
+			Operations: map[string]parser.Operation{
+				"receiveUserSignup": {
+					Action: "receive",
+					Channel: parser.ChannelRef{
+						Ref: "#/channels/notifications~1user-events",
+					},
+					Messages: []parser.MessageRef{
+						{Ref: "#/components/messages/UserSignup"},
+					},
+				},
+			},
+			Components: &parser.Components{
+				Messages: map[string]parser.Message{
+					"UserSignup": {
+						Name:        "UserSignup",
+						ContentType: "application/json",
+						Payload: &parser.Schema{
+							Type: "object",
+							Properties: map[string]parser.Schema{
+								"userId": {Type: "string"},
+								"email":  {Type: "string"},
+							},
+							Required: []string{"userId", "email"},
+						},
 					},
 				},
 			},
@@ -65,35 +121,6 @@ func TestContractValidator(t *testing.T) {
 	})
 }
 
-func TestChannelValidatorLegacy(t *testing.T) {
-	t.Run("should build channel structure from consumer and provider specs", func(t *testing.T) {
-		config := LegacyChannelConfig{
-			Consumer: LegacyConsumerConfig{
-				SpecPath: "../testdata/channel_validator/consumer.yaml",
-				Channel:  "user/signedup",
-			},
-			Provider: LegacyProviderConfig{
-				SpecPath: "../testdata/channel_validator/provider.yaml",
-			},
-		}
-
-		validator := NewChannelValidator()
-		result, err := validator.ValidateChannelsFromFiles(config)
-
-		require.NoError(t, err)
-		require.NotNil(t, result)
-
-		assert.Equal(t, "user/signedup", result.ConsumerChannel.Name)
-		assert.Equal(t, "amqp", result.ConsumerChannel.Protocol)
-		assert.NotNil(t, result.ConsumerChannel.OutMessage)
-		assert.NotNil(t, result.ConsumerChannel.InMessage)
-
-		assert.NotEmpty(t, result.ProviderChannel.Name)
-		assert.Equal(t, "amqp", result.ProviderChannel.Protocol)
-		assert.NotNil(t, result.ProviderChannel.InMessage)
-		assert.NotNil(t, result.ProviderChannel.OutMessage)
-	})
-}
 
 func TestParser(t *testing.T) {
 	t.Run("should parse valid AsyncAPI 3.0 specification", func(t *testing.T) {
@@ -180,18 +207,18 @@ components:
 		// Проверка компонентов
 		require.NotNil(t, spec.Components)
 		assert.Len(t, spec.Components.Messages, 1)
-		
+
 		// Проверка сообщения с headers
 		msg := spec.Components.Messages["UserSignedUp"]
 		assert.Equal(t, "UserSignedUp", msg.Name)
 		assert.Equal(t, "application/json", msg.ContentType)
-		
+
 		// Проверка headers
 		require.NotNil(t, msg.Headers)
 		assert.Equal(t, "object", msg.Headers.Type)
 		assert.Contains(t, msg.Headers.Properties, "correlationId")
 		assert.Contains(t, msg.Headers.Required, "correlationId")
-		
+
 		// Проверка payload
 		require.NotNil(t, msg.Payload)
 		assert.Equal(t, "object", msg.Payload.Type)

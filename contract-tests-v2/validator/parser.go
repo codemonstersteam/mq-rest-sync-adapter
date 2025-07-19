@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/codemonsters/contract-tests-v2/parser"
 )
 
 // Parser предоставляет функционал для парсинга AsyncAPI спецификаций
@@ -16,12 +18,12 @@ func NewParser() *Parser {
 }
 
 // ParseFromString парсит AsyncAPI спецификацию из строки
-func (p *Parser) ParseFromString(content string) (*AsyncAPISpec, error) {
+func (p *Parser) ParseFromString(content string) (*parser.AsyncAPISpec, error) {
 	if strings.TrimSpace(content) == "" {
 		return nil, fmt.Errorf("specification content is empty")
 	}
 
-	var spec AsyncAPISpec
+	var spec parser.AsyncAPISpec
 	if err := yaml.Unmarshal([]byte(content), &spec); err != nil {
 		return nil, fmt.Errorf("failed to parse YAML: %w", err)
 	}
@@ -44,12 +46,12 @@ func (p *Parser) ParseFromString(content string) (*AsyncAPISpec, error) {
 }
 
 // ParseFromBytes парсит AsyncAPI спецификацию из байтов
-func (p *Parser) ParseFromBytes(data []byte) (*AsyncAPISpec, error) {
+func (p *Parser) ParseFromBytes(data []byte) (*parser.AsyncAPISpec, error) {
 	return p.ParseFromString(string(data))
 }
 
 // resolveReferences резолвит основные типы ссылок в спецификации
-func (p *Parser) resolveReferences(spec *AsyncAPISpec) error {
+func (p *Parser) resolveReferences(spec *parser.AsyncAPISpec) error {
 	// Для минималистичного решения оставляем ссылки как есть
 	// В реальном применении здесь был бы код для разрешения $ref
 	// Наш validator уже умеет работать с ссылками
@@ -57,7 +59,7 @@ func (p *Parser) resolveReferences(spec *AsyncAPISpec) error {
 }
 
 // GetChannelByName возвращает канал по имени с учетом экранирования
-func (p *Parser) GetChannelByName(spec *AsyncAPISpec, name string) (*Channel, error) {
+func (p *Parser) GetChannelByName(spec *parser.AsyncAPISpec, name string) (*parser.Channel, error) {
 	if channel, ok := spec.Channels[name]; ok {
 		return &channel, nil
 	}
@@ -78,7 +80,7 @@ func (p *Parser) GetChannelByName(spec *AsyncAPISpec, name string) (*Channel, er
 }
 
 // GetMessageByRef возвращает сообщение по ссылке
-func (p *Parser) GetMessageByRef(spec *AsyncAPISpec, ref string) (*Message, error) {
+func (p *Parser) GetMessageByRef(spec *parser.AsyncAPISpec, ref string) (*parser.Message, error) {
 	if ref == "" {
 		return nil, fmt.Errorf("empty reference")
 	}
@@ -124,7 +126,7 @@ func (p *Parser) GetMessageByRef(spec *AsyncAPISpec, ref string) (*Message, erro
 }
 
 // GetServerByRef возвращает сервер по ссылке
-func (p *Parser) GetServerByRef(spec *AsyncAPISpec, ref string) (*Server, error) {
+func (p *Parser) GetServerByRef(spec *parser.AsyncAPISpec, ref string) (*parser.Server, error) {
 	if ref == "" {
 		return nil, fmt.Errorf("empty reference")
 	}
@@ -141,7 +143,7 @@ func (p *Parser) GetServerByRef(spec *AsyncAPISpec, ref string) (*Server, error)
 }
 
 // GetOperationByName возвращает операцию по имени
-func (p *Parser) GetOperationByName(spec *AsyncAPISpec, name string) (*Operation, error) {
+func (p *Parser) GetOperationByName(spec *parser.AsyncAPISpec, name string) (*parser.Operation, error) {
 	if operation, ok := spec.Operations[name]; ok {
 		return &operation, nil
 	}
@@ -149,7 +151,7 @@ func (p *Parser) GetOperationByName(spec *AsyncAPISpec, name string) (*Operation
 }
 
 // ExtractChannelProtocol извлекает протокол канала через связанные серверы
-func (p *Parser) ExtractChannelProtocol(spec *AsyncAPISpec, channel *Channel) (string, error) {
+func (p *Parser) ExtractChannelProtocol(spec *parser.AsyncAPISpec, channel *parser.Channel) (string, error) {
 	if len(channel.Servers) == 0 {
 		return "", fmt.Errorf("channel has no associated servers")
 	}
