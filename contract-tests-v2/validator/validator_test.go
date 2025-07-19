@@ -48,8 +48,8 @@ func TestContractValidator(t *testing.T) {
 						Payload: &parser.Schema{
 							Type: "object",
 							Properties: map[string]parser.Schema{
-								"userId": {Type: "string"},
-								"email":  {Type: "string"},
+								"userId": {Type: "string", Example: "user123"},
+								"email":  {Type: "string", Example: "user@example.com"},
 							},
 							Required: []string{"userId", "email"},
 						},
@@ -92,8 +92,8 @@ func TestContractValidator(t *testing.T) {
 						Payload: &parser.Schema{
 							Type: "object",
 							Properties: map[string]parser.Schema{
-								"userId": {Type: "string"},
-								"email":  {Type: "string"},
+								"userId": {Type: "string", Example: "user123"},
+								"email":  {Type: "string", Example: "user@example.com"},
 							},
 							Required: []string{"userId", "email"},
 						},

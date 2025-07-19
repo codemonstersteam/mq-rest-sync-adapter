@@ -89,18 +89,33 @@ func (v *ChannelValidator) findMatchingProviderChannel(contractValidate *Contrac
 		}
 
 		// Проверяем совместимость сообщений
-		// Если сообщения не найдены или не совместимы - канал не подходит
+		// 1. Проверяем структуру входящего сообщения поставщика с запросом потребителя
 		if consumerChannel.OutMessage != nil && inMessage != nil {
-			if v.areMessagesCompatible(consumerChannel.OutMessage, inMessage) {
-				return &ChannelInfo{
-					Name:       channelName,
-					Protocol:   protocol,
-					InMessage:  inMessage,
-					OutMessage: outMessage,
-				}, nil
+			if !v.areMessagesCompatible(consumerChannel.OutMessage, inMessage) {
+				continue // Структуры не совпадают, переходим к следующему каналу
 			}
+		} else {
+			// Если нет сообщений для проверки, пропускаем канал
+			continue
 		}
-		// Если сообщения не найдены или не совместимы - продолжаем поиск
+
+		// 2. Проверяем структуру исходящего сообщения поставщика с ожидаемым ответом потребителя
+		if consumerChannel.InMessage != nil && outMessage != nil {
+			if !v.areMessagesCompatible(consumerChannel.InMessage, outMessage) {
+				continue // Структуры ответа не совпадают, переходим к следующему каналу
+			}
+		} else if consumerChannel.InMessage != nil || outMessage != nil {
+			// Если у одного есть reply, а у другого нет - несовместимо
+			continue
+		}
+
+		// Все проверки пройдены - возвращаем подходящий канал
+		return &ChannelInfo{
+			Name:       channelName,
+			Protocol:   protocol,
+			InMessage:  inMessage,
+			OutMessage: outMessage,
+		}, nil
 	}
 
 	return nil, fmt.Errorf("no compatible provider channel found for protocol %s", consumerChannel.Protocol)
@@ -260,13 +275,13 @@ func (v *ChannelValidator) convertSchema(schema *parser.Schema) map[string]inter
 	return result
 }
 
-// areMessagesCompatible проверяет совместимость сообщений
+// areMessagesCompatible проверяет совместимость сообщений по именам полей и их типам
 func (v *ChannelValidator) areMessagesCompatible(msg1, msg2 *MessageInfo) bool {
 	if msg1 == nil || msg2 == nil {
 		return false
 	}
 
-	// Проверяем наличие свойств
+	// Проверяем наличие свойств (обязательно по нашему стандарту)
 	props1, ok1 := msg1.Payload["properties"].(map[string]interface{})
 	props2, ok2 := msg2.Payload["properties"].(map[string]interface{})
 
@@ -282,17 +297,45 @@ func (v *ChannelValidator) areMessagesCompatible(msg1, msg2 *MessageInfo) bool {
 		return false
 	}
 
-	// Проверяем, что все обязательные поля присутствуют в обеих схемах
+	// Проверяем, что все обязательные поля присутствуют в обеих схемах с одинаковыми типами
 	for _, field := range required1 {
-		if _, exists := props2[field]; !exists {
+		// Проверяем наличие поля в обеих схемах
+		prop1, exists1 := props1[field]
+		prop2, exists2 := props2[field]
+		
+		if !exists1 || !exists2 {
 			return false
 		}
-		if _, exists := props1[field]; !exists {
+
+		// Проверяем совпадение типов полей (тип обязателен по стандарту)
+		if !v.arePropertyTypesCompatible(prop1, prop2) {
 			return false
 		}
 	}
 
 	return true
+}
+
+// arePropertyTypesCompatible проверяет совместимость типов свойств
+func (v *ChannelValidator) arePropertyTypesCompatible(prop1, prop2 interface{}) bool {
+	// Извлекаем типы из свойств (тип обязателен по стандарту)
+	type1 := v.getPropertyType(prop1)
+	type2 := v.getPropertyType(prop2)
+	
+	// Типы должны совпадать и не быть пустыми (валидация стандарта)
+	return type1 != "" && type2 != "" && type1 == type2
+}
+
+// getPropertyType извлекает тип свойства из схемы
+func (v *ChannelValidator) getPropertyType(prop interface{}) string {
+	if propMap, ok := prop.(map[string]interface{}); ok {
+		if typeVal, exists := propMap["type"]; exists {
+			if typeStr, ok := typeVal.(string); ok {
+				return typeStr
+			}
+		}
+	}
+	return ""
 }
 
 // getRequiredFields извлекает список обязательных полей
@@ -306,6 +349,12 @@ func (v *ChannelValidator) getRequiredFields(payload map[string]interface{}) []s
 		}
 		return result
 	}
+	
+	// Обработка случая когда required передается как []string (из convertSchema)
+	if required, ok := payload["required"].([]string); ok {
+		return required
+	}
+	
 	return []string{}
 }
 

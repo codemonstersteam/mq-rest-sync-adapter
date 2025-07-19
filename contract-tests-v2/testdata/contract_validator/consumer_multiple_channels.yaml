@@ -1,0 +1,112 @@
+asyncapi: 3.0.0
+info:
+  title: User Service
+  version: 1.0.0
+  description: User service with multiple channels for testing channel selection
+
+servers:
+  rabbitmq:
+    host: localhost:5672
+    protocol: amqp
+    description: RabbitMQ broker
+  kafka:
+    host: localhost:9092
+    protocol: kafka
+    description: Kafka broker
+
+channels:
+  # Канал 1: AMQP канал с UserSignup (ДОЛЖЕН подойти для поставщика)
+  user/events:
+    address: user.events
+    servers:
+      - $ref: '#/servers/rabbitmq'
+    messages:
+      userSignedUp:
+        $ref: '#/components/messages/UserSignup'
+
+  # Канал 2: AMQP канал с OrderEvent (НЕ подойдет - разная структура сообщений)
+  user/orders:
+    address: user.orders
+    servers:
+      - $ref: '#/servers/rabbitmq'
+    messages:
+      orderPlaced:
+        $ref: '#/components/messages/OrderEvent'
+
+  # Канал 3: Kafka канал с UserSignup (НЕ подойдет - разный протокол)
+  user/kafka-events:
+    address: user-events
+    servers:
+      - $ref: '#/servers/kafka'
+    messages:
+      userSignedUp:
+        $ref: '#/components/messages/UserSignup'
+
+operations:
+  # Операция для AMQP user/events канала - совместима с поставщиком
+  sendUserEvent:
+    action: send
+    channel:
+      $ref: '#/channels/user~1events'
+    messages:
+      - $ref: '#/channels/user~1events/messages/userSignedUp'
+
+  # Операция для AMQP user/orders канала - несовместима по структуре
+  sendUserOrder:
+    action: send
+    channel:
+      $ref: '#/channels/user~1orders'
+    messages:
+      - $ref: '#/channels/user~1orders/messages/orderPlaced'
+
+  # Операция для Kafka канала - несовместима по протоколу
+  sendKafkaUserEvent:
+    action: send
+    channel:
+      $ref: '#/channels/user~1kafka-events'
+    messages:
+      - $ref: '#/channels/user~1kafka-events/messages/userSignedUp'
+
+components:
+  messages:
+    UserSignup:
+      name: UserSignup
+      title: User signed up event
+      contentType: application/json
+      payload:
+        type: object
+        properties:
+          userId:
+            type: string
+            example: "user123"
+          email:
+            type: string
+            example: "user@example.com"
+          name:
+            type: string
+            example: "John Doe"
+        required:
+          - userId
+          - email
+          - name
+
+    OrderEvent:
+      name: OrderEvent
+      title: Order placed event
+      contentType: application/json
+      payload:
+        type: object
+        properties:
+          orderId:
+            type: string
+            example: "order456"
+          customerId:
+            type: string
+            example: "customer789"
+          amount:
+            type: number
+            example: 99.99
+        required:
+          - orderId
+          - customerId
+          - amount

@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -44,14 +45,17 @@ func (v *ContractValidator) Validate(configPath string) (*ValidationResult, erro
 		v.httpClient.Timeout = time.Duration(config.ContractTests.Settings.Timeout) * time.Second
 	}
 
+	// Получаем базовую директорию конфигурационного файла
+	configDir := filepath.Dir(configPath)
+
 	// Шаг 2: Парсинг спецификации потребителя
-	consumerSpec, err := v.parseSpec(config.ContractTests.Consumer.SpecPath)
+	consumerSpec, err := v.parseSpecWithBaseDir(config.ContractTests.Consumer.SpecPath, configDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse consumer spec: %w", err)
 	}
 
 	// Шаг 3: Парсинг спецификации поставщика
-	providerSpec, err := v.parseSpec(config.ContractTests.Provider.SpecURL)
+	providerSpec, err := v.parseSpecWithBaseDir(config.ContractTests.Provider.SpecURL, configDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse provider spec: %w", err)
 	}
@@ -138,6 +142,25 @@ func (v *ContractValidator) parseSpec(pathOrURL string) (*parser.AsyncAPISpec, e
 	}
 
 	return spec, nil
+}
+
+// parseSpecWithBaseDir парсит спецификацию с учетом базовой директории для относительных путей
+func (v *ContractValidator) parseSpecWithBaseDir(pathOrURL, baseDir string) (*parser.AsyncAPISpec, error) {
+	var actualPath string
+	
+	// Определяем, это URL или локальный путь
+	if strings.HasPrefix(pathOrURL, "http://") || strings.HasPrefix(pathOrURL, "https://") {
+		// Для URL используем исходный parseSpec
+		return v.parseSpec(pathOrURL)
+	} else {
+		// Для локальных файлов, если путь относительный, делаем его относительно baseDir
+		if !filepath.IsAbs(pathOrURL) {
+			actualPath = filepath.Join(baseDir, pathOrURL)
+		} else {
+			actualPath = pathOrURL
+		}
+		return v.parseSpec(actualPath)
+	}
 }
 
 // loadFromFile загружает данные из локального файла

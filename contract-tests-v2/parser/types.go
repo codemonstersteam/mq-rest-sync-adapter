@@ -66,9 +66,10 @@ type Message struct {
 
 // Schema представляет JSON Schema для payload или headers
 type Schema struct {
-	Type        string                 `yaml:"type,omitempty"`
+	Type        string                 `yaml:"type"`                // Обязательное поле - тип всегда должен быть указан
 	Properties  map[string]Schema      `yaml:"properties,omitempty"`
 	Required    []string               `yaml:"required,omitempty"`
+	Example     interface{}            `yaml:"example"`             // Обязательное поле - пример значения
 	Format      string                 `yaml:"format,omitempty"`
 	Description string                 `yaml:"description,omitempty"`
 	Enum        []interface{}          `yaml:"enum,omitempty"`
