@@ -27,8 +27,9 @@ type ConsumerConfig struct {
 
 // ProviderConfig конфигурация поставщика
 type ProviderConfig struct {
-	SpecURL string `yaml:"spec_url"`
-	Name    string `yaml:"name"`
+	SpecURL  string `yaml:"spec_url"`
+	SpecPath string `yaml:"spec_path"`
+	Name     string `yaml:"name"`
 }
 
 // Settings настройки валидации

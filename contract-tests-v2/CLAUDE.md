@@ -477,11 +477,156 @@ func (v *ChannelValidator) findMatchingProviderChannel(...)
 
 ---
 
+## ✅ ВЫПОЛНЕНО - Офлайн тестирование контрактов и исправление обработки $ref
+
+**Дата завершения:** 22 июля 2025  
+**Время разработки:** ~3 часа  
+
+### Задача
+Написать тест для валидации contract-tests.yaml и спецификаций, на которые он ссылается, с возможностью работы офлайн без подключения к интернету.
+
+### Реализованные изменения:
+
+**1. Создан интеграционный тест для офлайн валидации:**
+- Файл: `validator/contract_validator_offline_test.go`
+- Скачаны внешние спецификации и сохранены локально в `testdata/contract_validator/`
+- Создан локальный конфигурационный файл `contract-tests-local.yaml` с путями к локальным файлам
+- Тест проверяет полный цикл валидации без доступа к интернету
+
+**2. Обнаружена и исправлена критическая ошибка в convertSchema:**
+- **Проблема:** Функция `convertSchema` не обрабатывала поле `Ref` из схемы AsyncAPI
+- **Симптом:** При конвертации схем с `$ref` терялась информация о ссылках, что приводило к некорректному сравнению сообщений
+- **Решение:** Добавлена обработка поля `Ref` в функции `convertSchema`:
+```go
+// Если есть ссылка, сохраняем её как $ref
+if schema.Ref != "" {
+    result["$ref"] = schema.Ref
+    return result
+}
+```
+
+**3. Создан диагностический тест для отладки:**
+- Файл: `validator/payload_debug_test.go` 
+- Тест сравнивает извлечение payload из реальных спецификаций vs mock данных
+- Помог выявить, что проблема была в потере `$ref` при конвертации схем
+
+**4. Обновлена структура ProviderConfig:**
+- Добавлено поле `SpecPath` для поддержки локальных файлов
+- Обновлена логика загрузки в `contract_validator.go` для обработки как URL, так и локальных путей
+
+### Структура тестовых данных:
+```
+testdata/contract_validator/
+├── consumer_local.yaml         # Локальная копия спецификации потребителя
+├── provider_external.yaml      # Скачанная спецификация поставщика
+├── contract-tests-local.yaml   # Конфигурация для офлайн тестирования
+└── ...                        # Другие тестовые файлы
+```
+
+### Результаты:
+- ✅ Все тесты успешно проходят
+- ✅ Валидация контрактов работает офлайн с локальными файлами
+- ✅ Корректно обрабатываются `$ref` ссылки в схемах сообщений
+- ✅ Улучшена диагностика ошибок при несовместимости каналов
+
+### Ключевое исправление:
+Основная проблема заключалась в том, что при извлечении схем сообщений из спецификаций терялись `$ref` ссылки. Это приводило к тому, что поля со ссылками (например, `data: {$ref: "#/components/schemas/walletBalanceData"}`) превращались в пустые объекты (`data: {type: ""}`), из-за чего валидация совместимости всегда возвращала false.
+
+---
+
+## 🔄 СЛЕДУЮЩИЙ ЭТАП - Comprehensive Unit-тестирование
+
+**Запланировано:** Следующая сессия разработки  
+**Приоритет:** Критически важно  
+**Время оценка:** ~5-8 часов  
+
+### Задача этапа
+Создать полное покрытие unit-тестами всех функций модуля `channels_validator.go` для предотвращения критических багов в будущем.
+
+### Мотивация
+Критический баг с потерей `$ref` ссылок в функции `convertSchema` произошел из-за отсутствия unit-тестов. Анализ показал, что из 15 функций модуля только 2 имеют частичное покрытие тестами.
+
+### План реализации
+
+#### 1. Структура тестирования
+- **14 файлов тестов** - по одному на каждую функцию
+- **~150-200 тест-кейсов** - покрытие всех edge cases AsyncAPI 3.0
+- **Каждый тест изолирован** - без зависимостей между тестами
+
+#### 2. Приоритетные функции для тестирования
+
+**Критически важные (были источником багов):**
+- `convertSchema` - конвертация Schema в map (тут был баг с `$ref`)
+- `resolveSchemaRef` - разрешение ссылок на схемы
+- `arePropertyTypesCompatible` - сравнение типов с `$ref`
+
+**Функции без покрытия:**
+- `extractConsumerChannel` - извлечение канала потребителя
+- `extractChannelProtocol` - получение протокола из серверов
+- `extractMessageInfo` - обработка MessageRef ссылок  
+- `getRequiredFields` - извлечение обязательных полей
+- `escapeChannelName/unescapeChannelName` - экранирование имен
+
+#### 3. Тестовые кейсы AsyncAPI 3.0
+
+**Поля Schema для тестирования:**
+- `type` - все типы (string, number, integer, boolean, object, array)
+- `$ref` - ссылки на компоненты и схемы
+- `properties` - вложенные объекты
+- `required` - обязательные поля как []string и []interface{}
+- `format` - специальные форматы (int64, email, uri)
+- `enum` - перечисления разных типов
+- `items` - элементы массивов
+
+**Edge cases:**
+- Nil значения и пустые структуры
+- Невалидные ссылки и форматы
+- Рекурсивные и циклические зависимости
+- Смешанные типы данных
+
+#### 4. Файлы для создания
+
+```
+validator/
+├── extract_consumer_channel_test.go
+├── extract_channel_protocol_test.go  
+├── extract_consumer_messages_test.go
+├── extract_provider_messages_test.go
+├── extract_message_info_test.go
+├── resolve_schema_ref_test.go
+├── convert_schema_test.go              ⭐ (критически важный)
+├── are_messages_compatible_test.go     (расширить существующий)
+├── are_property_types_compatible_test.go
+├── get_property_ref_test.go
+├── get_property_type_test.go
+├── get_required_fields_test.go
+├── escape_channel_name_test.go
+└── find_matching_provider_channel_test.go
+```
+
+### Критерии готовности
+- ✅ Все тесты проходят успешно
+- ✅ Покрытие 100% функций отдельными unit-тестами  
+- ✅ Все возможные поля AsyncAPI 3.0 Schema протестированы
+- ✅ Edge cases и error handling покрыты
+- ✅ Документация обновлена
+
+### Ожидаемый результат
+После завершения этого этапа модуль `channels_validator.go` будет защищен от критических багов типа потери `$ref` ссылок. Любые изменения в функциях будут немедленно выявлять проблемы через failing tests.
+
+**Начинаем следующую сессию с реализации unit-тестов по приоритету: `convert_schema_test.go` → `resolve_schema_ref_test.go` → остальные функции.**
+
+---
+
 # important-instruction-reminders
 Do what has been asked; nothing more, nothing less.
 NEVER create files unless they're absolutely necessary for achieving your goal.
 ALWAYS prefer editing an existing file to creating a new one.
 NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
+
+# testdata-structure
+ВАЖНО: Все тестовые данные должны сохраняться в директории testdata/contract_validator/
+НЕ создавать новые директории типа testdata/external_specs или другие - использовать существующую структуру
 
 # git-commit-settings
 IMPORTANT: When creating git commits, DO NOT include any promotional text like "Generated with Claude Code" or "Co-Authored-By: Claude". Keep commit messages clean and professional without self-promotion.

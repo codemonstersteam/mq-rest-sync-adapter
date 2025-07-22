@@ -55,7 +55,11 @@ func (v *ContractValidator) Validate(configPath string) (*ValidationResult, erro
 	}
 
 	// Шаг 3: Парсинг спецификации поставщика
-	providerSpec, err := v.parseSpecWithBaseDir(config.ContractTests.Provider.SpecURL, configDir)
+	providerPath := config.ContractTests.Provider.SpecURL
+	if providerPath == "" {
+		providerPath = config.ContractTests.Provider.SpecPath
+	}
+	providerSpec, err := v.parseSpecWithBaseDir(providerPath, configDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse provider spec: %w", err)
 	}
@@ -111,8 +115,8 @@ func (v *ContractValidator) loadConfig(configPath string) (*Config, error) {
 	if len(config.ContractTests.Consumer.Channels) == 0 {
 		return nil, fmt.Errorf("consumer.channels is required")
 	}
-	if config.ContractTests.Provider.SpecURL == "" {
-		return nil, fmt.Errorf("provider.spec_url is required")
+	if config.ContractTests.Provider.SpecURL == "" && config.ContractTests.Provider.SpecPath == "" {
+		return nil, fmt.Errorf("provider.spec_url or provider.spec_path is required")
 	}
 
 	return &config, nil
