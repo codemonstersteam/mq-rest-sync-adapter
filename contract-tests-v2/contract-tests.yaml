@@ -5,7 +5,7 @@ contract_tests:
     spec_path: "../api-specification/asyncapi.yml"
     name: "mq-rest-sync-adapter"
     channels:
-      - recontract-tests.yamlstGetBalanceRequest
+      - restGetBalanceRequest
     
   # Спецификация поставщика (удаленная)
   provider:
