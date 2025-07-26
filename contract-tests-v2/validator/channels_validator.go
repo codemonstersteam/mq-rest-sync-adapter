@@ -494,11 +494,41 @@ func (v *ChannelValidator) areMessagesCompatible(msg1, msg2 *MessageInfo, spec1,
 	required1 := v.getRequiredFields(msg1.Payload)
 	required2 := v.getRequiredFields(msg2.Payload)
 
-	if len(required1) != len(required2) {
+	if !v.areRequiredFieldsSetsIdentical(required1, required2) {
 		return false
 	}
 
-	// Проверяем, что все обязательные поля присутствуют в обеих схемах с одинаковыми типами
+	if !v.areAllRequiredFieldsCompatible(required1, props1, props2, spec1, spec2) {
+		return false
+	}
+
+	return true
+}
+
+// areRequiredFieldsSetsIdentical проверяет что множества required полей идентичны
+func (v *ChannelValidator) areRequiredFieldsSetsIdentical(required1, required2 []string) bool {
+	if len(required1) != len(required2) {
+		return false
+	}
+	
+	// Создаем карты для быстрого поиска
+	required1Map := make(map[string]bool)
+	for _, field := range required1 {
+		required1Map[field] = true
+	}
+	
+	// Проверяем что все поля из required2 присутствуют в required1
+	for _, field := range required2 {
+		if !required1Map[field] {
+			return false
+		}
+	}
+	
+	return true
+}
+
+// areAllRequiredFieldsCompatible проверяет совместимость типов всех required полей
+func (v *ChannelValidator) areAllRequiredFieldsCompatible(required1 []string, props1, props2 map[string]interface{}, spec1, spec2 *parser.AsyncAPISpec) bool {
 	for _, field := range required1 {
 		// Проверяем наличие поля в обеих схемах
 		prop1, exists1 := props1[field]
@@ -508,12 +538,11 @@ func (v *ChannelValidator) areMessagesCompatible(msg1, msg2 *MessageInfo, spec1,
 			return false
 		}
 
-		// Проверяем совпадение типов полей (тип обязателен по стандарту)
+		// Проверяем совпадение типов полей
 		if !v.arePropertyTypesCompatible(prop1, prop2, spec1, spec2) {
 			return false
 		}
 	}
-
 	return true
 }
 
