@@ -568,7 +568,22 @@ func (v *ChannelValidator) arePropertyTypesCompatible(prop1, prop2 interface{}, 
 	type2 := v.getPropertyType(prop2)
 	
 	// Типы должны совпадать и не быть пустыми (валидация стандарта)
-	return type1 != "" && type2 != "" && type1 == type2
+	if type1 == "" || type2 == "" || type1 != type2 {
+		return false
+	}
+	
+	// Для массивов проверяем совместимость элементов
+	if type1 == "array" {
+		return v.areArrayItemsCompatible(prop1, prop2, spec1, spec2)
+	}
+	
+	// Для объектов проверяем совместимость свойств
+	if type1 == "object" {
+		return v.areObjectPropertiesCompatible(prop1, prop2, spec1, spec2)
+	}
+	
+	// Для простых типов достаточно проверки равенства типов
+	return true
 }
 
 // getPropertyRef извлекает ссылку из свойства
@@ -623,4 +638,87 @@ func (v *ChannelValidator) escapeChannelName(name string) string {
 // unescapeChannelName разэкранирует имя канала
 func (v *ChannelValidator) unescapeChannelName(name string) string {
 	return strings.ReplaceAll(name, "~1", "/")
+}
+
+// areArrayItemsCompatible проверяет совместимость элементов массивов
+func (v *ChannelValidator) areArrayItemsCompatible(prop1, prop2 interface{}, spec1, spec2 *parser.AsyncAPISpec) bool {
+	// Извлекаем items из обоих массивов
+	items1 := v.getArrayItems(prop1)
+	items2 := v.getArrayItems(prop2)
+	
+	if items1 == nil || items2 == nil {
+		return false
+	}
+	
+	// Рекурсивно проверяем совместимость элементов массива
+	return v.arePropertyTypesCompatible(items1, items2, spec1, spec2)
+}
+
+// getArrayItems извлекает items из array свойства
+func (v *ChannelValidator) getArrayItems(prop interface{}) interface{} {
+	if propMap, ok := prop.(map[string]interface{}); ok {
+		if items, exists := propMap["items"]; exists {
+			return items
+		}
+	}
+	return nil
+}
+
+// areObjectPropertiesCompatible проверяет совместимость свойств объектов
+func (v *ChannelValidator) areObjectPropertiesCompatible(prop1, prop2 interface{}, spec1, spec2 *parser.AsyncAPISpec) bool {
+	// Извлекаем properties и required из обоих объектов
+	props1 := v.getObjectProperties(prop1)
+	props2 := v.getObjectProperties(prop2)
+	
+	// Используем существующую функцию для извлечения required полей
+	objMap1, ok1 := prop1.(map[string]interface{})
+	objMap2, ok2 := prop2.(map[string]interface{})
+	if !ok1 || !ok2 {
+		return false
+	}
+	
+	required1 := v.getRequiredFields(objMap1)
+	required2 := v.getRequiredFields(objMap2)
+	
+	// Проверяем что множества required полей идентичны
+	if !v.areRequiredFieldsSetsIdentical(required1, required2) {
+		return false
+	}
+	
+	// Проверяем что все required поля имеют совместимые типы
+	return v.areAllObjectFieldsCompatible(required1, props1, props2, spec1, spec2)
+}
+
+// areAllObjectFieldsCompatible проверяет совместимость всех полей объекта
+func (v *ChannelValidator) areAllObjectFieldsCompatible(requiredFields []string, props1, props2 map[string]interface{}, spec1, spec2 *parser.AsyncAPISpec) bool {
+	for _, field := range requiredFields {
+		if !v.areObjectFieldsExistInBothSchemas(field, props1, props2) {
+			return false
+		}
+		
+		// Рекурсивно проверяем совместимость свойств
+		if !v.arePropertyTypesCompatible(props1[field], props2[field], spec1, spec2) {
+			return false
+		}
+	}
+	return true
+}
+
+// areObjectFieldsExistInBothSchemas проверяет существование поля в обеих схемах
+func (v *ChannelValidator) areObjectFieldsExistInBothSchemas(field string, props1, props2 map[string]interface{}) bool {
+	_, exists1 := props1[field]
+	_, exists2 := props2[field]
+	return exists1 && exists2
+}
+
+// getObjectProperties извлекает properties из object свойства
+func (v *ChannelValidator) getObjectProperties(prop interface{}) map[string]interface{} {
+	if propMap, ok := prop.(map[string]interface{}); ok {
+		if properties, exists := propMap["properties"]; exists {
+			if propsMap, ok := properties.(map[string]interface{}); ok {
+				return propsMap
+			}
+		}
+	}
+	return make(map[string]interface{})
 }
