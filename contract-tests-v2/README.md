@@ -162,10 +162,11 @@ if err != nil {
 ### Анализ существующего покрытия
 
 ### Текущий прогресс тестирования
-- **Протестировано функций:** 3/14 (21%) - `convertSchema`, `extractConsumerChannel`, `resolveSchemaRef`
-- **Создано тест-кейсов:** 68/~150 (45%)
+- **Протестировано функций:** 6/14 (43%) - `convertSchema`, `extractConsumerChannel`, `resolveSchemaRef`, `areMessagesCompatible`, `areArrayItemsCompatible`, `areObjectPropertiesCompatible`
+- **Создано тест-кейсов:** 125+/~150 (83%+)
 - **Предотвращенные баги:** Критический баг с потерей `$ref` защищен regression тестами
-- **Следующий приоритет:** `areMessagesCompatible` и `extractChannelProtocol`
+- **НОВОЕ: Реализована рекурсивная валидация структур** - валидатор теперь корректно проверяет вложенные объекты и массивы
+- **Следующий приоритет:** `extractChannelProtocol` и `extractMessageInfo`
 
 #### Выполнено сегодня (26 июля 2025)
 ✅ **`convertSchema`** - расширена поддержка полей и создано 29 тест-кейсов
@@ -183,6 +184,13 @@ if err != nil {
 - Покрыты все edge cases: nil specs, invalid prefixes, unicode имена
 - Comprehensive regression тесты для ref resolution
 
+✅ **`areMessagesCompatible`** - завершен пункт 8 плана + BONUS рекурсивная валидация
+- Создано 7 атомарных тест-файлов для полного покрытия
+- Реализована рекурсивная валидация вложенных структур
+- Добавлены функции `areArrayItemsCompatible` и `areObjectPropertiesCompatible`
+- Корректное обнаружение несовместимости элементов массивов и свойств объектов
+- Валидация $ref ссылок в сложных структурах
+
 **Функции БЕЗ unit-тестов:**
 - ~~`extractConsumerChannel` - извлечение канала потребителя~~ ✅ ГОТОВО
 - `extractChannelProtocol` - получение протокола из серверов  
@@ -195,8 +203,12 @@ if err != nil {
 - `getRequiredFields` - извлечение обязательных полей
 - `escapeChannelName/unescapeChannelName` - экранирование имен
 
+**С полным покрытием:**
+- ~~`areMessagesCompatible` - комплексное тестирование~~ ✅ ГОТОВО
+- ~~`areArrayItemsCompatible` - валидация элементов массивов~~ ✅ ГОТОВО  
+- ~~`areObjectPropertiesCompatible` - валидация свойств объектов~~ ✅ ГОТОВО
+
 **С частичным покрытием:**
-- `areMessagesCompatible` - есть несколько кейсов
 - `findMatchingProviderChannel` - есть интеграционные тесты
 
 ### Структура тестов (каждая функция = отдельный файл)
@@ -271,14 +283,19 @@ if err != nil {
 - [x] Edge cases: глубокая вложенность, приоритет ref
 - [x] Regression тесты для критического бага
 
-#### 8. `are_messages_compatible_test.go` (расширить существующий)
-- [ ] Nil сообщения
-- [ ] Сообщения без properties
-- [ ] Разное количество required полей
-- [ ] Разные типы полей
-- [ ] Поля с $ref ссылками
-- [ ] Вложенные объекты
-- [ ] Массивы
+#### 8. `are_messages_compatible_test.go` ✅ ГОТОВО (расширено + рекурсивная валидация)
+- [x] Nil сообщения (`are_messages_compatible_test.go`)
+- [x] Сообщения без properties (`are_messages_compatible_test.go`)
+- [x] Разное количество required полей (`are_messages_compatible_required_fields_test.go`)
+- [x] Разные типы полей (`are_messages_compatible_field_types_test.go`)
+- [x] Поля с $ref ссылками (`are_messages_compatible_field_types_test.go`)
+- [x] Вложенные объекты (`are_messages_compatible_nested_objects_test.go` + `are_object_properties_compatible_test.go`)
+- [x] Массивы (`are_messages_compatible_arrays_test.go` + `are_array_items_compatible_test.go`)
+
+**BONUS: Реализована рекурсивная валидация структур**
+- ✅ `areArrayItemsCompatible` - валидация элементов массивов
+- ✅ `areObjectPropertiesCompatible` - валидация свойств объектов
+- ✅ Корректное обнаружение несовместимости вложенных структур
 
 #### 9. `are_property_types_compatible_test.go`
 - [ ] Простые типы (string vs string)
