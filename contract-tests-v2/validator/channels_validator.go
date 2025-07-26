@@ -455,6 +455,16 @@ func (v *ChannelValidator) convertSchema(schema *parser.Schema) map[string]inter
 		result["items"] = v.convertSchema(schema.Items)
 	}
 	
+	// Description поддержка
+	if schema.Description != "" {
+		result["description"] = schema.Description
+	}
+	
+	// Example поддержка
+	if schema.Example != nil {
+		result["example"] = schema.Example
+	}
+	
 	// Копируем все дополнительные поля из Additional
 	for key, value := range schema.Additional {
 		// Не переопределяем уже установленные поля

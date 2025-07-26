@@ -583,6 +583,47 @@ func TestConvertSchema_EdgeCases(t *testing.T) {
 	})
 }
 
+// TestConvertSchema_Metadata тестирует поля метаданных
+func TestConvertSchema_Metadata(t *testing.T) {
+	v := NewChannelValidator()
+
+	t.Run("schema with title and description", func(t *testing.T) {
+		schema := &parser.Schema{
+			Type: "object",
+			Description: "User profile information", // Это поле уже есть в структуре
+			Additional: map[string]interface{}{
+				"title": "User Profile",
+			},
+		}
+		result := v.convertSchema(schema)
+		
+		expected := map[string]interface{}{
+			"type":        "object",
+			"title":       "User Profile",
+			"description": "User profile information",
+		}
+		assert.Equal(t, expected, result)
+	})
+
+	t.Run("schema with examples array", func(t *testing.T) {
+		schema := &parser.Schema{
+			Type: "string",
+			Example: "john@example.com", // Это уже есть в структуре
+			Additional: map[string]interface{}{
+				"examples": []interface{}{"user@example.com", "admin@site.org"},
+			},
+		}
+		result := v.convertSchema(schema)
+		
+		expected := map[string]interface{}{
+			"type":     "string",
+			"example":  "john@example.com",
+			"examples": []interface{}{"user@example.com", "admin@site.org"},
+		}
+		assert.Equal(t, expected, result)
+	})
+}
+
 // TestConvertSchema_BugRegression тестирует конкретный баг, который был исправлен
 func TestConvertSchema_BugRegression(t *testing.T) {
 	v := NewChannelValidator()
