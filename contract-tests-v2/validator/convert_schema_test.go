@@ -438,6 +438,40 @@ func TestConvertSchema_EdgeCases(t *testing.T) {
 		assert.Equal(t, expected, result)
 	})
 
+	t.Run("schema with minLength and maxLength", func(t *testing.T) {
+		schema := &parser.Schema{
+			Type: "string",
+			Additional: map[string]interface{}{
+				"minLength": 5,
+				"maxLength": 20,
+			},
+		}
+		result := v.convertSchema(schema)
+		
+		expected := map[string]interface{}{
+			"type":      "string",
+			"minLength": 5,
+			"maxLength": 20,
+		}
+		assert.Equal(t, expected, result)
+	})
+
+	t.Run("schema with pattern for email validation", func(t *testing.T) {
+		schema := &parser.Schema{
+			Type: "string",
+			Additional: map[string]interface{}{
+				"pattern": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$",
+			},
+		}
+		result := v.convertSchema(schema)
+		
+		expected := map[string]interface{}{
+			"type":    "string",
+			"pattern": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$",
+		}
+		assert.Equal(t, expected, result)
+	})
+
 	t.Run("schema with combined format and enum", func(t *testing.T) {
 		schema := &parser.Schema{
 			Type:   "integer",
