@@ -107,7 +107,7 @@ if err != nil {
 
 ## Особенности
 
-- Поддержка AsyncAPI 3.0
+- Поддержка [AsyncAPI 3.0](https://www.asyncapi.com/docs/reference/specification/v3.0.0)
 - Автоматическое экранирование путей каналов
 - Валидация по протоколам и структурам сообщений
 - ROP (Railway Oriented Programming) для обработки ошибок

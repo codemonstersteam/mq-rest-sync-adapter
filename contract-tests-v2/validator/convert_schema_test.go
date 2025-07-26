@@ -398,6 +398,46 @@ func TestConvertSchema_EdgeCases(t *testing.T) {
 		assert.Equal(t, expected, result)
 	})
 
+	t.Run("schema with minimum and maximum", func(t *testing.T) {
+		schema := &parser.Schema{
+			Type: "integer",
+			Additional: map[string]interface{}{
+				"minimum": 0,
+				"maximum": 100,
+			},
+		}
+		result := v.convertSchema(schema)
+		
+		expected := map[string]interface{}{
+			"type":    "integer",
+			"minimum": 0,
+			"maximum": 100,
+		}
+		assert.Equal(t, expected, result)
+	})
+
+	t.Run("schema with exclusiveMinimum and exclusiveMaximum", func(t *testing.T) {
+		schema := &parser.Schema{
+			Type: "number",
+			Additional: map[string]interface{}{
+				"minimum":          0,
+				"maximum":          100,
+				"exclusiveMinimum": true,
+				"exclusiveMaximum": true,
+			},
+		}
+		result := v.convertSchema(schema)
+		
+		expected := map[string]interface{}{
+			"type":             "number",
+			"minimum":          0,
+			"maximum":          100,
+			"exclusiveMinimum": true,
+			"exclusiveMaximum": true,
+		}
+		assert.Equal(t, expected, result)
+	})
+
 	t.Run("schema with combined format and enum", func(t *testing.T) {
 		schema := &parser.Schema{
 			Type:   "integer",

@@ -454,6 +454,14 @@ func (v *ChannelValidator) convertSchema(schema *parser.Schema) map[string]inter
 	if schema.Items != nil {
 		result["items"] = v.convertSchema(schema.Items)
 	}
+	
+	// Копируем все дополнительные поля из Additional
+	for key, value := range schema.Additional {
+		// Не переопределяем уже установленные поля
+		if _, exists := result[key]; !exists {
+			result[key] = value
+		}
+	}
 
 	return result
 }
