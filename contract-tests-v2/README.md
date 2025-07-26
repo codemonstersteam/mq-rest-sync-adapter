@@ -161,16 +161,11 @@ if err != nil {
 
 ### Анализ существующего покрытия
 
-### Текущий прогресс
-- **Готовых файлов тестов:** 2/14 (14%)
-- **Покрытых функций:** 2/14 (14%)
-- **Готовых тест-кейсов:** 35/~150 (23%)
-
-#### Прогресс тестирования
-- **Всего протестировано:** 2 из 14 критически важных функций (14%)
-- **Создано тест-кейсов:** 35 из ~150 планируемых (23%)
+### Текущий прогресс тестирования
+- **Протестировано функций:** 3/14 (21%) - `convertSchema`, `extractConsumerChannel`, `resolveSchemaRef`
+- **Создано тест-кейсов:** 68/~150 (45%)
 - **Предотвращенные баги:** Критический баг с потерей `$ref` защищен regression тестами
-- **Следующий приоритет:** `resolveSchemaRef` и `areMessagesCompatible`
+- **Следующий приоритет:** `areMessagesCompatible` и `extractChannelProtocol`
 
 #### Выполнено сегодня (26 июля 2025)
 ✅ **`convertSchema`** - расширена поддержка полей и создано 29 тест-кейсов
@@ -182,12 +177,18 @@ if err != nil {
 - Использованы helper-функции для читаемости
 - Покрыты все сценарии: валидные, невалидные, граничные случаи
 
+✅ **`resolveSchemaRef`** - создано 33 тест-кейса с AsyncAPI 3.0 compliance
+- Валидация имен схем согласно regex `^[a-zA-Z0-9\.-_]+$`
+- Защита от циклических ссылок с depth tracking
+- Покрыты все edge cases: nil specs, invalid prefixes, unicode имена
+- Comprehensive regression тесты для ref resolution
+
 **Функции БЕЗ unit-тестов:**
 - ~~`extractConsumerChannel` - извлечение канала потребителя~~ ✅ ГОТОВО
 - `extractChannelProtocol` - получение протокола из серверов  
 - `extractConsumerMessages/extractProviderMessages` - извлечение сообщений
 - `extractMessageInfo` - обработка MessageRef ссылок
-- `resolveSchemaRef` - разрешение $ref на схемы
+- ~~`resolveSchemaRef` - разрешение $ref на схемы~~ ✅ ГОТОВО
 - ~~`convertSchema` - конвертация Schema в map (ТУТ БЫЛ БАГ!)~~ ✅ ГОТОВО
 - `arePropertyTypesCompatible` - сравнение типов свойств
 - `getPropertyRef/getPropertyType` - извлечение ref и type
@@ -244,14 +245,17 @@ if err != nil {
 - [ ] Рекурсивные ссылки (сообщение → сообщение)
 - [ ] Nil компоненты
 
-#### 6. `resolve_schema_ref_test.go`
-- [ ] Валидная ссылка `#/components/schemas/UserSchema`
-- [ ] Невалидная ссылка (неправильный префикс)
-- [ ] Ссылка на несуществующую схему
-- [ ] Рекурсивная ссылка (схема → схема)
-- [ ] Циклическая ссылка (A → B → A)
-- [ ] Nil спецификация
-- [ ] Спецификация без components/schemas
+#### 6. `resolve_schema_ref_test.go` ✅ ГОТОВО
+- [x] Валидная ссылка `#/components/schemas/UserSchema`
+- [x] Невалидная ссылка (неправильный префикс)
+- [x] Ссылка на несуществующую схему
+- [x] Рекурсивная ссылка (схема → схема)
+- [x] Циклическая ссылка (A → B → A) с защитой от stack overflow
+- [x] Nil спецификация
+- [x] Спецификация без components/schemas
+- [x] AsyncAPI 3.0 валидация имен схем (15 валидных + 16 невалидных)
+- [x] Edge cases: пустые ссылки, case sensitivity, дополнительные слэши
+- [x] Regression тесты для ref resolution багов
 
 #### 7. `convert_schema_test.go` ⭐ (КРИТИЧЕСКИ ВАЖНО) ✅ ГОТОВО
 - [x] Nil schema
@@ -333,8 +337,8 @@ if err != nil {
 **Прогресс по критически важным функциям:**
 - ✅ `convertSchema` - **29 тест-кейсов** (источник исправленного бага)
 - ✅ `extractConsumerChannel` - **6 тест-кейсов** 
-- 🔄 `resolveSchemaRef` - следующий приоритет
-- 🔄 `areMessagesCompatible` - требует создания отсутствующего файла
+- ✅ `resolveSchemaRef` - **33 тест-кейса** с AsyncAPI 3.0 compliance
+- 🔄 `areMessagesCompatible` - требует создания отсутствующего файла (следующий приоритет)
 
 Этот план предотвратит подобные критические баги в будущем.
 

@@ -326,24 +326,88 @@ func (v *ChannelValidator) extractMessageInfo(spec *parser.AsyncAPISpec, msgRef 
 	return nil, fmt.Errorf("message not found: %s", msgRef.Ref)
 }
 
-// resolveSchemaRef разрешает ссылку на схему
+// resolveSchemaRef разрешает ссылку на схему согласно AsyncAPI 3.0 спецификации
 func (v *ChannelValidator) resolveSchemaRef(spec *parser.AsyncAPISpec, ref string) *parser.Schema {
-	if !strings.HasPrefix(ref, "#/components/schemas/") {
+	if spec == nil || !strings.HasPrefix(ref, "#/components/schemas/") {
 		return nil
 	}
 	
 	schemaName := strings.TrimPrefix(ref, "#/components/schemas/")
+	
+	// Валидация имени схемы согласно AsyncAPI 3.0: ^[a-zA-Z0-9\.\-_]+$
+	if !isValidSchemaName(schemaName) {
+		return nil
+	}
+	
 	if spec.Components != nil && spec.Components.Schemas != nil {
 		if schema, exists := spec.Components.Schemas[schemaName]; exists {
-			// Если схема тоже содержит ссылку, рекурсивно разрешаем её
+			// Если схема тоже содержит ссылку, рекурсивно разрешаем её с защитой от циклов
 			if schema.Ref != "" {
-				return v.resolveSchemaRef(spec, schema.Ref)
+				return v.resolveSchemaRefWithDepth(spec, schema.Ref, 0, make(map[string]bool))
 			}
 			return &schema
 		}
 	}
 	
 	return nil
+}
+
+// resolveSchemaRefWithDepth разрешает ссылку с защитой от циклических ссылок
+func (v *ChannelValidator) resolveSchemaRefWithDepth(spec *parser.AsyncAPISpec, ref string, depth int, visited map[string]bool) *parser.Schema {
+	// Защита от слишком глубокой рекурсии
+	if depth > 10 {
+		return nil
+	}
+	
+	// Защита от циклических ссылок
+	if visited[ref] {
+		return nil
+	}
+	
+	if spec == nil || !strings.HasPrefix(ref, "#/components/schemas/") {
+		return nil
+	}
+	
+	schemaName := strings.TrimPrefix(ref, "#/components/schemas/")
+	
+	// Валидация имени схемы согласно AsyncAPI 3.0
+	if !isValidSchemaName(schemaName) {
+		return nil
+	}
+	
+	if spec.Components != nil && spec.Components.Schemas != nil {
+		if schema, exists := spec.Components.Schemas[schemaName]; exists {
+			if schema.Ref != "" {
+				// Отмечаем текущую ссылку как посещенную
+				visited[ref] = true
+				result := v.resolveSchemaRefWithDepth(spec, schema.Ref, depth+1, visited)
+				// Убираем отметку после обработки
+				delete(visited, ref)
+				return result
+			}
+			return &schema
+		}
+	}
+	
+	return nil
+}
+
+// isValidSchemaName проверяет валидность имени схемы согласно AsyncAPI 3.0: ^[a-zA-Z0-9\.\-_]+$
+func isValidSchemaName(name string) bool {
+	if name == "" {
+		return false
+	}
+	
+	for _, r := range name {
+		if !((r >= 'a' && r <= 'z') || 
+			 (r >= 'A' && r <= 'Z') || 
+			 (r >= '0' && r <= '9') || 
+			 r == '.' || r == '-' || r == '_') {
+			return false
+		}
+	}
+	
+	return true
 }
 
 // convertSchema преобразует схему в map[string]interface{}
