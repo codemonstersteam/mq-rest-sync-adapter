@@ -1229,4 +1229,118 @@ func (v *ChannelValidator) convertSchema(schema *parser.Schema) map[string]inter
 
 ---
 
+## Обнаружение и исправление бага в areMessagesCompatible через TDD
+
+**Дата:** 26 июля 2025 (вечерняя сессия)  
+**Время разработки:** ~30 минут  
+**Цель:** Реализация пункта 8 плана comprehensive unit-тестирования - тестов для функции `areMessagesCompatible`
+
+### Процесс обнаружения бага
+
+#### 1. Создание атомарных тестов (15 минут)
+
+Следуя принципу атомарности, создали отдельные файлы тестов:
+- `are_messages_compatible_test.go` - базовые тесты (nil сообщения, отсутствие properties)
+- `are_messages_compatible_required_fields_test.go` - тесты для required полей
+
+#### 2. Момент обнаружения (3 минуты)
+
+При запуске тестов для required полей один тест упал:
+```
+TestAreMessagesCompatible_DifferentRequiredFields/completely_different_required_fields_should_be_incompatible
+    Error: Not equal: 
+        expected: false
+        actual  : true
+```
+
+**Failing тест-кейс:**
+- `msg1` required: `["id", "name"]`
+- `msg2` required: `["userId", "email"]`
+- **Ожидание:** `false` (несовместимы)
+- **Фактический результат:** `true` (совместимы)
+
+#### 3. Root cause анализ (5 минут)
+
+Изучили алгоритм в функции `areMessagesCompatible`:
+```go
+// ПРОБЛЕМНЫЙ КОД
+for _, field := range required1 {
+    prop1, exists1 := props1[field]
+    prop2, exists2 := props2[field]
+    
+    if !exists1 || !exists2 {
+        return false
+    }
+    // ... проверка типов
+}
+```
+
+**Найденная проблема:**
+- Алгоритм перебирает только поля из `required1` (`["id", "name"]`)
+- Проверяет их наличие в `props2`, где есть все поля (`id, name, age, email, userId`)
+- **НЕ проверяет** что поля из `required2` (`["userId", "email"]`) присутствуют в `required1`
+- Результат: ложноположительная совместимость
+
+#### 4. Рефакторинг через говорящие функции (7 минут)
+
+Вместо исправления в лоб, применили принцип "код как документация":
+
+**Создали две новые функции:**
+```go
+// areRequiredFieldsSetsIdentical проверяет что множества required полей идентичны
+func (v *ChannelValidator) areRequiredFieldsSetsIdentical(required1, required2 []string) bool
+
+// areAllRequiredFieldsCompatible проверяет совместимость типов всех required полей  
+func (v *ChannelValidator) areAllRequiredFieldsCompatible(required1 []string, props1, props2 map[string]interface{}, spec1, spec2 *parser.AsyncAPISpec) bool
+```
+
+**Обновили основную функцию:**
+```go
+// БЫЛО (неправильно)
+if len(required1) != len(required2) {
+    return false
+}
+for _, field := range required1 { ... }
+
+// СТАЛО (правильно)  
+if !v.areRequiredFieldsSetsIdentical(required1, required2) {
+    return false
+}
+if !v.areAllRequiredFieldsCompatible(required1, props1, props2, spec1, spec2) {
+    return false
+}
+```
+
+### Результаты исправления
+
+**До:** 7/8 тестов проходили (один failing)
+**После:** 8/8 тестов проходят ✅
+
+**Исправленная логика:**
+1. `areRequiredFieldsSetsIdentical` - проверяет что множества required полей **идентичны** (не только по длине)
+2. `areAllRequiredFieldsCompatible` - проверяет совместимость типов для всех полей
+
+### Ценность TDD подхода
+
+**Что сработало:**
+- **Атомарные тесты** - изоляция проблемы в одном файле
+- **Edge case тестирование** - "completely different required fields" выявил баг
+- **Failing тест как спецификация** - четко показал ожидаемое поведение
+- **Рефакторинг через функции** - улучшил читаемость и maintainability
+
+**Найденный баг был критическим:**
+- Валидация пропускала несовместимые сообщения как совместимые
+- Могло привести к runtime ошибкам в production
+- Обнаружен на стадии unit-тестирования, а не в production
+
+### Техническая ценность
+
+**Время:** 30 минут от создания тестов до исправления
+**Результат:** Предотвращен критический баг + улучшена архитектура кода
+**ROI:** Высокий - баг мог проявиться только при специфических комбинациях AsyncAPI схем
+
+Этот случай подтверждает важность comprehensive unit-тестирования для критически важных функций типа `areMessagesCompatible`.
+
+---
+
 *Документация обновлена 26 июля 2025 для отражения прогресса в comprehensive unit-тестировании.*

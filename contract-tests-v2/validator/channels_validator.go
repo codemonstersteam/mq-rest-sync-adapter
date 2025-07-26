@@ -548,52 +548,14 @@ func (v *ChannelValidator) areAllRequiredFieldsCompatible(required1 []string, pr
 
 // arePropertyTypesCompatible проверяет совместимость типов свойств
 func (v *ChannelValidator) arePropertyTypesCompatible(prop1, prop2 interface{}, spec1, spec2 *parser.AsyncAPISpec) bool {
-	// Обрабатываем ссылки ($ref) - разрешаем до фактических схем и сравниваем их
+	// Обрабатываем ссылки ($ref)
 	ref1 := v.getPropertyRef(prop1)
 	ref2 := v.getPropertyRef(prop2)
 	
-	// Если оба свойства содержат ссылки, разрешаем их до фактических схем
+	// Если оба свойства содержат ссылки, сравниваем сами ссылки
 	if ref1 != "" && ref2 != "" {
-		schema1 := v.resolveSchemaRef(spec1, ref1)
-		schema2 := v.resolveSchemaRef(spec2, ref2)
-		
-		if schema1 == nil || schema2 == nil {
-			return false
-		}
-		
-		// Рекурсивно сравниваем разрешенные схемы
-		schema1Map := v.convertSchema(schema1)
-		schema2Map := v.convertSchema(schema2)
-		
-		// Сравниваем типы
-		type1 := v.getPropertyType(schema1Map)
-		type2 := v.getPropertyType(schema2Map)
-		
-		if type1 != type2 {
-			return false
-		}
-		
-		// Сравниваем required поля
-		required1 := v.getRequiredFields(schema1Map)
-		required2 := v.getRequiredFields(schema2Map)
-		
-		if len(required1) != len(required2) {
-			return false
-		}
-		
-		// Проверяем, что все required поля есть в обеих схемах
-		required2Map := make(map[string]bool)
-		for _, field := range required2 {
-			required2Map[field] = true
-		}
-		
-		for _, field := range required1 {
-			if !required2Map[field] {
-				return false
-			}
-		}
-		
-		return true
+		// Для $ref ссылок важна точная идентичность, а не структурная совместимость
+		return ref1 == ref2
 	}
 	
 	// Если одно содержит ссылку, а другое нет, они несовместимы
