@@ -72,3 +72,86 @@ func TestAreMessagesCompatible_NilMessages(t *testing.T) {
 		})
 	}
 }
+
+// TestAreMessagesCompatible_NoProperties тестирует сообщения без properties
+func TestAreMessagesCompatible_NoProperties(t *testing.T) {
+	v := NewChannelValidator()
+	spec := &parser.AsyncAPISpec{}
+
+	tests := []struct {
+		name     string
+		msg1     *MessageInfo
+		msg2     *MessageInfo
+		expected bool
+	}{
+		{
+			name: "both messages without properties should return false",
+			msg1: &MessageInfo{
+				Name:        "Message1",
+				ContentType: "application/json",
+				Payload:     map[string]interface{}{"type": "object"},
+			},
+			msg2: &MessageInfo{
+				Name:        "Message2",
+				ContentType: "application/json",
+				Payload:     map[string]interface{}{"type": "object"},
+			},
+			expected: false,
+		},
+		{
+			name: "first message without properties should return false",
+			msg1: &MessageInfo{
+				Name:        "Message1",
+				ContentType: "application/json",
+				Payload:     map[string]interface{}{"type": "object"},
+			},
+			msg2: createMessageWithRequiredFields([]string{"id"}),
+			expected: false,
+		},
+		{
+			name: "second message without properties should return false",
+			msg1: createMessageWithRequiredFields([]string{"id"}),
+			msg2: &MessageInfo{
+				Name:        "Message2",
+				ContentType: "application/json",
+				Payload:     map[string]interface{}{"type": "object"},
+			},
+			expected: false,
+		},
+		{
+			name: "empty payload should return false",
+			msg1: &MessageInfo{
+				Name:        "Message1",
+				ContentType: "application/json",
+				Payload:     map[string]interface{}{},
+			},
+			msg2: &MessageInfo{
+				Name:        "Message2",
+				ContentType: "application/json",
+				Payload:     map[string]interface{}{},
+			},
+			expected: false,
+		},
+		{
+			name: "nil payload should return false",
+			msg1: &MessageInfo{
+				Name:        "Message1",
+				ContentType: "application/json",
+				Payload:     nil,
+			},
+			msg2: &MessageInfo{
+				Name:        "Message2",
+				ContentType: "application/json",
+				Payload:     nil,
+			},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := v.areMessagesCompatible(tt.msg1, tt.msg2, spec, spec)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
