@@ -520,6 +520,52 @@ func TestConvertSchema_EdgeCases(t *testing.T) {
 		assert.Equal(t, expected, result)
 	})
 
+	t.Run("array schema with minItems and maxItems", func(t *testing.T) {
+		schema := &parser.Schema{
+			Type: "array",
+			Items: &parser.Schema{
+				Type: "string",
+			},
+			Additional: map[string]interface{}{
+				"minItems": 2,
+				"maxItems": 10,
+			},
+		}
+		result := v.convertSchema(schema)
+		
+		expected := map[string]interface{}{
+			"type": "array",
+			"items": map[string]interface{}{
+				"type": "string",
+			},
+			"minItems": 2,
+			"maxItems": 10,
+		}
+		assert.Equal(t, expected, result)
+	})
+
+	t.Run("array schema with uniqueItems", func(t *testing.T) {
+		schema := &parser.Schema{
+			Type: "array",
+			Items: &parser.Schema{
+				Type: "integer",
+			},
+			Additional: map[string]interface{}{
+				"uniqueItems": true,
+			},
+		}
+		result := v.convertSchema(schema)
+		
+		expected := map[string]interface{}{
+			"type": "array",
+			"items": map[string]interface{}{
+				"type": "integer",
+			},
+			"uniqueItems": true,
+		}
+		assert.Equal(t, expected, result)
+	})
+
 	t.Run("schema with combined format and enum", func(t *testing.T) {
 		schema := &parser.Schema{
 			Type:   "integer",
