@@ -362,6 +362,17 @@ func (v *ChannelValidator) convertSchema(schema *parser.Schema) map[string]inter
 	
 	result["type"] = schema.Type
 
+	// Format поддержка (int64, double, email, uri, etc.)
+	if schema.Format != "" {
+		result["format"] = schema.Format
+	}
+
+	// Enum поддержка
+	if len(schema.Enum) > 0 {
+		result["enum"] = schema.Enum
+	}
+
+	// Properties поддержка
 	if len(schema.Properties) > 0 {
 		properties := make(map[string]interface{})
 		for name, prop := range schema.Properties {
@@ -370,8 +381,14 @@ func (v *ChannelValidator) convertSchema(schema *parser.Schema) map[string]inter
 		result["properties"] = properties
 	}
 
+	// Required поддержка
 	if len(schema.Required) > 0 {
 		result["required"] = schema.Required
+	}
+
+	// Items поддержка для массивов
+	if schema.Items != nil {
+		result["items"] = v.convertSchema(schema.Items)
 	}
 
 	return result
