@@ -291,7 +291,7 @@ func (v *ChannelValidator) extractMessageInfo(spec *parser.AsyncAPISpec, msgRef 
 				}
 				
 				return &MessageInfo{
-					Name:        msg.Name,
+					Name:        msgName, // Используем имя из ключа map
 					ContentType: msg.ContentType,
 					Payload:     payload,
 				}, nil

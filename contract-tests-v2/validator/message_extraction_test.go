@@ -53,7 +53,7 @@ func TestMessageExtraction_RealSpecs(t *testing.T) {
 		if consumerChannel.OutMessage != nil {
 			t.Logf("  OutMessage name: %s", consumerChannel.OutMessage.Name)
 			t.Logf("  OutMessage contentType: %s", consumerChannel.OutMessage.ContentType)
-			t.Logf("  OutMessage payload keys: %v", getMapKeys(consumerChannel.OutMessage.Payload))
+			// t.Logf("  OutMessage payload keys: %v", getMapKeys(consumerChannel.OutMessage.Payload))
 			if reqFields := validator.getRequiredFields(consumerChannel.OutMessage.Payload); len(reqFields) > 0 {
 				t.Logf("  OutMessage required fields: %v", reqFields)
 			}
@@ -62,7 +62,7 @@ func TestMessageExtraction_RealSpecs(t *testing.T) {
 		if consumerChannel.InMessage != nil {
 			t.Logf("  InMessage name: %s", consumerChannel.InMessage.Name)
 			t.Logf("  InMessage contentType: %s", consumerChannel.InMessage.ContentType)
-			t.Logf("  InMessage payload keys: %v", getMapKeys(consumerChannel.InMessage.Payload))
+			// t.Logf("  InMessage payload keys: %v", getMapKeys(consumerChannel.InMessage.Payload))
 			if reqFields := validator.getRequiredFields(consumerChannel.InMessage.Payload); len(reqFields) > 0 {
 				t.Logf("  InMessage required fields: %v", reqFields)
 			}

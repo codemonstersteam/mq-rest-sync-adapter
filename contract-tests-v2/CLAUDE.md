@@ -626,6 +626,48 @@ validator/
 
 **Критерий завершения этапа:** Все чек-боксы в README.md отмечены как выполненные ✅
 
+### Важно при реализации тестов
+После создания каждого файла с тестами необходимо:
+1. Запустить тесты и убедиться, что они проходят
+2. Обновить README.md:
+   - Отметить выполненные тест-кейсы галочками [x]
+   - Добавить ✅ ГОТОВО к названию файла
+   - Обновить метрики в разделе "Текущий прогресс"
+   - Зачеркнуть функцию в списке "Функции БЕЗ unit-тестов"
+
+### Стиль написания тестов
+**ВАЖНО:** При создании тестов необходимо выносить создание тестовых данных в отдельные helper-функции для улучшения читаемости:
+- Создавать функции типа `createTestSchema()`, `createTestAsyncAPISpec()`, `createTestMessage()`
+- Избегать инлайн инициализации больших структур в тест-кейсах
+- Группировать связанные тестовые данные в helper-функции по смыслу
+- Использовать table-driven tests с говорящими именами тест-кейсов
+
+Пример хорошего стиля:
+```go
+func TestConvertSchema(t *testing.T) {
+    tests := []struct {
+        name     string
+        schema   *parser.Schema
+        expected map[string]interface{}
+    }{
+        {
+            name:     "schema with ref",
+            schema:   createSchemaWithRef("#/components/schemas/User"),
+            expected: createExpectedMapWithRef("#/components/schemas/User"),
+        },
+    }
+}
+
+// Helper функции
+func createSchemaWithRef(ref string) *parser.Schema {
+    return &parser.Schema{Ref: ref}
+}
+
+func createExpectedMapWithRef(ref string) map[string]interface{} {
+    return map[string]interface{}{"$ref": ref}
+}
+```
+
 ---
 
 # important-instruction-reminders
