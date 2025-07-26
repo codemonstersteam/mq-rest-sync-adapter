@@ -472,6 +472,54 @@ func TestConvertSchema_EdgeCases(t *testing.T) {
 		assert.Equal(t, expected, result)
 	})
 
+	t.Run("schema with default value", func(t *testing.T) {
+		schema := &parser.Schema{
+			Type: "string",
+			Additional: map[string]interface{}{
+				"default": "default value",
+			},
+		}
+		result := v.convertSchema(schema)
+		
+		expected := map[string]interface{}{
+			"type":    "string",
+			"default": "default value",
+		}
+		assert.Equal(t, expected, result)
+	})
+
+	t.Run("schema with const value", func(t *testing.T) {
+		schema := &parser.Schema{
+			Type: "integer",
+			Additional: map[string]interface{}{
+				"const": 42,
+			},
+		}
+		result := v.convertSchema(schema)
+		
+		expected := map[string]interface{}{
+			"type":  "integer",
+			"const": 42,
+		}
+		assert.Equal(t, expected, result)
+	})
+
+	t.Run("schema with multipleOf for numbers", func(t *testing.T) {
+		schema := &parser.Schema{
+			Type: "number",
+			Additional: map[string]interface{}{
+				"multipleOf": 0.5,
+			},
+		}
+		result := v.convertSchema(schema)
+		
+		expected := map[string]interface{}{
+			"type":       "number",
+			"multipleOf": 0.5,
+		}
+		assert.Equal(t, expected, result)
+	})
+
 	t.Run("schema with combined format and enum", func(t *testing.T) {
 		schema := &parser.Schema{
 			Type:   "integer",
