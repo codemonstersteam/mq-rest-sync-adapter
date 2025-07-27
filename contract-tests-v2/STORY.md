@@ -1965,3 +1965,120 @@ Reply: &parser.Reply{
 ---
 
 *Документация обновлена 27 июля 2025 для отражения завершения пункта 3 плана comprehensive unit-тестирования.*
+
+---
+
+## Comprehensive Unit-тестирование: Пункт 4 - extractProviderMessages
+
+**Дата:** 27 июля 2025 (текущая сессия)  
+**Время разработки:** ~25 минут  
+**Цель:** Реализация пункта 4 плана comprehensive unit-тестирования - тестирование функции `extractProviderMessages`
+
+### Анализ функции
+
+Функция `extractProviderMessages` симметрична `extractConsumerMessages`, но с ключевыми различиями для поставщика:
+
+```go
+func (v *ChannelValidator) extractProviderMessages(spec *parser.AsyncAPISpec, channelName string) (*MessageInfo, *MessageInfo, error) {
+    // 1. Экранирует имя канала (user/events → user~1events)
+    // 2. Ищет операции с action="receive" для данного канала (поставщик получает)
+    // 3. Извлекает inMessage из operation.Messages[0] (входящее для поставщика)
+    // 4. Извлекает outMessage из operation.Reply.Messages[0] (ответ поставщика)
+    // 5. Возвращает оба сообщения
+}
+```
+
+### Соответствие AsyncAPI 3.0 спецификации
+
+**Ключевые различия между потребителем и поставщиком:**
+
+| Роль | Action | Messages | Reply |
+|------|--------|----------|--------|
+| **Потребитель** | `send` | outMessage (отправляет) | inMessage (получает ответ) |
+| **Поставщик** | `receive` | inMessage (получает) | outMessage (отправляет ответ) |
+
+**Симметрия коммуникации:**
+- Потребитель: `send` UserEvent → получает UserEventReply
+- Поставщик: `receive` UserEvent → отправляет UserEventReply
+
+### Реализованные тест-кейсы (6 сценариев)
+
+**Table-driven tests по плану пункт 4:**
+- ✅ Операция receive с messages и reply (полный request-reply)
+- ✅ Операция receive только с messages (fire-and-forget)
+- ✅ Операция receive только с reply (только ответы)
+- ✅ Канал без операций receive (пустой результат)
+- ✅ Операция send (игнорируется для поставщика)
+- ✅ Множественные операции receive (берется первая)
+
+### Helper функции для поставщика
+
+Создано 6 helper-функций с четким разделением ролей:
+- `createProviderSpecWithReceiveOperationAndReply()` - полная операция
+- `createProviderSpecWithReceiveOperationOnly()` - только messages
+- `createProviderSpecWithReceiveReplyOnly()` - только reply
+- `createProviderSpecWithoutReceiveOperations()` - пустые операции
+- `createProviderSpecWithSendOperation()` - action="send" (игнорируется)
+- `createProviderSpecWithMultipleReceiveOperations()` - несколько операций
+
+**Различия в именовании сообщений:**
+```go
+// Потребитель
+"UserEvent" / "UserEventReply"
+
+// Поставщик  
+"UserEventRequest" / "UserEventResponse"
+```
+
+### Результаты
+
+**Все тесты проходят успешно:**
+```bash
+=== RUN   TestExtractProviderMessages
+--- PASS: TestExtractProviderMessages (0.00s)
+    --- PASS: TestExtractProviderMessages/operation_receive_with_messages_and_reply (0.00s)
+    --- PASS: TestExtractProviderMessages/operation_receive_only_with_messages (0.00s)
+    --- PASS: TestExtractProviderMessages/operation_receive_only_with_reply (0.00s)
+    --- PASS: TestExtractProviderMessages/channel_without_receive_operations (0.00s)
+    --- PASS: TestExtractProviderMessages/operation_with_action_send_(should_be_ignored) (0.00s)
+    --- PASS: TestExtractProviderMessages/multiple_receive_operations (0.00s)
+```
+
+### Архитектурная симметрия
+
+**Парность функций:**
+- `extractConsumerMessages` ↔ `extractProviderMessages`
+- `action="send"` ↔ `action="receive"`
+- `outMessage/inMessage` ↔ `inMessage/outMessage`
+
+Это обеспечивает корректную валидацию совместимости каналов между потребителем и поставщиком.
+
+### Обновление прогресса
+
+**Метрики после пункта 4:**
+- Протестировано функций: 9/14 (64%)
+- Создано тест-кейсов: 145+/~150 (97%+)
+- Пункт 4 плана: ✅ ЗАВЕРШЕН
+
+**Коммит:**
+```bash
+13a32b4 - test: добавлены unit-тесты для функции extractProviderMessages
+```
+
+### Извлеченные уроки
+
+**Важность симметрии в AsyncAPI:**
+- Потребитель и поставщик - зеркальные роли в коммуникации
+- Action types должны соответствовать направлению потока данных
+- Naming convention помогает различать Request/Response сообщения
+
+**Эффективность table-driven подхода:**
+- Переиспользование паттернов из предыдущих тестов
+- Быстрая адаптация helper-функций под новую роль
+- Консистентность структуры тестов
+
+Пункт 4 плана **завершен за 25 минут** с полным покрытием всех сценариев AsyncAPI 3.0 для функции извлечения сообщений поставщика и корректной реализацией симметрии потребитель-поставщик.
+
+---
+
+*Документация обновлена 27 июля 2025 для отражения завершения пункта 4 плана comprehensive unit-тестирования.*
