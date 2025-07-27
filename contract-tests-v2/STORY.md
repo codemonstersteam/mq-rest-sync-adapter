@@ -1852,3 +1852,116 @@ defer func() {
 ---
 
 *Документация обновлена 27 июля 2025 для отражения завершения пункта 2 плана comprehensive unit-тестирования.*
+
+---
+
+## Comprehensive Unit-тестирование: Пункт 3 - extractConsumerMessages
+
+**Дата:** 27 июля 2025 (текущая сессия)  
+**Время разработки:** ~35 минут  
+**Цель:** Реализация пункта 3 плана comprehensive unit-тестирования - тестирование функции `extractConsumerMessages`
+
+### Анализ функции
+
+Функция `extractConsumerMessages` отвечает за извлечение сообщений потребителя из AsyncAPI спецификации:
+
+```go
+func (v *ChannelValidator) extractConsumerMessages(spec *parser.AsyncAPISpec, channelName string) (*MessageInfo, *MessageInfo, error) {
+    // 1. Экранирует имя канала (user/events → user~1events)
+    // 2. Ищет операции с action="send" для данного канала
+    // 3. Извлекает outMessage из operation.Messages[0]
+    // 4. Извлекает inMessage из operation.Reply.Messages[0]
+    // 5. Возвращает оба сообщения
+}
+```
+
+### Ключевые особенности реализации
+
+**Table-driven tests с 7 тест-кейсами:**
+- ✅ Операция send с messages и reply (полный случай)
+- ✅ Операция send только с messages (без reply)
+- ✅ Операция send только с reply (без messages)
+- ✅ Канал без операций (возвращает nil, nil)
+- ✅ Операция receive (игнорируется для потребителя)
+- ✅ Множественные операции (берется первая send)
+- ✅ Экранированное имя канала user~1events
+
+**Соответствие AsyncAPI 3.0:**
+- Корректная обработка action="send" для потребителя
+- Правильное экранирование имен каналов по JSON Pointer
+- Полная поддержка Reply операций
+- Интеграция с Components/Messages
+
+### Техническое решение - Исправление структуры
+
+**Проблема:** Изначально использовал несуществующий тип `parser.OperationReply`
+**Решение:** Исправил на корректный `parser.Reply` согласно типам в parser/types.go
+
+```go
+// БЫЛО (ошибка компиляции)
+Reply: &parser.OperationReply{
+    Messages: []parser.MessageRef{...},
+}
+
+// СТАЛО (корректно)
+Reply: &parser.Reply{
+    Messages: []parser.MessageRef{...},
+}
+```
+
+### Helper функции для читаемости
+
+Создано 8 helper-функций для изоляции создания тестовых данных:
+- `createSpecWithSendOperationAndReply()` - полная операция
+- `createSpecWithSendOperationOnly()` - только messages
+- `createSpecWithSendReplyOnly()` - только reply
+- `createSpecWithoutOperations()` - пустые операции
+- `createSpecWithReceiveOperation()` - action="receive"
+- `createSpecWithMultipleOperations()` - несколько операций
+- `createExpectedOutMessage()` - ожидаемое исходящее сообщение
+- `createExpectedInMessage()` - ожидаемое входящее сообщение
+
+### Результаты
+
+**Все тесты проходят успешно:**
+```bash
+=== RUN   TestExtractConsumerMessages
+--- PASS: TestExtractConsumerMessages (0.00s)
+    --- PASS: TestExtractConsumerMessages/operation_send_with_messages_and_reply (0.00s)
+    --- PASS: TestExtractConsumerMessages/operation_send_only_with_messages_(no_reply) (0.00s)
+    --- PASS: TestExtractConsumerMessages/operation_send_only_with_reply_(no_messages) (0.00s)
+    --- PASS: TestExtractConsumerMessages/channel_without_operations (0.00s)
+    --- PASS: TestExtractConsumerMessages/operation_with_action_receive_(should_be_ignored) (0.00s)
+    --- PASS: TestExtractConsumerMessages/multiple_operations_on_one_channel (0.00s)
+    --- PASS: TestExtractConsumerMessages/escaped_channel_name_user~1events (0.00s)
+```
+
+### Обновление прогресса
+
+**Метрики:**
+- Протестировано функций: 8/14 (57%)
+- Создано тест-кейсов: 139+/~150 (93%+)
+- Пункт 3 плана: ✅ ЗАВЕРШЕН
+
+**Коммиты:**
+```bash
+02e4272 - test: добавлены unit-тесты для функции extractConsumerMessages
+6a4f514 - docs: обновлен прогресс тестирования после завершения пункта 3 плана
+```
+
+### Извлеченные уроки
+
+**Работа с типами AsyncAPI:**
+- Важность изучения parser/types.go перед написанием тестов
+- Необходимость проверки корректности названий структур
+- Быстрое исправление ошибок компиляции через понимание схемы типов
+
+**Conventional Commits:**
+- Исправлен подход к именованию коммитов: `test:` вместо `feat:` для тестов
+- Соблюдение стандартов open source для качественной истории git
+
+Пункт 3 плана **завершен за 35 минут** с полным покрытием всех сценариев AsyncAPI 3.0 для функции извлечения сообщений потребителя.
+
+---
+
+*Документация обновлена 27 июля 2025 для отражения завершения пункта 3 плана comprehensive unit-тестирования.*
