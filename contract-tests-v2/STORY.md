@@ -1671,3 +1671,184 @@ e9e16d0 - chore: удален устаревший тест channel_validator_ar
 ---
 
 *Документация обновлена 26 июля 2025 для отражения завершения пункта 8 плана и реализации рекурсивной валидации структур.*
+
+---
+
+## Comprehensive Unit-тестирование: Пункт 2 - extractChannelProtocol
+
+**Дата:** 27 июля 2025 (утренняя сессия)  
+**Время разработки:** ~30 минут  
+**Цель:** Реализация пункта 2 плана comprehensive unit-тестирования - тестирование функции `extractChannelProtocol`
+
+### Контекст
+
+Продолжение реализации плана comprehensive unit-тестирования согласно README.md. После завершения пункта 8 (`areMessagesCompatible` + рекурсивная валидация), следующим приоритетом был выбран пункт 2 - функция `extractChannelProtocol`.
+
+### Анализ функции
+
+Изучили реализацию `extractChannelProtocol` в `channels_validator.go`:
+
+```go
+func (v *ChannelValidator) extractChannelProtocol(spec *parser.AsyncAPISpec, channel *parser.Channel) (string, error) {
+    if len(channel.Servers) == 0 {
+        return "", fmt.Errorf("no servers defined for channel")
+    }
+
+    // Берем первый сервер
+    serverRef := channel.Servers[0].Ref
+    if !strings.HasPrefix(serverRef, "#/servers/") {
+        return "", fmt.Errorf("invalid server reference: %s", serverRef)
+    }
+
+    serverName := strings.TrimPrefix(serverRef, "#/servers/")
+    server, exists := spec.Servers[serverName]
+    if !exists {
+        return "", fmt.Errorf("server %s not found", serverName)
+    }
+
+    return server.Protocol, nil
+}
+```
+
+### Реализация тестов
+
+#### Использование Table-driven подхода
+
+Применили современный Go паттерн **table-driven tests** для создания компактного и читаемого теста:
+
+```go
+tests := []struct {
+    name        string
+    spec        *parser.AsyncAPISpec
+    channel     *parser.Channel
+    expected    string
+    expectError bool
+    errorMsg    string
+}{
+    {
+        name:     "valid server reference",
+        spec:     createSpecWithServer("production", "amqp"),
+        channel:  createChannelWithServer("#/servers/production"),
+        expected: "amqp",
+    },
+    // ... остальные тест-кейсы
+}
+```
+
+#### Покрытые сценарии (7 тест-кейсов)
+
+**Соответствие плану тестирования пункт 2:**
+- ✅ **Валидная ссылка на сервер** `#/servers/production`
+- ✅ **Канал без серверов** (ошибка "no servers defined for channel")
+- ✅ **Невалидная ссылка** `invalid-ref` (ошибка "invalid server reference")
+- ✅ **Ссылка на несуществующий сервер** (ошибка "server nonexistent not found")
+- ✅ **Множественные серверы** (берется первый)
+- ✅ **Nil channel** (паника обрабатывается через defer/recover)
+- ✅ **Пустая ссылка** (ошибка "invalid server reference:")
+
+#### Helper функции для читаемости
+
+Создали набор helper-функций для изоляции создания тестовых данных:
+
+```go
+func createSpecWithServer(serverName, protocol string) *parser.AsyncAPISpec
+func createSpecWithMultipleServers() *parser.AsyncAPISpec
+func createChannelWithServer(serverRef string) *parser.Channel
+func createChannelWithoutServers() *parser.Channel
+func createChannelWithMultipleServers() *parser.Channel
+```
+
+#### Обработка edge cases
+
+**Nil channel handling:**
+```go
+defer func() {
+    if r := recover(); r != nil && tt.name == "nil channel" {
+        // Ожидаемая паника для nil channel
+        return
+    } else if r != nil {
+        t.Errorf("unexpected panic: %v", r)
+    }
+}()
+```
+
+### Соответствие AsyncAPI 3.0 спецификации
+
+Тесты полностью соответствуют спецификации AsyncAPI 3.0:
+
+1. **Channel Object** должен содержать массив `servers` со ссылками на серверы
+2. **Server Reference** должен иметь формат `#/servers/{serverName}`
+3. **Server Object** должен содержать поле `protocol`
+4. **Алгоритм выбора** - берется первый сервер из массива
+
+### Результаты
+
+#### Все тесты успешно проходят:
+```bash
+=== RUN   TestExtractChannelProtocol
+=== RUN   TestExtractChannelProtocol/valid_server_reference
+=== RUN   TestExtractChannelProtocol/channel_without_servers
+=== RUN   TestExtractChannelProtocol/invalid_server_reference
+=== RUN   TestExtractChannelProtocol/reference_to_nonexistent_server
+=== RUN   TestExtractChannelProtocol/multiple_servers_(take_first)
+=== RUN   TestExtractChannelProtocol/nil_channel
+=== RUN   TestExtractChannelProtocol/empty_server_reference
+--- PASS: TestExtractChannelProtocol (0.00s)
+```
+
+#### Архитектурные принципы:
+- ✅ **Table-driven tests** - современный Go паттерн
+- ✅ **Helper функции** - читаемость и переиспользование
+- ✅ **Атомарность** - один файл = одна функция
+- ✅ **Edge case coverage** - все граничные случаи покрыты
+- ✅ **Соответствие спецификации** - полное соответствие AsyncAPI 3.0
+
+### Обновление прогресса
+
+**Метрики до реализации:**
+- Протестировано функций: 6/14 (43%)
+- Создано тест-кейсов: 125+/~150 (83%+)
+
+**Метрики после реализации:**
+- Протестировано функций: 7/14 (50%)
+- Создано тест-кейсов: 132+/~150 (88%+)
+- ✅ **Пункт 2 плана полностью завершен**
+
+### Commit
+
+```bash
+43c28de - feat: добавлены unit-тесты для функции extractChannelProtocol
+
+- Создано 7 тест-кейсов согласно плану тестирования пункт 2
+- Покрыты все edge cases: валидные ссылки, отсутствие серверов, невалидные ссылки
+- Протестированы множественные серверы (берется первый)
+- Добавлены helper-функции для создания тестовых данных
+- Все тесты проходят успешно
+```
+
+### Извлеченные уроки
+
+**Table-driven tests как best practice:**
+- Компактный и читаемый код
+- Легкое добавление новых тест-кейсов
+- Изолированные sub-tests с `t.Run()`
+- Говорящие имена тест-кейсов
+
+**Значение helper функций:**
+- Изоляция создания тестовых данных
+- Переиспользование между тестами
+- Улучшение читаемости основного теста
+- Упрощение maintenance
+
+### Следующие приоритеты
+
+Согласно плану comprehensive unit-тестирования:
+- **Следующий:** `extractMessageInfo` - обработка MessageRef ссылок
+- **Затем:** `extractConsumerMessages/extractProviderMessages` - извлечение сообщений
+- **После:** `arePropertyTypesCompatible` - сравнение типов свойств
+
+Пункт 2 плана **полностью завершен** за 30 минут с применением современных best practices Go тестирования.
+
+---
+
+*Документация обновлена 27 июля 2025 для отражения завершения пункта 2 плана comprehensive unit-тестирования.*

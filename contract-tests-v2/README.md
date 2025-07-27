@@ -162,11 +162,11 @@ if err != nil {
 ### Анализ существующего покрытия
 
 ### Текущий прогресс тестирования
-- **Протестировано функций:** 6/14 (43%) - `convertSchema`, `extractConsumerChannel`, `resolveSchemaRef`, `areMessagesCompatible`, `areArrayItemsCompatible`, `areObjectPropertiesCompatible`
-- **Создано тест-кейсов:** 125+/~150 (83%+)
+- **Протестировано функций:** 7/14 (50%) - `convertSchema`, `extractConsumerChannel`, `extractChannelProtocol`, `resolveSchemaRef`, `areMessagesCompatible`, `areArrayItemsCompatible`, `areObjectPropertiesCompatible`
+- **Создано тест-кейсов:** 132+/~150 (88%+)
 - **Предотвращенные баги:** Критический баг с потерей `$ref` защищен regression тестами
 - **НОВОЕ: Реализована рекурсивная валидация структур** - валидатор теперь корректно проверяет вложенные объекты и массивы
-- **Следующий приоритет:** `extractChannelProtocol` и `extractMessageInfo`
+- **Следующий приоритет:** `extractMessageInfo` и `extractConsumerMessages/extractProviderMessages`
 
 #### Выполнено 26 июля 2025
 ✅ **`convertSchema`** - расширена поддержка полей и создано 29 тест-кейсов
@@ -193,7 +193,7 @@ if err != nil {
 
 **Функции БЕЗ unit-тестов:**
 - ~~`extractConsumerChannel` - извлечение канала потребителя~~ ✅ ГОТОВО
-- `extractChannelProtocol` - получение протокола из серверов  
+- ~~`extractChannelProtocol` - получение протокола из серверов~~ ✅ ГОТОВО
 - `extractConsumerMessages/extractProviderMessages` - извлечение сообщений
 - `extractMessageInfo` - обработка MessageRef ссылок
 - ~~`resolveSchemaRef` - разрешение $ref на схемы~~ ✅ ГОТОВО
@@ -221,14 +221,14 @@ if err != nil {
 - [x] Nil спецификация
 - [x] Пустая спецификация
 
-#### 2. `extract_channel_protocol_test.go`
-- [ ] Валидная ссылка на сервер `#/servers/production`
-- [ ] Канал без серверов
-- [ ] Невалидная ссылка `invalid-ref`
-- [ ] Ссылка на несуществующий сервер
-- [ ] Множественные серверы (берем первый)
-- [ ] Nil channel
-- [ ] Пустая ссылка
+#### 2. `extract_channel_protocol_test.go` ✅ ГОТОВО
+- [x] Валидная ссылка на сервер `#/servers/production`
+- [x] Канал без серверов
+- [x] Невалидная ссылка `invalid-ref`
+- [x] Ссылка на несуществующий сервер
+- [x] Множественные серверы (берем первый)
+- [x] Nil channel
+- [x] Пустая ссылка
 
 #### 3. `extract_consumer_messages_test.go`
 - [ ] Операция send с messages и reply
