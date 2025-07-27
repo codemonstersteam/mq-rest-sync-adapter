@@ -168,7 +168,7 @@ if err != nil {
 - **НОВОЕ: Реализована рекурсивная валидация структур** - валидатор теперь корректно проверяет вложенные объекты и массивы
 - **Следующий приоритет:** `extractChannelProtocol` и `extractMessageInfo`
 
-#### Выполнено сегодня (26 июля 2025)
+#### Выполнено 26 июля 2025
 ✅ **`convertSchema`** - расширена поддержка полей и создано 29 тест-кейсов
 - Добавлена поддержка: `Format`, `Enum`, `Items` для массивов
 - Покрыты все edge cases и комбинации полей
@@ -380,76 +380,21 @@ if err != nil {
 - **Пример**: Отправка событий аналитики, email-уведомления
 - **Документация**: [AsyncAPI Operations](https://www.asyncapi.com/docs/concepts/asyncapi-document/operations)
 
-####  
-Паттерн для развязки производителей и потребителей через брокер сообщений.
-- **Применение**: Event-driven системы, распределение событий
-- **AsyncAPI**: Каналы с множественными подписчиками
-- **Протоколы**: Kafka, RabbitMQ, MQTT, AMQP
-- **Пример**: Событие "Заказ создан" обрабатывается складом, биллингом и доставкой
-- **Документация**: [Event-Driven Architectures](https://www.asyncapi.com/docs/tutorials/getting-started/event-driven-architectures)
-- **Примеры**: [Kafka Example](https://github.com/asyncapi/asyncapi/tree/master/examples/simple-asyncapi.yml)
+#### 3. Publish-Subscribe (Публикация-Подписка)
+Паттерн "Издатель-Подписчик" (Publisher-Subscriber или Pub/Sub) - это асинхронный паттерн взаимодействия, где отправитель сообщения (Издатель) не знает конкретных получателей (Подписчиков) и отправляет сообщения в общий канал или тему. Подписчики, в свою очередь, "подписываются" на определенные темы и получают сообщения, которые их интересуют. 
+Основные компоненты паттерна:
+- Издатель (Publisher):
+    - Отправляет сообщения, не зная, кто их получит. Он может отправлять сообщения в определенные каналы или темы.
+- Подписчик (Subscriber):
+    - Получает сообщения, предварительно подписавшись на определенные темы. Подписчики могут динамически подписываться и отписываться от тем.
+- Канал/Тема (Channel/Topic):
 
-### Паттерны управления состоянием
+Связующее звено между издателями и подписчиками. Сообщения отправляются в канал, и все подписчики этого канала получают сообщения. 
+Как это работает:
+Издатель отправляет сообщение в определенный канал или тему.
+Подписчики, которые подписаны на этот канал, получают сообщение.
+Подписчики могут обрабатывать полученные сообщения, не зная, кто их отправил. 
 
-#### 4. Event Sourcing (Событийное хранилище)
-Сохранение всех изменений состояния как последовательности событий.
-- **Применение**: Аудит, восстановление состояния, временные запросы
-- **AsyncAPI**: Описание событий изменения состояния
-- **Преимущества**: Полная история изменений, возможность replay
-- **Пример**: История изменений банковского счёта
-- **Паттерн**: [Event Sourcing Pattern](https://microservices.io/patterns/data/event-sourcing.html)
-- **С AsyncAPI**: [Event-Driven AsyncAPI](https://www.asyncapi.com/blog/event-driven-api-asyncapi)
-
-#### 5. CQRS (Command Query Responsibility Segregation)
-Разделение операций чтения и записи.
-- **Применение**: Высоконагруженные системы, сложные домены
-- **AsyncAPI**: Отдельные каналы для команд и событий
-- **Связь с Event Sourcing**: Часто используются вместе
-- **Пример**: Отдельные модели для записи заказов и их отображения
-- **Паттерн**: [CQRS Pattern](https://microservices.io/patterns/data/cqrs.html)
-- **Руководство**: [CQRS with Event Sourcing](https://learn.microsoft.com/en-us/azure/architecture/patterns/cqrs)
-
-### Паттерны координации
-
-#### 6. Saga Pattern
-Управление распределёнными транзакциями через последовательность локальных транзакций.
-- **Реализации**:
-  - **Choreography**: Сервисы координируются через события
-  - **Orchestration**: Центральный координатор управляет процессом
-- **AsyncAPI**: Описание цепочек событий и компенсирующих действий
-- **Пример**: Процесс оформления заказа с резервированием товара, оплатой и доставкой
-- **Паттерн**: [Saga Pattern](https://microservices.io/patterns/data/saga.html)
-- **Пример AsyncAPI**: [Saga Example](https://github.com/asyncapi/asyncapi/blob/master/examples/mercure-asyncapi.yml)
-
-#### 7. Event Streaming
-Непрерывная передача потока событий.
-- **Применение**: Real-time аналитика, IoT, мониторинг
-- **AsyncAPI**: Каналы с потоковой передачей данных
-- **Протоколы**: Kafka Streams, Apache Pulsar
-- **Пример**: Поток биржевых котировок, метрики IoT устройств
-- **Документация**: [Streaming with AsyncAPI](https://www.asyncapi.com/blog/websocket-streaming-asyncapi)
-- **Kafka Streams**: [AsyncAPI Kafka Bindings](https://github.com/asyncapi/bindings/tree/master/kafka)
-
-### Дополнительные паттерны
-
-#### 8. Message Routing
-Маршрутизация сообщений на основе содержимого или метаданных.
-- **Типы**: Content-based routing, Message filtering
-- **AsyncAPI**: Использование `bindings` и `headers`
-- **Документация**: [AsyncAPI Bindings](https://www.asyncapi.com/docs/concepts/asyncapi-document/bindings)
-- **Примеры**: [AMQP Routing](https://github.com/asyncapi/bindings/tree/master/amqp)
-
-#### 9. Dead Letter Queue (DLQ)
-Обработка сообщений, которые не могут быть доставлены.
-- **AsyncAPI**: Отдельные каналы для недоставленных сообщений
-- **Пример**: [RabbitMQ DLQ Example](https://github.com/asyncapi/asyncapi/blob/master/examples/rpc-server-asyncapi.yml)
-- **Документация**: [Error Handling Patterns](https://www.asyncapi.com/blog/error-handling-patterns)
-
-#### 10. Circuit Breaker
-Защита от каскадных сбоев в распределённых системах.
-- **Применение**: Устойчивость к отказам
-- **Паттерн**: [Circuit Breaker Pattern](https://microservices.io/patterns/reliability/circuit-breaker.html)
-- **С AsyncAPI**: Описание через расширения и метаданные
 
 ### Поддержка в AsyncAPI 3.0
 
@@ -460,13 +405,3 @@ AsyncAPI 3.0 предоставляет богатые возможности д
 - **Серверы** (`servers`): Поддержка различных протоколов (AMQP, MQTT, Kafka, WebSocket)
 - **Привязки** (`bindings`): Специфичные для протокола расширения
 
-### Выбор паттерна
-
-При выборе паттерна учитывайте:
-- **Консистентность данных**: Eventual vs Strong consistency
-- **Производительность**: Синхронные vs асинхронные операции
-- **Масштабируемость**: Возможность горизонтального масштабирования
-- **Сложность**: Простота реализации и поддержки
-- **Отказоустойчивость**: Обработка сбоев и восстановление
-
-Эти паттерны формируют основу для построения надёжных, масштабируемых микросервисных систем и служат картой для дальнейшего развития валидатора контрактов. 
