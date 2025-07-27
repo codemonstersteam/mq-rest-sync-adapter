@@ -162,11 +162,11 @@ if err != nil {
 ### Анализ существующего покрытия
 
 ### Текущий прогресс тестирования
-- **Протестировано функций:** 7/14 (50%) - `convertSchema`, `extractConsumerChannel`, `extractChannelProtocol`, `resolveSchemaRef`, `areMessagesCompatible`, `areArrayItemsCompatible`, `areObjectPropertiesCompatible`
-- **Создано тест-кейсов:** 132+/~150 (88%+)
+- **Протестировано функций:** 8/14 (57%) - `convertSchema`, `extractConsumerChannel`, `extractChannelProtocol`, `extractConsumerMessages`, `resolveSchemaRef`, `areMessagesCompatible`, `areArrayItemsCompatible`, `areObjectPropertiesCompatible`
+- **Создано тест-кейсов:** 139+/~150 (93%+)
 - **Предотвращенные баги:** Критический баг с потерей `$ref` защищен regression тестами
 - **НОВОЕ: Реализована рекурсивная валидация структур** - валидатор теперь корректно проверяет вложенные объекты и массивы
-- **Следующий приоритет:** `extractMessageInfo` и `extractConsumerMessages/extractProviderMessages`
+- **Следующий приоритет:** `extractProviderMessages` и `extractMessageInfo`
 
 #### Выполнено 26 июля 2025
 ✅ **`convertSchema`** - расширена поддержка полей и создано 29 тест-кейсов
@@ -194,7 +194,8 @@ if err != nil {
 **Функции БЕЗ unit-тестов:**
 - ~~`extractConsumerChannel` - извлечение канала потребителя~~ ✅ ГОТОВО
 - ~~`extractChannelProtocol` - получение протокола из серверов~~ ✅ ГОТОВО
-- `extractConsumerMessages/extractProviderMessages` - извлечение сообщений
+- ~~`extractConsumerMessages` - извлечение сообщений потребителя~~ ✅ ГОТОВО
+- `extractProviderMessages` - извлечение сообщений поставщика
 - `extractMessageInfo` - обработка MessageRef ссылок
 - ~~`resolveSchemaRef` - разрешение $ref на схемы~~ ✅ ГОТОВО
 - ~~`convertSchema` - конвертация Schema в map (ТУТ БЫЛ БАГ!)~~ ✅ ГОТОВО
@@ -230,14 +231,14 @@ if err != nil {
 - [x] Nil channel
 - [x] Пустая ссылка
 
-#### 3. `extract_consumer_messages_test.go`
-- [ ] Операция send с messages и reply
-- [ ] Операция send только с messages (без reply)
-- [ ] Операция send только с reply (без messages)
-- [ ] Канал без операций
-- [ ] Операция с action "receive" (игнорируется)
-- [ ] Множественные операции на один канал
-- [ ] Экранированное имя канала `user~1events`
+#### 3. `extract_consumer_messages_test.go` ✅ ГОТОВО
+- [x] Операция send с messages и reply
+- [x] Операция send только с messages (без reply)
+- [x] Операция send только с reply (без messages)
+- [x] Канал без операций
+- [x] Операция с action "receive" (игнорируется)
+- [x] Множественные операции на один канал
+- [x] Экранированное имя канала `user~1events`
 
 #### 4. `extract_provider_messages_test.go`
 - [ ] Операция receive с messages и reply
