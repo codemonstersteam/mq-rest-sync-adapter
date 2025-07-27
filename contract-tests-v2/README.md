@@ -162,13 +162,14 @@ if err != nil {
 ### Анализ существующего покрытия
 
 ### Текущий прогресс тестирования
-- **Протестировано функций:** 8/14 (57%) - `convertSchema`, `extractConsumerChannel`, `extractChannelProtocol`, `extractConsumerMessages`, `resolveSchemaRef`, `areMessagesCompatible`, `areArrayItemsCompatible`, `areObjectPropertiesCompatible`
-- **Создано тест-кейсов:** 139+/~150 (93%+)
+- **Протестировано функций:** 9/14 (64%) - `convertSchema`, `extractConsumerChannel`, `extractChannelProtocol`, `extractConsumerMessages`, `extractProviderMessages`, `resolveSchemaRef`, `areMessagesCompatible`, `areArrayItemsCompatible`, `areObjectPropertiesCompatible`
+- **Создано тест-кейсов:** 145+/~150 (97%+)
 - **Предотвращенные баги:** Критический баг с потерей `$ref` защищен regression тестами
 - **НОВОЕ: Реализована рекурсивная валидация структур** - валидатор теперь корректно проверяет вложенные объекты и массивы
-- **Следующий приоритет:** `extractProviderMessages` и `extractMessageInfo`
+- **Следующий приоритет:** `extractMessageInfo` и `arePropertyTypesCompatible`
 
-#### Выполнено 26 июля 2025
+#### Выполнено 26-27 июля 2025
+
 ✅ **`convertSchema`** - расширена поддержка полей и создано 29 тест-кейсов
 - Добавлена поддержка: `Format`, `Enum`, `Items` для массивов
 - Покрыты все edge cases и комбинации полей
@@ -177,6 +178,21 @@ if err != nil {
 ✅ **`extractConsumerChannel`** - создано 6 тест-кейсов 
 - Использованы helper-функции для читаемости
 - Покрыты все сценарии: валидные, невалидные, граничные случаи
+
+✅ **`extractChannelProtocol`** - создано 7 тест-кейсов с table-driven подходом
+- Полное соответствие AsyncAPI 3.0 спецификации
+- Покрыты все edge cases: валидные ссылки, отсутствие серверов, невалидные ссылки
+- Протестированы множественные серверы (берется первый)
+
+✅ **`extractConsumerMessages`** - создано 7 тест-кейсов для потребителя
+- Операции send с различными комбинациями messages/reply
+- Проверка экранирования имен каналов (user/events → user~1events)
+- Корректная обработка action="send" для потребителя
+
+✅ **`extractProviderMessages`** - создано 6 тест-кейсов для поставщика
+- Операции receive с различными комбинациями messages/reply
+- Симметрия с extractConsumerMessages: action="receive" для поставщика
+- Полная реализация request-reply паттернов
 
 ✅ **`resolveSchemaRef`** - создано 33 тест-кейса с AsyncAPI 3.0 compliance
 - Валидация имен схем согласно regex `^[a-zA-Z0-9\.-_]+$`
@@ -195,7 +211,7 @@ if err != nil {
 - ~~`extractConsumerChannel` - извлечение канала потребителя~~ ✅ ГОТОВО
 - ~~`extractChannelProtocol` - получение протокола из серверов~~ ✅ ГОТОВО
 - ~~`extractConsumerMessages` - извлечение сообщений потребителя~~ ✅ ГОТОВО
-- `extractProviderMessages` - извлечение сообщений поставщика
+- ~~`extractProviderMessages` - извлечение сообщений поставщика~~ ✅ ГОТОВО
 - `extractMessageInfo` - обработка MessageRef ссылок
 - ~~`resolveSchemaRef` - разрешение $ref на схемы~~ ✅ ГОТОВО
 - ~~`convertSchema` - конвертация Schema в map (ТУТ БЫЛ БАГ!)~~ ✅ ГОТОВО
@@ -240,13 +256,13 @@ if err != nil {
 - [x] Множественные операции на один канал
 - [x] Экранированное имя канала `user~1events`
 
-#### 4. `extract_provider_messages_test.go`
-- [ ] Операция receive с messages и reply
-- [ ] Операция receive только с messages
-- [ ] Операция receive только с reply
-- [ ] Канал без операций receive
-- [ ] Операция с action "send" (игнорируется)
-- [ ] Множественные операции receive
+#### 4. `extract_provider_messages_test.go` ✅ ГОТОВО
+- [x] Операция receive с messages и reply
+- [x] Операция receive только с messages
+- [x] Операция receive только с reply
+- [x] Канал без операций receive
+- [x] Операция с action "send" (игнорируется)
+- [x] Множественные операции receive
 
 #### 5. `extract_message_info_test.go`
 - [ ] Ссылка на компонент `#/components/messages/UserSignup`
@@ -347,16 +363,19 @@ if err != nil {
 - [ ] Пустая спецификация провайдера
 
 ### Метрики цели
-- **Покрытие:** 100% функций отдельными unit-тестами (текущий: 14%)
+- **Покрытие:** 100% функций отдельными unit-тестами (текущий: 64%)
 - **Edge cases:** Все возможные поля AsyncAPI 3.0 Schema
-- **Файлов тестов:** 14 (по одному на функцию) - готово: 2
-- **Тест-кейсов:** ~150-200 (10-15 на функцию) - готово: 35
+- **Файлов тестов:** 14 (по одному на функцию) - готово: 9
+- **Тест-кейсов:** ~150-200 (10-15 на функцию) - готово: 145+
 
 **Прогресс по критически важным функциям:**
 - ✅ `convertSchema` - **29 тест-кейсов** (источник исправленного бага)
 - ✅ `extractConsumerChannel` - **6 тест-кейсов** 
+- ✅ `extractChannelProtocol` - **7 тест-кейсов** с table-driven подходом
+- ✅ `extractConsumerMessages` - **7 тест-кейсов** для потребителя
+- ✅ `extractProviderMessages` - **6 тест-кейсов** для поставщика
 - ✅ `resolveSchemaRef` - **33 тест-кейса** с AsyncAPI 3.0 compliance
-- 🔄 `areMessagesCompatible` - требует создания отсутствующего файла (следующий приоритет)
+- ✅ `areMessagesCompatible` - **40+ тест-кейсов** с рекурсивной валидацией
 
 Этот план предотвратит подобные критические баги в будущем.
 
