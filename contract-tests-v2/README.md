@@ -334,6 +334,11 @@ if err != nil {
 - [ ] Одно с $ref, другое inline
 - [ ] Format совместимость (int vs int64)
 - [ ] Nil схемы после resolve
+- [ ] Массивы - функция вызывает areArrayItemsCompatible (рекурсивная валидация)
+- [ ] Объекты - функция вызывает areObjectPropertiesCompatible (рекурсивная валидация)
+- [ ] Format совместимость для AsyncAPI 3.0 (int32, int64, float, double)
+- [ ] Edge cases с nil значениями (spec1 или spec2 равен nil)
+- [ ] Пустые свойства (map[string]interface{}{})
 
 #### 10. `get_property_ref_test.go`
 - [ ] Валидная $ref ссылка
