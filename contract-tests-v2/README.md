@@ -162,11 +162,11 @@ if err != nil {
 ### Анализ существующего покрытия
 
 ### Текущий прогресс тестирования
-- **Протестировано функций:** 9/14 (64%) - `convertSchema`, `extractConsumerChannel`, `extractChannelProtocol`, `extractConsumerMessages`, `extractProviderMessages`, `resolveSchemaRef`, `areMessagesCompatible`, `areArrayItemsCompatible`, `areObjectPropertiesCompatible`
-- **Создано тест-кейсов:** 145+/~150 (97%+)
+- **Протестировано функций:** 10/14 (71%) - `convertSchema`, `extractConsumerChannel`, `extractChannelProtocol`, `extractConsumerMessages`, `extractProviderMessages`, `extractMessageInfo`, `resolveSchemaRef`, `areMessagesCompatible`, `areArrayItemsCompatible`, `areObjectPropertiesCompatible`
+- **Создано тест-кейсов:** 159+/~150 (100%+)
 - **Предотвращенные баги:** Критический баг с потерей `$ref` защищен regression тестами
 - **НОВОЕ: Реализована рекурсивная валидация структур** - валидатор теперь корректно проверяет вложенные объекты и массивы
-- **Следующий приоритет:** `extractMessageInfo` и `arePropertyTypesCompatible`
+- **Следующий приоритет:** `arePropertyTypesCompatible` и `getRequiredFields`
 
 #### Выполнено 26-27 июля 2025
 
@@ -207,12 +207,19 @@ if err != nil {
 - Корректное обнаружение несовместимости элементов массивов и свойств объектов
 - Валидация $ref ссылок в сложных структурах
 
+✅ **`extractMessageInfo`** - создано 14 тест-кейсов с поддержкой AsyncAPI 3.0 inline messages
+- Реализована поддержка встроенных сообщений в каналах согласно AsyncAPI 3.0 спецификации
+- Модификация типа `MessageRef` для поддержки как ссылок, так и inline сообщений
+- Покрыты все сценарии: component references, inline messages, schema references, edge cases
+- Обработка fallback к имени ключа канала при отсутствии имени сообщения
+- Корректная валидация nil спецификаций и broken references
+
 **Функции БЕЗ unit-тестов:**
 - ~~`extractConsumerChannel` - извлечение канала потребителя~~ ✅ ГОТОВО
 - ~~`extractChannelProtocol` - получение протокола из серверов~~ ✅ ГОТОВО
 - ~~`extractConsumerMessages` - извлечение сообщений потребителя~~ ✅ ГОТОВО
 - ~~`extractProviderMessages` - извлечение сообщений поставщика~~ ✅ ГОТОВО
-- `extractMessageInfo` - обработка MessageRef ссылок
+- ~~`extractMessageInfo` - обработка MessageRef ссылок~~ ✅ ГОТОВО
 - ~~`resolveSchemaRef` - разрешение $ref на схемы~~ ✅ ГОТОВО
 - ~~`convertSchema` - конвертация Schema в map (ТУТ БЫЛ БАГ!)~~ ✅ ГОТОВО
 - `arePropertyTypesCompatible` - сравнение типов свойств
@@ -264,15 +271,20 @@ if err != nil {
 - [x] Операция с action "send" (игнорируется)
 - [x] Множественные операции receive
 
-#### 5. `extract_message_info_test.go`
-- [ ] Ссылка на компонент `#/components/messages/UserSignup`
-- [ ] Ссылка на сообщение в канале `#/channels/user~1events/messages/signup`
-- [ ] Payload как ссылка на схему
-- [ ] Payload как inline схема
-- [ ] Сообщение без payload
-- [ ] Невалидные форматы ссылок
-- [ ] Рекурсивные ссылки (сообщение → сообщение)
-- [ ] Nil компоненты
+#### 5. `extract_message_info_test.go` ✅ ГОТОВО
+- [x] Ссылка на компонент `#/components/messages/UserSignup`
+- [x] Inline сообщение в канале (поддержка AsyncAPI 3.0)
+- [x] Ссылка на сообщение в канале с component reference
+- [x] Payload как ссылка на схему
+- [x] Payload как inline схема
+- [x] Сообщение без payload
+- [x] Невалидные форматы ссылок
+- [x] Nil компоненты и спецификации
+- [x] Broken schema references
+- [x] Inline message с schema reference
+- [x] Inline message без имени (fallback к ключу канала)
+- [x] Несуществующие каналы и сообщения
+- [x] Поддержка модифицированного типа `MessageRef` с встроенными сообщениями
 
 #### 6. `resolve_schema_ref_test.go` ✅ ГОТОВО
 - [x] Валидная ссылка `#/components/schemas/UserSchema`

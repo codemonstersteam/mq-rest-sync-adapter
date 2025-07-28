@@ -271,6 +271,10 @@ func (v *ChannelValidator) extractProviderMessages(spec *parser.AsyncAPISpec, ch
 
 // extractMessageInfo извлекает информацию о сообщении
 func (v *ChannelValidator) extractMessageInfo(spec *parser.AsyncAPISpec, msgRef parser.MessageRef) (*MessageInfo, error) {
+	if spec == nil {
+		return nil, fmt.Errorf("specification is nil")
+	}
+	
 	// Проверяем ссылку на компонент
 	if strings.HasPrefix(msgRef.Ref, "#/components/messages/") {
 		msgName := strings.TrimPrefix(msgRef.Ref, "#/components/messages/")
@@ -316,6 +320,35 @@ func (v *ChannelValidator) extractMessageInfo(spec *parser.AsyncAPISpec, msgRef 
 						// Если это ссылка на компонент, разыменовываем её
 						if msgData.Ref != "" {
 							return v.extractMessageInfo(spec, parser.MessageRef{Ref: msgData.Ref})
+						}
+						
+						// Если это inline сообщение
+						if msgData.Message != nil {
+							// Обрабатываем payload - может быть ссылкой
+							var payload map[string]interface{}
+							if msgData.Message.Payload != nil {
+								if msgData.Message.Payload.Ref != "" {
+									// Разрешаем ссылку на схему
+									resolvedSchema := v.resolveSchemaRef(spec, msgData.Message.Payload.Ref)
+									if resolvedSchema != nil {
+										payload = v.convertSchema(resolvedSchema)
+									}
+								} else {
+									payload = v.convertSchema(msgData.Message.Payload)
+								}
+							}
+							
+							// Используем имя из сообщения или имя из ключа канала
+							msgName := msgData.Message.Name
+							if msgName == "" {
+								msgName = messageName
+							}
+							
+							return &MessageInfo{
+								Name:        msgName,
+								ContentType: msgData.Message.ContentType,
+								Payload:     payload,
+							}, nil
 						}
 					}
 				}

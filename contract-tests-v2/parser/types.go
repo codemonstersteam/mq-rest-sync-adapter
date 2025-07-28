@@ -103,5 +103,9 @@ type ChannelRef struct {
 }
 
 type MessageRef struct {
+	// Reference to a message component
 	Ref string `yaml:"$ref,omitempty"`
+	
+	// Inline message definition (embedded Message)
+	*Message `yaml:",inline"`
 }
