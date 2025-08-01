@@ -162,12 +162,13 @@ if err != nil {
 ### Анализ существующего покрытия
 
 ### Текущий прогресс тестирования
-- **Протестировано функций:** 11/24 (46%) или 11/14 основных (79%) - `convertSchema`, `extractConsumerChannel`, `extractChannelProtocol`, `extractConsumerMessages`, `extractProviderMessages`, `extractMessageInfo`, `resolveSchemaRef`, `areMessagesCompatible`, `areArrayItemsCompatible`, `areObjectPropertiesCompatible`, `arePropertyTypesCompatible`
-- **Создано тест-кейсов:** 196+/~200 (98%+)
+- **Протестировано функций:** 12/24 (50%) или 12/14 основных (86%) - `convertSchema`, `extractConsumerChannel`, `extractChannelProtocol`, `extractConsumerMessages`, `extractProviderMessages`, `extractMessageInfo`, `resolveSchemaRef`, `areMessagesCompatible`, `areArrayItemsCompatible`, `areObjectPropertiesCompatible`, `arePropertyTypesCompatible`, `getPropertyRef`
+- **Создано тест-кейсов:** 214+/~250 (86%+)
 - **Предотвращенные баги:** Критический баг с потерей `$ref` защищен regression тестами
 - **НОВОЕ: Реализована рекурсивная валидация структур** - валидатор теперь корректно проверяет вложенные объекты и массивы
 - **НОВОЕ: Добавлены реальные контрактные сценарии** - timestamp mismatch, currency compatibility, ID format conflicts
-- **Следующий приоритет:** `getPropertyRef`, `getPropertyType`, `getRequiredFields`, `escapeChannelName`
+- **НОВОЕ: Полная поддержка AsyncAPI 3.0 $ref форматов** - components, files, URLs, relative paths
+- **Следующий приоритет:** `getPropertyType`, `getRequiredFields`, `escapeChannelName`
 
 #### Выполнено 26-27 июля 2025
 
@@ -224,7 +225,8 @@ if err != nil {
 - ~~`resolveSchemaRef` - разрешение $ref на схемы~~ ✅ ГОТОВО
 - ~~`convertSchema` - конвертация Schema в map (ТУТ БЫЛ БАГ!)~~ ✅ ГОТОВО
 - ~~`arePropertyTypesCompatible` - сравнение типов свойств~~ ✅ ГОТОВО
-- `getPropertyRef/getPropertyType` - извлечение ref и type
+- ~~`getPropertyRef` - извлечение $ref из свойств~~ ✅ ГОТОВО
+- `getPropertyType` - извлечение type из свойств
 - `getRequiredFields` - извлечение обязательных полей
 - `escapeChannelName/unescapeChannelName` - экранирование имен
 
@@ -344,12 +346,35 @@ if err != nil {
 
 **Итого тест-кейсов:** 37 (покрытие 100% планируемых кейсов + дополнительные)
 
-#### 10. `get_property_ref_test.go`
-- [ ] Валидная $ref ссылка
-- [ ] Свойство без $ref
-- [ ] Nil свойство
-- [ ] Неправильный тип $ref (не string)
-- [ ] Пустая ссылка
+#### 10. `get_property_ref_test.go` ✅ ГОТОВО (расширенный план для AsyncAPI 3.0 compliance)
+**Базовые тест-кейсы:**
+- [x] Валидная $ref ссылка на компонент
+- [x] Свойство без $ref (возвращает пустую строку)
+- [x] Nil свойство (безопасная обработка)
+- [x] Неправильный тип $ref (не string)
+- [x] Пустая ссылка (refVal = "")
+
+**AsyncAPI 3.0 специфичные форматы ссылок:**
+- [x] Ссылка на schema: `#/components/schemas/UserData`
+- [x] Ссылка на message: `#/components/messages/UserSignup`  
+- [x] Локальный файл: `./schemas/user.json`
+- [x] Внешний URL: `https://api.example.com/user-schema.json`
+- [x] Относительная ссылка: `../common/types.yaml#/User`
+
+**Edge cases и ошибки:**
+- [x] Case sensitivity: `$Ref` вместо `$ref` (должно игнорироваться)
+- [x] Дополнительные поля: `{"$ref": "...", "type": "object"}` (приоритет $ref)
+- [x] Невалидное свойство: не map[string]interface{}
+- [x] Множественные $ref в одном объекте (невалидный JSON Schema)
+- [x] Специальные символы в ссылках: пробелы, юникод
+
+**Дополнительные тест-кейсы:**
+- [x] Пустой map
+- [x] Map с другими полями но без $ref
+- [x] Ссылка с пробелами и юникодом
+- [x] Type safety тесты для различных невалидных типов
+
+**Итого тест-кейсов:** 18 (полное покрытие AsyncAPI 3.0 + дополнительные edge cases)
 
 #### 11. `get_property_type_test.go`
 - [ ] Валидный type
@@ -384,10 +409,10 @@ if err != nil {
 - [ ] Пустая спецификация провайдера
 
 ### Метрики цели
-- **Покрытие:** 100% функций отдельными unit-тестами (текущий: 64%)
+- **Покрытие:** 100% функций отдельными unit-тестами (текущий: 86%)
 - **Edge cases:** Все возможные поля AsyncAPI 3.0 Schema
-- **Файлов тестов:** 14 (по одному на функцию) - готово: 9
-- **Тест-кейсов:** ~150-200 (10-15 на функцию) - готово: 145+
+- **Файлов тестов:** 14 (по одному на функцию) - готово: 12
+- **Тест-кейсов:** ~200-250 (15-20 на функцию) - готово: 214+ (включая расширенный план `get_property_ref_test.go`)
 
 **Прогресс по критически важным функциям:**
 - ✅ `convertSchema` - **29 тест-кейсов** (источник исправленного бага)
