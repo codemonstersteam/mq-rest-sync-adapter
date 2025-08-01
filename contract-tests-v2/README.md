@@ -162,13 +162,14 @@ if err != nil {
 ### Анализ существующего покрытия
 
 ### Текущий прогресс тестирования
-- **Протестировано функций:** 12/24 (50%) или 12/14 основных (86%) - `convertSchema`, `extractConsumerChannel`, `extractChannelProtocol`, `extractConsumerMessages`, `extractProviderMessages`, `extractMessageInfo`, `resolveSchemaRef`, `areMessagesCompatible`, `areArrayItemsCompatible`, `areObjectPropertiesCompatible`, `arePropertyTypesCompatible`, `getPropertyRef`
-- **Создано тест-кейсов:** 214+/~250 (86%+)
+- **Протестировано функций:** 13/24 (54%) или 13/14 основных (93%) - `convertSchema`, `extractConsumerChannel`, `extractChannelProtocol`, `extractConsumerMessages`, `extractProviderMessages`, `extractMessageInfo`, `resolveSchemaRef`, `areMessagesCompatible`, `areArrayItemsCompatible`, `areObjectPropertiesCompatible`, `arePropertyTypesCompatible`, `getPropertyRef`, `getPropertyType`
+- **Создано тест-кейсов:** 240+/~260 (92%+)
 - **Предотвращенные баги:** Критический баг с потерей `$ref` защищен regression тестами
 - **НОВОЕ: Реализована рекурсивная валидация структур** - валидатор теперь корректно проверяет вложенные объекты и массивы
 - **НОВОЕ: Добавлены реальные контрактные сценарии** - timestamp mismatch, currency compatibility, ID format conflicts
 - **НОВОЕ: Полная поддержка AsyncAPI 3.0 $ref форматов** - components, files, URLs, relative paths
-- **Следующий приоритет:** `getPropertyType`, `getRequiredFields`, `escapeChannelName`
+- **НОВОЕ: Полная поддержка AsyncAPI 3.0 JSON Schema типов** - все 7 валидных типов + edge cases
+- **Следующий приоритет:** `getRequiredFields`, `escapeChannelName` (осталось 2 функции!)
 
 #### Выполнено 26-27 июля 2025
 
@@ -226,7 +227,7 @@ if err != nil {
 - ~~`convertSchema` - конвертация Schema в map (ТУТ БЫЛ БАГ!)~~ ✅ ГОТОВО
 - ~~`arePropertyTypesCompatible` - сравнение типов свойств~~ ✅ ГОТОВО
 - ~~`getPropertyRef` - извлечение $ref из свойств~~ ✅ ГОТОВО
-- `getPropertyType` - извлечение type из свойств
+- ~~`getPropertyType` - извлечение type из свойств~~ ✅ ГОТОВО
 - `getRequiredFields` - извлечение обязательных полей
 - `escapeChannelName/unescapeChannelName` - экранирование имен
 
@@ -376,12 +377,46 @@ if err != nil {
 
 **Итого тест-кейсов:** 18 (полное покрытие AsyncAPI 3.0 + дополнительные edge cases)
 
-#### 11. `get_property_type_test.go`
-- [ ] Валидный type
-- [ ] Свойство без type
-- [ ] Nil свойство
-- [ ] Неправильный тип type (не string)
-- [ ] Пустой type
+#### 11. `get_property_type_test.go` ✅ ГОТОВО (расширенный план для AsyncAPI 3.0 JSON Schema compliance)
+**Базовые тест-кейсы:**
+- [x] Валидный type (string)
+- [x] Свойство без type (возвращает пустую строку)
+- [x] Nil свойство (безопасная обработка)
+- [x] Неправильный тип type (не string)
+- [x] Пустой type (type = "")
+
+**AsyncAPI 3.0 валидные JSON Schema типы:**
+- [x] Примитивный тип: "string"
+- [x] Примитивный тип: "number"
+- [x] Примитивный тип: "integer"
+- [x] Примитивный тип: "boolean"
+- [x] Примитивный тип: "null"
+- [x] Составной тип: "object"
+- [x] Составной тип: "array"
+
+**AsyncAPI 3.0 специфичные кейсы:**
+- [x] Case sensitivity: "String" vs "string" (должно распознавать точно)
+- [x] Тип с format модификатором: {"type": "string", "format": "email"}
+- [x] Приоритет полей: {"type": "string", "$ref": "..."} (должен вернуть type)
+- [x] Свойство с дополнительными полями: {"type": "object", "properties": {...}}
+
+**Edge cases и ошибки:**
+- [x] Невалидные типы: "datetime", "uuid", "unknown" (не JSON Schema типы)
+- [x] Type как число: {"type": 123}
+- [x] Type как boolean: {"type": true}
+- [x] Type как массив: {"type": ["string", "null"]} (недопустимо в AsyncAPI)
+- [x] Невалидное свойство: не map[string]interface{}
+- [x] Пустой map: {}
+- [x] Map с другими полями но без type: {"format": "email", "enum": [...]}
+
+**Дополнительные тест-кейсы:**
+- [x] Type с null значением
+- [x] Вложенный объект с type (извлечение только верхнего уровня)
+- [x] Type с дополнительными пробелами
+- [x] Все JSON Schema типы в отдельном тесте
+- [x] Type safety тесты для различных невалидных типов (6 кейсов)
+
+**Итого тест-кейсов:** 26 (полное покрытие AsyncAPI 3.0 JSON Schema типов + comprehensive edge cases)
 
 #### 12. `get_required_fields_test.go`
 - [ ] []interface{} тип (из YAML)
@@ -409,10 +444,10 @@ if err != nil {
 - [ ] Пустая спецификация провайдера
 
 ### Метрики цели
-- **Покрытие:** 100% функций отдельными unit-тестами (текущий: 86%)
+- **Покрытие:** 100% функций отдельными unit-тестами (текущий: 93%)
 - **Edge cases:** Все возможные поля AsyncAPI 3.0 Schema
-- **Файлов тестов:** 14 (по одному на функцию) - готово: 12
-- **Тест-кейсов:** ~200-250 (15-20 на функцию) - готово: 214+ (включая расширенный план `get_property_ref_test.go`)
+- **Файлов тестов:** 14 (по одному на функцию) - готово: 13
+- **Тест-кейсов:** ~200-260 (15-25 на функцию) - готово: 240+ (включая расширенные планы `get_property_ref_test.go` и `get_property_type_test.go`)
 
 **Прогресс по критически важным функциям:**
 - ✅ `convertSchema` - **29 тест-кейсов** (источник исправленного бага)
