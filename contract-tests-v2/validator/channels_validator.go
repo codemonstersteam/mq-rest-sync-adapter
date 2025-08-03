@@ -179,7 +179,7 @@ func (v *ChannelValidator) findMatchingProviderChannel(contractValidate *Contrac
 		errorMsg += fmt.Sprintf("\n\nChannels with matching protocol but failed validation:\n  - %s", strings.Join(candidateChannels, "\n  - "))
 	}
 	
-	return nil, fmt.Errorf(errorMsg)
+	return nil, fmt.Errorf("%s", errorMsg)
 }
 
 // extractChannelProtocol извлекает протокол канала из серверов
