@@ -54,7 +54,7 @@ func TestMessageExtraction_RealSpecs(t *testing.T) {
 			t.Logf("  OutMessage name: %s", consumerChannel.OutMessage.Name)
 			t.Logf("  OutMessage contentType: %s", consumerChannel.OutMessage.ContentType)
 			// t.Logf("  OutMessage payload keys: %v", getMapKeys(consumerChannel.OutMessage.Payload))
-			if reqFields := validator.getRequiredFields(consumerChannel.OutMessage.Payload); len(reqFields) > 0 {
+			if reqFields, _ := validator.getRequiredFields(consumerChannel.OutMessage.Payload); len(reqFields) > 0 {
 				t.Logf("  OutMessage required fields: %v", reqFields)
 			}
 		}
@@ -63,7 +63,7 @@ func TestMessageExtraction_RealSpecs(t *testing.T) {
 			t.Logf("  InMessage name: %s", consumerChannel.InMessage.Name)
 			t.Logf("  InMessage contentType: %s", consumerChannel.InMessage.ContentType)
 			// t.Logf("  InMessage payload keys: %v", getMapKeys(consumerChannel.InMessage.Payload))
-			if reqFields := validator.getRequiredFields(consumerChannel.InMessage.Payload); len(reqFields) > 0 {
+			if reqFields, _ := validator.getRequiredFields(consumerChannel.InMessage.Payload); len(reqFields) > 0 {
 				t.Logf("  InMessage required fields: %v", reqFields)
 			}
 		}
@@ -96,14 +96,14 @@ func TestMessageExtraction_RealSpecs(t *testing.T) {
 							
 							if inMessage != nil {
 								t.Logf("    InMessage name: %s", inMessage.Name)
-								if reqFields := validator.getRequiredFields(inMessage.Payload); len(reqFields) > 0 {
+								if reqFields, _ := validator.getRequiredFields(inMessage.Payload); len(reqFields) > 0 {
 									t.Logf("    InMessage required: %v", reqFields)
 								}
 							}
 							
 							if outMessage != nil {
 								t.Logf("    OutMessage name: %s", outMessage.Name)
-								if reqFields := validator.getRequiredFields(outMessage.Payload); len(reqFields) > 0 {
+								if reqFields, _ := validator.getRequiredFields(outMessage.Payload); len(reqFields) > 0 {
 									t.Logf("    OutMessage required: %v", reqFields)
 								}
 								
@@ -116,8 +116,8 @@ func TestMessageExtraction_RealSpecs(t *testing.T) {
 									
 									if !compatible {
 										t.Logf("    INCOMPATIBILITY DETAILS:")
-										consumerReq := validator.getRequiredFields(consumerChannel.InMessage.Payload)
-										providerReq := validator.getRequiredFields(outMessage.Payload)
+										consumerReq, _ := validator.getRequiredFields(consumerChannel.InMessage.Payload)
+										providerReq, _ := validator.getRequiredFields(outMessage.Payload)
 										t.Logf("      Consumer response required: %v", consumerReq)
 										t.Logf("      Provider response required: %v", providerReq)
 										

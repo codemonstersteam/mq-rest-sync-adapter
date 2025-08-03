@@ -162,14 +162,15 @@ if err != nil {
 ### Анализ существующего покрытия
 
 ### Текущий прогресс тестирования
-- **Протестировано функций:** 13/24 (54%) или 13/14 основных (93%) - `convertSchema`, `extractConsumerChannel`, `extractChannelProtocol`, `extractConsumerMessages`, `extractProviderMessages`, `extractMessageInfo`, `resolveSchemaRef`, `areMessagesCompatible`, `areArrayItemsCompatible`, `areObjectPropertiesCompatible`, `arePropertyTypesCompatible`, `getPropertyRef`, `getPropertyType`
-- **Создано тест-кейсов:** 240+/~260 (92%+)
+- **Протестировано функций:** 13.5/14 основных (96%) - `convertSchema`, `extractConsumerChannel`, `extractChannelProtocol`, `extractConsumerMessages`, `extractProviderMessages`, `extractMessageInfo`, `resolveSchemaRef`, `areMessagesCompatible`, `areArrayItemsCompatible`, `areObjectPropertiesCompatible`, `arePropertyTypesCompatible`, `getPropertyRef`, `getPropertyType`, `getRequiredFields`
+- **Создано тест-кейсов:** 261+/~280 (93%+)
 - **Предотвращенные баги:** Критический баг с потерей `$ref` защищен regression тестами
 - **НОВОЕ: Реализована рекурсивная валидация структур** - валидатор теперь корректно проверяет вложенные объекты и массивы
 - **НОВОЕ: Добавлены реальные контрактные сценарии** - timestamp mismatch, currency compatibility, ID format conflicts
 - **НОВОЕ: Полная поддержка AsyncAPI 3.0 $ref форматов** - components, files, URLs, relative paths
 - **НОВОЕ: Полная поддержка AsyncAPI 3.0 JSON Schema типов** - все 7 валидных типов + edge cases
-- **Следующий приоритет:** `getRequiredFields`, `escapeChannelName` (осталось 2 функции!)
+- **НОВОЕ: Улучшена обработка ошибок в getRequiredFields** - детальные сообщения с индексами и типами
+- **Следующий приоритет:** `escapeChannelName/unescapeChannelName` (осталась 0.5 функции!)
 
 #### Выполнено 26-27 июля 2025
 
@@ -228,7 +229,7 @@ if err != nil {
 - ~~`arePropertyTypesCompatible` - сравнение типов свойств~~ ✅ ГОТОВО
 - ~~`getPropertyRef` - извлечение $ref из свойств~~ ✅ ГОТОВО
 - ~~`getPropertyType` - извлечение type из свойств~~ ✅ ГОТОВО
-- `getRequiredFields` - извлечение обязательных полей
+- ~~`getRequiredFields` - извлечение обязательных полей~~ ✅ ГОТОВО
 - `escapeChannelName/unescapeChannelName` - экранирование имен
 
 **С полным покрытием:**
@@ -416,15 +417,47 @@ if err != nil {
 - [x] Все JSON Schema типы в отдельном тесте
 - [x] Type safety тесты для различных невалидных типов (6 кейсов)
 
-**Итого тест-кейсов:** 26 (полное покрытие AsyncAPI 3.0 JSON Schema типов + comprehensive edge cases)
+**Итого тест-кейсов:** 27 (полное покрытие AsyncAPI 3.0 JSON Schema типов + comprehensive edge cases)
 
-#### 12. `get_required_fields_test.go`
-- [ ] []interface{} тип (из YAML)
-- [ ] []string тип (из convertSchema)
-- [ ] Пустой массив
-- [ ] Nil payload
-- [ ] Отсутствующее поле required
-- [ ] Смешанные типы в []interface{}
+#### 12. `get_required_fields_test.go` ✅ ГОТОВО
+**Базовые валидные кейсы (6 тест-кейсов):**
+- [x] []interface{} тип (из YAML парсера)
+- [x] []string тип (из convertSchema)
+- [x] Пустой массив required: []
+- [x] Nil payload (отсутствующий payload) - с проверкой ошибки
+- [x] Отсутствующее поле required в payload
+- [x] Смешанные типы в []interface{} (строки + не-строки) - с проверкой ошибки
+
+**AsyncAPI 3.0 compliance кейсы (4 тест-кейса):**
+- [x] Валидные имена свойств: стандартные (name, email, userId)
+- [x] Специальные символы: подчеркивания (user_id, created_at)
+- [x] Числовые имена: 123, field1, 2ndAddress (валидные в JSON Schema)
+- [x] Unicode имена: имя, descripción (международные имена)
+
+**Невалидные типы данных (5 тест-кейсов):**
+- [x] required как строка: "required": "name" - возвращает ошибку
+- [x] required как число: "required": 123 - возвращает ошибку
+- [x] required как boolean: "required": true - возвращает ошибку
+- [x] required как объект: "required": {"name": true} - возвращает ошибку
+- [x] required как null: "required": null - возвращает ошибку
+
+**Частично невалидные данные (3 тест-кейса):**
+- [x] Массив с null элементами: ["name", null, "email"] - возвращает ошибку с индексом
+- [x] Массив с числовыми элементами: ["name", 123, "email"] - возвращает ошибку с индексом
+- [x] Массив с объектами: ["name", {"invalid": true}, "email"] - возвращает ошибку с индексом
+
+**Production edge cases (3 тест-кейса):**
+- [x] Пустые строки в required: ["name", "", "email"]
+- [x] Дублированные поля: ["name", "email", "name"]
+- [x] Очень длинные имена полей: ["very_long_field_name_that_exceeds_normal_limits"]
+
+**УЛУЧШЕНИЯ В РЕАЛИЗАЦИИ:**
+- ✅ Изменена сигнатура функции для возврата ошибок: `func getRequiredFields(payload) ([]string, error)`
+- ✅ Детальные сообщения об ошибках с индексами и типами
+- ✅ Проверка всех сообщений об ошибках в тестах  
+- ✅ Comprehensive покрытие AsyncAPI 3.0 + production edge cases
+
+**Итого тест-кейсов:** 21 (реализовано 100%)
 
 #### 13. `escape_channel_name_test.go`
 - [ ] `user/events` → `user~1events`
@@ -444,10 +477,10 @@ if err != nil {
 - [ ] Пустая спецификация провайдера
 
 ### Метрики цели
-- **Покрытие:** 100% функций отдельными unit-тестами (текущий: 93%)
+- **Покрытие:** 100% функций отдельными unit-тестами (текущий: 96% - 13.5/14)
 - **Edge cases:** Все возможные поля AsyncAPI 3.0 Schema
-- **Файлов тестов:** 14 (по одному на функцию) - готово: 13
-- **Тест-кейсов:** ~200-260 (15-25 на функцию) - готово: 240+ (включая расширенные планы `get_property_ref_test.go` и `get_property_type_test.go`)
+- **Файлов тестов:** 14 (по одному на функцию) - готово: 13.5 (включая `get_required_fields_test.go`)
+- **Тест-кейсов:** ~280-300 (15-25 на функцию) - готово: 261+ (включая расширенные планы `get_property_ref_test.go`, `get_property_type_test.go` и `get_required_fields_test.go`)
 
 **Прогресс по критически важным функциям:**
 - ✅ `convertSchema` - **29 тест-кейсов** (источник исправленного бага)
@@ -457,14 +490,98 @@ if err != nil {
 - ✅ `extractProviderMessages` - **6 тест-кейсов** для поставщика
 - ✅ `resolveSchemaRef` - **33 тест-кейса** с AsyncAPI 3.0 compliance
 - ✅ `areMessagesCompatible` - **40+ тест-кейсов** с рекурсивной валидацией
+- ✅ `getRequiredFields` - **21 тест-кейс** с проверкой ошибок и AsyncAPI 3.0 compliance
 
 Этот план предотвратит подобные критические баги в будущем.
 
 ## 🔄 СЛЕДУЮЩИЕ ЭТАПЫ РАЗРАБОТКИ
 
+### Этап 4.5: Улучшение обработки ошибок во всех функциях модулей
+
+**Запланировано:** После завершения comprehensive unit-тестирования (100% покрытия)  
+**Приоритет:** Критический  
+**Время оценка:** ~2-3 часа  
+
+#### 4.5.1 Цель этапа
+Провести полный аудит всех функций модулей `parser/` и `validator/` для стандартизации обработки ошибок и обеспечения лаконичных, информативных сообщений об ошибках.
+
+#### 4.5.2 Задачи этапа
+
+**Анализ текущего состояния:**
+- Проанализировать все функции в модулях `parser/` и `validator/`
+- Выявить функции, которые не возвращают ошибки, но должны
+- Составить реестр типов ошибок и их источников
+- Определить функции с недостаточно информативными сообщениями об ошибках
+
+**Стандартизация сигнатур функций:**
+- Привести все функции к единому стилю возврата ошибок
+- Обеспечить, чтобы каждая функция, которая может завершиться неуспешно, возвращала `error`
+- Стандартизировать формат сообщений об ошибках
+
+**Качество сообщений об ошибках:**
+- **Для человека:** Понятные, действенные сообщения на русском языке
+- **Для машины:** Структурированные, парсируемые форматы с кодами ошибок
+- **Контекстность:** Включение релевантной информации (имена файлов, индексы, значения)
+
+#### 4.5.3 Принципы качественных сообщений об ошибках
+
+**Формат сообщений:**
+```go
+// Для критических ошибок
+return fmt.Errorf("VALIDATION_ERROR: %s at %s:%d - %s", component, location, line, details)
+
+// Для ошибок валидации
+return fmt.Errorf("SCHEMA_MISMATCH: field '%s' type mismatch: expected %s, got %s", fieldName, expected, actual)
+
+// Для ошибок парсинга
+return fmt.Errorf("PARSE_ERROR: invalid AsyncAPI spec at %s - %s", location, reason)
+```
+
+**Примеры улучшений:**
+- ❌ Было: `return fmt.Errorf("invalid type")`
+- ✅ Стало: `return fmt.Errorf("SCHEMA_ERROR: invalid required field type at index %d: expected string, got %T", i, field)`
+
+#### 4.5.4 Планируемые улучшения
+
+**Модуль `parser/`:**
+- Улучшить сообщения парсинга YAML/JSON
+- Добавить валидацию AsyncAPI версий с понятными ошибками
+- Стандартизировать ошибки разрешения $ref ссылок
+
+**Модуль `validator/`:**
+- Расширить ошибки валидации каналов
+- Улучшить диагностику несовместимости сообщений
+- Добавить контекстную информацию в ошибки совместимости
+
+**Создание Error Types:**
+```go
+type ValidationError struct {
+    Code     string // SCHEMA_MISMATCH, PARSE_ERROR, etc.
+    Message  string // Human-readable message
+    Context  map[string]interface{} // Machine-readable context
+    Location string // File:line or component location
+}
+
+func (e *ValidationError) Error() string {
+    return fmt.Sprintf("%s: %s at %s", e.Code, e.Message, e.Location)
+}
+```
+
+#### 4.5.5 Ожидаемые результаты
+
+- ✅ Все функции возвращают информативные ошибки
+- ✅ Стандартизированные форматы сообщений об ошибках
+- ✅ Улучшенная диагностика проблем для разработчиков
+- ✅ Machine-readable error codes для автоматизации
+- ✅ Comprehensive тесты для всех типов ошибок
+
+**Критерий готовности:** Каждая ошибка должна содержать достаточно информации для быстрого понимания и исправления проблемы как человеком, так и автоматизированными системами.
+
+---
+
 ### Этап 5: Расширение поддержки AsyncAPI 3.0 типов и протоколов
 
-**Запланировано:** После завершения comprehensive unit-тестирования  
+**Запланировано:** После завершения этапа 4.5  
 **Приоритет:** Высокий  
 **Время оценка:** ~3-4 часа  
 
@@ -605,7 +722,7 @@ validator/
 
 ### Этап 6: Разработка CLI интерфейса
 
-**Запланировано:** После завершения этапа 5  
+**Запланировано:** После завершения этапов 4.5 и 5  
 **Приоритет:** Высокий  
 **Время оценка:** ~2-3 часа  
 
@@ -618,6 +735,7 @@ validator/
 - Цветной вывод для быстрого визуального восприятия
 - Структурированный формат ошибок для отладки
 - Поддержка различных уровней детализации вывода
+- **Интеграция с улучшенными сообщениями об ошибках из этапа 4.5**
 
 **Основные команды:**
 ```bash
@@ -645,25 +763,26 @@ validator/
    Сообщения:   2 совместимых
 ```
 
-**Ошибка валидации:**
+**Ошибка валидации (с улучшенными сообщениями):**
 ```
 ❌ Контракты несовместимы
    Потребитель: user-service (канал: user/events)
    Поставщик:   - нет совместимого канала
    
-   Найдено каналов с протоколом amqp: 2
-   ├─ notifications/events - несовместимые сообщения
-   │  └─ требуется поле 'userId' в payload
-   └─ system/events - несовместимые сообщения
-      └─ тип поля 'timestamp' не совпадает (string ≠ integer)
+   VALIDATION_ERROR: Найдено каналов с протоколом amqp: 2
+   ├─ notifications/events - SCHEMA_MISMATCH: field 'userId' missing in provider schema
+   │  └─ Expected: [userId, email, timestamp], Got: [email, timestamp]
+   └─ system/events - TYPE_MISMATCH: field 'timestamp' type incompatible
+      └─ Expected: string, Got: integer at schema.properties.timestamp.type
 ```
 
-**Ошибки конфигурации:**
+**Ошибки конфигурации (с улучшенными сообщениями):**
 ```
-⚠️  Ошибка конфигурации
-   Файл: ./contract-tests.yaml
-   Проблема: не найдена спецификация потребителя
+⚠️  PARSE_ERROR: Ошибка конфигурации
+   Файл: ./contract-tests.yaml:3
+   Проблема: SPEC_NOT_FOUND - не найдена спецификация потребителя
    Путь: ./specs/consumer.yaml
+   Предложение: Проверьте правильность пути к файлу
 ```
 
 #### 6.2 Архитектура CLI

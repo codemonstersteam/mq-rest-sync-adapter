@@ -102,8 +102,8 @@ func (v *ChannelValidator) findMatchingProviderChannel(contractValidate *Contrac
 		if consumerChannel.OutMessage != nil && inMessage != nil {
 			if !v.areMessagesCompatible(consumerChannel.OutMessage, inMessage, contractValidate.ConsumerSpec, contractValidate.ProviderSpec) {
 				// Получаем детали о required полях для отладки
-				consumerReq := v.getRequiredFields(consumerChannel.OutMessage.Payload)
-				providerReq := v.getRequiredFields(inMessage.Payload)
+				consumerReq, _ := v.getRequiredFields(consumerChannel.OutMessage.Payload)
+				providerReq, _ := v.getRequiredFields(inMessage.Payload)
 				
 				// Добавим информацию о payload для отладки
 				consumerPayloadInfo := "nil"
@@ -134,8 +134,8 @@ func (v *ChannelValidator) findMatchingProviderChannel(contractValidate *Contrac
 		if consumerChannel.InMessage != nil && outMessage != nil {
 			if !v.areMessagesCompatible(consumerChannel.InMessage, outMessage, contractValidate.ConsumerSpec, contractValidate.ProviderSpec) {
 				// Получаем детали о required полях для отладки
-				consumerReq := v.getRequiredFields(consumerChannel.InMessage.Payload)
-				providerReq := v.getRequiredFields(outMessage.Payload)
+				consumerReq, _ := v.getRequiredFields(consumerChannel.InMessage.Payload)
+				providerReq, _ := v.getRequiredFields(outMessage.Payload)
 				candidateChannels = append(candidateChannels, candidateInfo + 
 					fmt.Sprintf(" - response message incompatible (consumer required fields: %v, provider required fields: %v)", 
 						consumerReq, providerReq))
@@ -524,8 +524,8 @@ func (v *ChannelValidator) areMessagesCompatible(msg1, msg2 *MessageInfo, spec1,
 	}
 
 	// Проверяем обязательные поля
-	required1 := v.getRequiredFields(msg1.Payload)
-	required2 := v.getRequiredFields(msg2.Payload)
+	required1, _ := v.getRequiredFields(msg1.Payload)
+	required2, _ := v.getRequiredFields(msg2.Payload)
 
 	if !v.areRequiredFieldsSetsIdentical(required1, required2) {
 		return false
@@ -644,23 +644,37 @@ func (v *ChannelValidator) getPropertyType(prop interface{}) string {
 }
 
 // getRequiredFields извлекает список обязательных полей
-func (v *ChannelValidator) getRequiredFields(payload map[string]interface{}) []string {
-	if required, ok := payload["required"].([]interface{}); ok {
+func (v *ChannelValidator) getRequiredFields(payload map[string]interface{}) ([]string, error) {
+	if payload == nil {
+		return nil, fmt.Errorf("payload is nil")
+	}
+	
+	// Проверяем наличие поля required
+	requiredField, exists := payload["required"]
+	if !exists {
+		return []string{}, nil // Нет required полей - это нормально
+	}
+	
+	// Обработка []interface{} (из YAML парсера)
+	if required, ok := requiredField.([]interface{}); ok {
 		result := make([]string, len(required))
 		for i, field := range required {
 			if str, ok := field.(string); ok {
 				result[i] = str
+			} else {
+				return nil, fmt.Errorf("invalid required field at index %d: expected string, got %T", i, field)
 			}
 		}
-		return result
+		return result, nil
 	}
 	
-	// Обработка случая когда required передается как []string (из convertSchema)
-	if required, ok := payload["required"].([]string); ok {
-		return required
+	// Обработка []string (из convertSchema)
+	if required, ok := requiredField.([]string); ok {
+		return required, nil
 	}
 	
-	return []string{}
+	// Если поле required есть, но имеет неправильный тип - это ошибка
+	return nil, fmt.Errorf("invalid required field type: expected []string or []interface{}, got %T", requiredField)
 }
 
 // escapeChannelName экранирует имя канала для использования в JSON Pointer
@@ -710,8 +724,8 @@ func (v *ChannelValidator) areObjectPropertiesCompatible(prop1, prop2 interface{
 		return false
 	}
 	
-	required1 := v.getRequiredFields(objMap1)
-	required2 := v.getRequiredFields(objMap2)
+	required1, _ := v.getRequiredFields(objMap1)
+	required2, _ := v.getRequiredFields(objMap2)
 	
 	// Проверяем что множества required полей идентичны
 	if !v.areRequiredFieldsSetsIdentical(required1, required2) {
