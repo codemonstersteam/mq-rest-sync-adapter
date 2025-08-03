@@ -208,7 +208,7 @@ func (v *ChannelValidator) extractConsumerMessages(spec *parser.AsyncAPISpec, ch
 	var outMessage, inMessage *MessageInfo
 
 	// Экранируем имя канала для поиска в ссылках
-	escapedChannelName := v.escapeChannelName(channelName)
+	escapedChannelName, _ := v.escapeChannelName(channelName) // ошибки не ожидаются для валидных имен
 	channelRef := "#/channels/" + escapedChannelName
 
 	// Ищем операции, которые ссылаются на этот канал
@@ -241,7 +241,7 @@ func (v *ChannelValidator) extractProviderMessages(spec *parser.AsyncAPISpec, ch
 	var inMessage, outMessage *MessageInfo
 
 	// Экранируем имя канала для поиска в ссылках
-	escapedChannelName := v.escapeChannelName(channelName)
+	escapedChannelName, _ := v.escapeChannelName(channelName) // ошибки не ожидаются для валидных имен
 	channelRef := "#/channels/" + escapedChannelName
 
 	// Ищем операции, которые ссылаются на этот канал
@@ -313,7 +313,7 @@ func (v *ChannelValidator) extractMessageInfo(spec *parser.AsyncAPISpec, msgRef 
 			// Извлекаем имя канала из пути
 			channelParts := strings.Split(channelPath, "/")
 			if len(channelParts) >= 2 {
-				channelName := v.unescapeChannelName(channelParts[len(channelParts)-1])
+				channelName, _ := v.unescapeChannelName(channelParts[len(channelParts)-1]) // ошибки игнорируются для обратной совместимости
 
 				if channel, exists := spec.Channels[channelName]; exists && channel.Messages != nil {
 					if msgData, exists := channel.Messages[messageName]; exists {
@@ -677,14 +677,54 @@ func (v *ChannelValidator) getRequiredFields(payload map[string]interface{}) ([]
 	return nil, fmt.Errorf("invalid required field type: expected []string or []interface{}, got %T", requiredField)
 }
 
-// escapeChannelName экранирует имя канала для использования в JSON Pointer
-func (v *ChannelValidator) escapeChannelName(name string) string {
-	return strings.ReplaceAll(name, "/", "~1")
+// escapeChannelName экранирует имя канала для использования в JSON Pointer по RFC 6901
+func (v *ChannelValidator) escapeChannelName(name string) (string, error) {
+	if name == "" {
+		return "", nil // пустая строка валидна
+	}
+	
+	// RFC 6901: сначала ~ → ~0, затем / → ~1
+	result := strings.ReplaceAll(name, "~", "~0")
+	result = strings.ReplaceAll(result, "/", "~1")
+	return result, nil
 }
 
-// unescapeChannelName разэкранирует имя канала
-func (v *ChannelValidator) unescapeChannelName(name string) string {
-	return strings.ReplaceAll(name, "~1", "/")
+// unescapeChannelName разэкранирует имя канала по RFC 6901
+func (v *ChannelValidator) unescapeChannelName(name string) (string, error) {
+	if name == "" {
+		return "", nil // пустая строка валидна
+	}
+	
+	// Валидация escape последовательностей
+	if err := v.validateEscapeSequences(name); err != nil {
+		return "", err
+	}
+	
+	// RFC 6901: сначала ~1 → /, затем ~0 → ~
+	result := strings.ReplaceAll(name, "~1", "/")
+	result = strings.ReplaceAll(result, "~0", "~")
+	return result, nil
+}
+
+// validateEscapeSequences проверяет корректность escape последовательностей
+func (v *ChannelValidator) validateEscapeSequences(name string) error {
+	for i := 0; i < len(name); i++ {
+		if name[i] != '~' {
+			continue
+		}
+		
+		// Проверяем, что после ~ есть символ
+		if i+1 >= len(name) {
+			return fmt.Errorf("invalid escape: incomplete '~' at end")
+		}
+		
+		// Проверяем, что после ~ идет только 0 или 1
+		next := name[i+1]
+		if next != '0' && next != '1' {
+			return fmt.Errorf("invalid escape: '~%c' not allowed", next)
+		}
+	}
+	return nil
 }
 
 // areArrayItemsCompatible проверяет совместимость элементов массивов
