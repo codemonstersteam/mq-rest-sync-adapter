@@ -742,6 +742,245 @@ func TestFindMatchingProviderChannel_EdgeCases(t *testing.T) {
 	}
 }
 
+// TestFindMatchingProviderChannel_CorrelationId тестирует поддержку Correlation ID для Request-Reply паттерна
+func TestFindMatchingProviderChannel_CorrelationId(t *testing.T) {
+	validator := NewChannelValidator()
+
+	testCases := []FindMatchingProviderChannelTestCase{
+		{
+			name:                "correlation_id_supported_by_both",
+			consumerSpec:        createConsumerSpecWithCorrelationId(),
+			providerSpec:        createProviderSpecWithCorrelationId(),
+			consumerChannelName: "user/events",
+			expectedMatch:       true,
+			expectedChannelName: "user/events",
+			expectedErrorContains: "",
+			communicationPattern: "request-reply",
+			protocol:            "amqp",
+			description:         "Consumer и Provider поддерживают Correlation ID - полная совместимость",
+		},
+		{
+			name:                "consumer_requires_correlation_id_provider_missing",
+			consumerSpec:        createConsumerSpecWithCorrelationId(),
+			providerSpec:        createBasicProviderSpec(), // без correlation ID
+			consumerChannelName: "user/events",
+			expectedMatch:       false,
+			expectedChannelName: "",
+			expectedErrorContains: "no compatible provider channel found",
+			communicationPattern: "request-reply",
+			protocol:            "amqp",
+			description:         "Consumer требует Correlation ID для связывания ответов, Provider не поддерживает - несовместимо",
+		},
+		{
+			name:                "provider_requires_correlation_id_consumer_missing",
+			consumerSpec:        createBasicConsumerSpec(), // без correlation ID
+			providerSpec:        createProviderSpecWithCorrelationId(),
+			consumerChannelName: "user/events",
+			expectedMatch:       false,
+			expectedChannelName: "",
+			expectedErrorContains: "no compatible provider channel found",
+			communicationPattern: "request-reply",
+			protocol:            "amqp",
+			description:         "Provider требует Correlation ID для обработки запросов, Consumer не предоставляет - несовместимо",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			contractValidate := &ContractValidate{
+				ConsumerChannelName: tc.consumerChannelName,
+				ProviderSpec:        tc.providerSpec,
+				ConsumerSpec:        tc.consumerSpec,
+			}
+
+			consumerChannel, err := validator.extractConsumerChannel(contractValidate)
+			require.NoError(t, err, "Failed to extract consumer channel for test: %s", tc.name)
+
+			// Act
+			result, err := validator.findMatchingProviderChannel(contractValidate, consumerChannel)
+
+			// Assert
+			if tc.expectedMatch {
+				require.NoError(t, err, "Expected successful match for test case: %s", tc.name)
+				require.NotNil(t, result, "Expected non-nil result for test case: %s", tc.name)
+				assert.Equal(t, tc.expectedChannelName, result.Name, "Channel name mismatch for test case: %s", tc.name)
+				assert.Equal(t, tc.protocol, result.Protocol, "Protocol mismatch for test case: %s", tc.name)
+
+				t.Logf("✅ %s: Found matching channel '%s' with protocol '%s'", tc.description, result.Name, result.Protocol)
+			} else {
+				require.Error(t, err, "Expected error for test case: %s", tc.name)
+				assert.Contains(t, err.Error(), tc.expectedErrorContains, "Error message mismatch for test case: %s", tc.name)
+				assert.Nil(t, result, "Expected nil result for failed test case: %s", tc.name)
+
+				t.Logf("❌ %s: %v", tc.description, err)
+			}
+		})
+	}
+}
+
+// Helper функции для создания спецификаций с Correlation ID
+
+func createConsumerSpecWithCorrelationId() *parser.AsyncAPISpec {
+	return &parser.AsyncAPISpec{
+		AsyncAPI: "3.0.0",
+		Info: parser.Info{
+			Title:   "Consumer Service with Correlation ID",
+			Version: "1.0.0",
+		},
+		Servers: map[string]parser.Server{
+			"production": {
+				Host:     "localhost:5672",
+				Protocol: "amqp",
+			},
+		},
+		Channels: map[string]parser.Channel{
+			"user/events": {
+				Address: "user.events",
+				Messages: map[string]parser.MessageRef{
+					"userSignup": {
+						Ref: "#/components/messages/UserSignupWithCorrelation",
+					},
+				},
+				Servers: []parser.ServerRef{
+					{Ref: "#/servers/production"},
+				},
+			},
+		},
+		Operations: map[string]parser.Operation{
+			"sendUserSignup": {
+				Action:  "send",
+				Channel: parser.ChannelRef{Ref: "#/channels/user~1events"},
+				Messages: []parser.MessageRef{
+					{Ref: "#/components/messages/UserSignupWithCorrelation"},
+				},
+				Reply: &parser.Reply{
+					Channel: parser.ChannelRef{Ref: "#/channels/user~1events"},
+					Messages: []parser.MessageRef{
+						{Ref: "#/components/messages/UserSignupResponseWithCorrelation"},
+					},
+				},
+			},
+		},
+		Components: &parser.Components{
+			Messages: map[string]parser.Message{
+				"UserSignupWithCorrelation": {
+					Name:        "UserSignupWithCorrelation",
+					ContentType: "application/json",
+					Payload: &parser.Schema{
+						Type: "object",
+						Properties: map[string]parser.Schema{
+							"userId": {Type: "string"},
+							"email":  {Type: "string"},
+						},
+						Required: []string{"userId", "email"},
+					},
+					CorrelationId: &parser.CorrelationId{
+						Location:    "$message.header#/correlationId",
+						Description: "Correlation ID for message tracking",
+					},
+				},
+				"UserSignupResponseWithCorrelation": {
+					Name:        "UserSignupResponseWithCorrelation",
+					ContentType: "application/json",
+					Payload: &parser.Schema{
+						Type: "object",
+						Properties: map[string]parser.Schema{
+							"success": {Type: "boolean"},
+							"userId":  {Type: "string"},
+						},
+						Required: []string{"success", "userId"},
+					},
+					CorrelationId: &parser.CorrelationId{
+						Location:    "$message.header#/correlationId",
+						Description: "Correlation ID for message tracking",
+					},
+				},
+			},
+		},
+	}
+}
+
+func createProviderSpecWithCorrelationId() *parser.AsyncAPISpec {
+	return &parser.AsyncAPISpec{
+		AsyncAPI: "3.0.0",
+		Info: parser.Info{
+			Title:   "Provider Service with Correlation ID",
+			Version: "1.0.0",
+		},
+		Servers: map[string]parser.Server{
+			"production": {
+				Host:     "localhost:5672",
+				Protocol: "amqp",
+			},
+		},
+		Channels: map[string]parser.Channel{
+			"user/events": {
+				Address: "user.events",
+				Messages: map[string]parser.MessageRef{
+					"userSignup": {
+						Ref: "#/components/messages/UserSignupWithCorrelation",
+					},
+				},
+				Servers: []parser.ServerRef{
+					{Ref: "#/servers/production"},
+				},
+			},
+		},
+		Operations: map[string]parser.Operation{
+			"receiveUserSignup": {
+				Action:  "receive",
+				Channel: parser.ChannelRef{Ref: "#/channels/user~1events"},
+				Messages: []parser.MessageRef{
+					{Ref: "#/components/messages/UserSignupWithCorrelation"},
+				},
+				Reply: &parser.Reply{
+					Channel: parser.ChannelRef{Ref: "#/channels/user~1events"},
+					Messages: []parser.MessageRef{
+						{Ref: "#/components/messages/UserSignupResponseWithCorrelation"},
+					},
+				},
+			},
+		},
+		Components: &parser.Components{
+			Messages: map[string]parser.Message{
+				"UserSignupWithCorrelation": {
+					Name:        "UserSignupWithCorrelation",
+					ContentType: "application/json",
+					Payload: &parser.Schema{
+						Type: "object",
+						Properties: map[string]parser.Schema{
+							"userId": {Type: "string"},
+							"email":  {Type: "string"},
+						},
+						Required: []string{"userId", "email"},
+					},
+					CorrelationId: &parser.CorrelationId{
+						Location:    "$message.header#/correlationId",
+						Description: "Correlation ID for message tracking",
+					},
+				},
+				"UserSignupResponseWithCorrelation": {
+					Name:        "UserSignupResponseWithCorrelation",
+					ContentType: "application/json",
+					Payload: &parser.Schema{
+						Type: "object",
+						Properties: map[string]parser.Schema{
+							"success": {Type: "boolean"},
+							"userId":  {Type: "string"},
+						},
+						Required: []string{"success", "userId"},
+					},
+					CorrelationId: &parser.CorrelationId{
+						Location:    "$message.header#/correlationId",
+						Description: "Correlation ID for message tracking",
+					},
+				},
+			},
+		},
+	}
+}
+
 func TestFindMatchingProviderChannel_PubSub(t *testing.T) {
 	t.Skip("Будет реализовано в следующей итерации")
 }

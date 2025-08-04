@@ -92,7 +92,15 @@ type ChannelInfo struct {
 
 // MessageInfo информация о сообщении
 type MessageInfo struct {
-	Name        string
-	ContentType string
-	Payload     map[string]interface{}
+	Name          string
+	ContentType   string
+	Payload       map[string]interface{}
+	Headers       map[string]interface{} // Заголовки сообщения (headers schema)
+	CorrelationId *CorrelationIdInfo     // Информация о correlation ID
+}
+
+// CorrelationIdInfo информация о correlation ID
+type CorrelationIdInfo struct {
+	Location    string // Расположение correlation ID в сообщении
+	Description string // Описание использования correlation ID
 }

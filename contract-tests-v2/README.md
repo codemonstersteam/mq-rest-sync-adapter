@@ -522,13 +522,14 @@ if err != nil {
 - [x] Полная совместимость: consumer(out+in) ↔ provider(in+out)
 - [x] Идентичные схемы сообщений для request и response  
 - [x] Совместимые типы с расширенными полями у поставщика
-- [ ] Correlation ID поддержка для связывания запроса с ответом
+- [x] Correlation ID поддержка для связывания запроса с ответом
 
 **Несовместимые кейсы:**
 - [x] Request совместим, response несовместим
 - [x] Request несовместим, response совместим
 - [x] Оба сообщения несовместимы
-- [ ] Отсутствует correlation ID при необходимости
+- [x] Consumer требует correlation ID, Provider не поддерживает - несовместимо
+- [x] Provider требует correlation ID, Consumer не предоставляет - несовместимо
 
 ##### **2. Fire-and-Forget Pattern (Отправить-и-Забыть)** 
 Асинхронный паттерн без ожидания ответа.
@@ -625,7 +626,7 @@ func TestFindMatchingProviderChannel_AsyncAPI30Features(t *testing.T) { ... }
 - ✅ Production-ready сценарии для микросервисной архитектуры
 - ✅ Детальная диагностика ошибок совместимости
 
-**Статус:** ✅ **ЧАСТИЧНО РЕАЛИЗОВАНО** (17 тест-кейсов, 2 паттерна коммуникации, 1 исправленный баг)
+**Статус:** ✅ **РАСШИРЕНО** (20 тест-кейсов, 2 паттерна коммуникации, 2 исправленных бага, валидация Correlation ID)
 
 ### Метрики цели ✅ ДОСТИГНУТО!
 
@@ -669,11 +670,23 @@ func TestFindMatchingProviderChannel_AsyncAPI30Features(t *testing.T) { ... }
 - **12 helper функций** для создания тестовых спецификаций AsyncAPI 3.0
 - **4 группы тестов:** Request-Reply успешные, Request-Reply несовместимые, Fire-and-Forget, граничные случаи
 
-**Исправленный критический баг:**
+**Исправленные критические баги:**
+
+**1. ContentType валидация:**
 - **Проблема:** Функция `areMessagesCompatible` не проверяла ContentType сообщений
 - **Решение:** Добавлена проверка `if msg1.ContentType != msg2.ContentType { return false }`
 - **Файл:** `validator/channels_validator.go:519-521`
 - **Результат:** Тест `different_content_types` корректно обнаруживает несовместимость
+
+**2. Correlation ID валидация:**
+- **Проблема:** Отсутствовала валидация Correlation ID для Request-Reply паттерна
+- **Решение:** Реализована полная поддержка валидации заголовков согласно AsyncAPI 3.0
+- **Компоненты:**
+  - Расширена структура `MessageInfo` (Headers, CorrelationId)
+  - Обновлены функции `extractMessageInfo` для извлечения заголовков
+  - Добавлена функция `areCorrelationIdsCompatible` 
+- **Файлы:** `validator/types.go`, `validator/channels_validator.go`
+- **Результат:** 3 тест-кейса Correlation ID успешно проходят
 
 ## 🔄 СЛЕДУЮЩИЕ ЭТАПЫ РАЗРАБОТКИ
 

@@ -294,10 +294,27 @@ func (v *ChannelValidator) extractMessageInfo(spec *parser.AsyncAPISpec, msgRef 
 					}
 				}
 				
+				// Извлекаем headers
+				var headers map[string]interface{}
+				if msg.Headers != nil {
+					headers = v.convertSchema(msg.Headers)
+				}
+				
+				// Извлекаем correlationId info
+				var correlationIdInfo *CorrelationIdInfo
+				if msg.CorrelationId != nil {
+					correlationIdInfo = &CorrelationIdInfo{
+						Location:    msg.CorrelationId.Location,
+						Description: msg.CorrelationId.Description,
+					}
+				}
+				
 				return &MessageInfo{
-					Name:        msgName, // Используем имя из ключа map
-					ContentType: msg.ContentType,
-					Payload:     payload,
+					Name:          msgName, // Используем имя из ключа map
+					ContentType:   msg.ContentType,
+					Payload:       payload,
+					Headers:       headers,
+					CorrelationId: correlationIdInfo,
 				}, nil
 			}
 		}
@@ -344,10 +361,27 @@ func (v *ChannelValidator) extractMessageInfo(spec *parser.AsyncAPISpec, msgRef 
 								msgName = messageName
 							}
 							
+							// Извлекаем headers
+							var headers map[string]interface{}
+							if msgData.Message.Headers != nil {
+								headers = v.convertSchema(msgData.Message.Headers)
+							}
+							
+							// Извлекаем correlationId info
+							var correlationIdInfo *CorrelationIdInfo
+							if msgData.Message.CorrelationId != nil {
+								correlationIdInfo = &CorrelationIdInfo{
+									Location:    msgData.Message.CorrelationId.Location,
+									Description: msgData.Message.CorrelationId.Description,
+								}
+							}
+							
 							return &MessageInfo{
-								Name:        msgName,
-								ContentType: msgData.Message.ContentType,
-								Payload:     payload,
+								Name:          msgName,
+								ContentType:   msgData.Message.ContentType,
+								Payload:       payload,
+								Headers:       headers,
+								CorrelationId: correlationIdInfo,
 							}, nil
 						}
 					}
@@ -517,6 +551,11 @@ func (v *ChannelValidator) areMessagesCompatible(msg1, msg2 *MessageInfo, spec1,
 
 	// Проверяем совместимость ContentType
 	if msg1.ContentType != msg2.ContentType {
+		return false
+	}
+
+	// Проверяем совместимость Correlation ID
+	if !v.areCorrelationIdsCompatible(msg1.CorrelationId, msg2.CorrelationId) {
 		return false
 	}
 
@@ -813,4 +852,23 @@ func (v *ChannelValidator) getObjectProperties(prop interface{}) map[string]inte
 		}
 	}
 	return make(map[string]interface{})
+}
+
+// areCorrelationIdsCompatible проверяет совместимость Correlation ID между сообщениями
+func (v *ChannelValidator) areCorrelationIdsCompatible(corrId1, corrId2 *CorrelationIdInfo) bool {
+	// Если оба отсутствуют - совместимо
+	if corrId1 == nil && corrId2 == nil {
+		return true
+	}
+	
+	// Если один присутствует, а другой отсутствует - несовместимо
+	// Это критично для Request-Reply паттерна
+	if corrId1 == nil || corrId2 == nil {
+		return false
+	}
+	
+	// Если оба присутствуют, проверяем совместимость location
+	// В AsyncAPI 3.0 location указывает, где в сообщении находится correlation ID
+	// Они должны использовать одинаковый location для совместимости
+	return corrId1.Location == corrId2.Location
 }
