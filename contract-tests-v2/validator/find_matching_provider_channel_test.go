@@ -610,6 +610,30 @@ func TestFindMatchingProviderChannel_FireAndForget(t *testing.T) {
 			protocol:            "mqtt",
 			description:         "Provider отправляет ответ, но Consumer не ждет",
 		},
+		{
+			name:                "fire_and_forget_incoming_message_compatibility_only",
+			consumerSpec:        createFireAndForgetConsumerSpecWithCompatibleMessage(),
+			providerSpec:        createFireAndForgetProviderSpecWithCompatibleMessage(),
+			consumerChannelName: "events/process",
+			expectedMatch:       true,
+			expectedChannelName: "events/process",
+			expectedErrorContains: "",
+			communicationPattern: "fire-and-forget",
+			protocol:            "mqtt",
+			description:         "Совместимость только входящих сообщений в Fire-and-Forget паттерне",
+		},
+		{
+			name:                "fire_and_forget_incompatible_main_message_structure",
+			consumerSpec:        createFireAndForgetConsumerSpecWithIncompatibleMessage(),
+			providerSpec:        createFireAndForgetProviderSpecWithIncompatibleMessage(),
+			consumerChannelName: "events/process",
+			expectedMatch:       false,
+			expectedChannelName: "",
+			expectedErrorContains: "request message incompatible",
+			communicationPattern: "fire-and-forget",
+			protocol:            "mqtt",
+			description:         "Несовместимые структуры основного сообщения в Fire-and-Forget паттерне",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -974,6 +998,234 @@ func createProviderSpecWithCorrelationId() *parser.AsyncAPISpec {
 					CorrelationId: &parser.CorrelationId{
 						Location:    "$message.header#/correlationId",
 						Description: "Correlation ID for message tracking",
+					},
+				},
+			},
+		},
+	}
+}
+
+// Helper функции для Fire-and-Forget с совместимыми сообщениями
+
+func createFireAndForgetConsumerSpecWithCompatibleMessage() *parser.AsyncAPISpec {
+	return &parser.AsyncAPISpec{
+		AsyncAPI: "3.0.0",
+		Info: parser.Info{
+			Title:   "Fire-and-Forget Consumer with Compatible Message",
+			Version: "1.0.0",
+		},
+		Servers: map[string]parser.Server{
+			"development": {
+				Host:     "localhost:1883",
+				Protocol: "mqtt",
+			},
+		},
+		Channels: map[string]parser.Channel{
+			"events/process": {
+				Address: "events.process",
+				Messages: map[string]parser.MessageRef{
+					"eventData": {
+						Ref: "#/components/messages/EventData",
+					},
+				},
+				Servers: []parser.ServerRef{
+					{Ref: "#/servers/development"},
+				},
+			},
+		},
+		Operations: map[string]parser.Operation{
+			"sendEventData": {
+				Action:  "send",
+				Channel: parser.ChannelRef{Ref: "#/channels/events~1process"},
+				Messages: []parser.MessageRef{
+					{Ref: "#/components/messages/EventData"},
+				},
+				// Нет Reply - это Fire-and-Forget
+			},
+		},
+		Components: &parser.Components{
+			Messages: map[string]parser.Message{
+				"EventData": {
+					Name:        "EventData",
+					ContentType: "application/json",
+					Payload: &parser.Schema{
+						Type: "object",
+						Properties: map[string]parser.Schema{
+							"eventId":   {Type: "string"},
+							"timestamp": {Type: "string"},
+							"data":      {Type: "object"},
+						},
+						Required: []string{"eventId", "timestamp"},
+					},
+				},
+			},
+		},
+	}
+}
+
+func createFireAndForgetProviderSpecWithCompatibleMessage() *parser.AsyncAPISpec {
+	return &parser.AsyncAPISpec{
+		AsyncAPI: "3.0.0",
+		Info: parser.Info{
+			Title:   "Fire-and-Forget Provider with Compatible Message",
+			Version: "1.0.0",
+		},
+		Servers: map[string]parser.Server{
+			"development": {
+				Host:     "localhost:1883",
+				Protocol: "mqtt",
+			},
+		},
+		Channels: map[string]parser.Channel{
+			"events/process": {
+				Address: "events.process",
+				Messages: map[string]parser.MessageRef{
+					"eventData": {
+						Ref: "#/components/messages/EventData",
+					},
+				},
+				Servers: []parser.ServerRef{
+					{Ref: "#/servers/development"},
+				},
+			},
+		},
+		Operations: map[string]parser.Operation{
+			"receiveEventData": {
+				Action:  "receive",
+				Channel: parser.ChannelRef{Ref: "#/channels/events~1process"},
+				Messages: []parser.MessageRef{
+					{Ref: "#/components/messages/EventData"},
+				},
+				// Нет Reply - это Fire-and-Forget
+			},
+		},
+		Components: &parser.Components{
+			Messages: map[string]parser.Message{
+				"EventData": {
+					Name:        "EventData",
+					ContentType: "application/json",
+					Payload: &parser.Schema{
+						Type: "object",
+						Properties: map[string]parser.Schema{
+							"eventId":   {Type: "string"},
+							"timestamp": {Type: "string"},
+							"data":      {Type: "object"},
+						},
+						Required: []string{"eventId", "timestamp"}, // Совместимые required поля
+					},
+				},
+			},
+		},
+	}
+}
+
+// Helper функции для Fire-and-Forget с несовместимыми сообщениями
+
+func createFireAndForgetConsumerSpecWithIncompatibleMessage() *parser.AsyncAPISpec {
+	return &parser.AsyncAPISpec{
+		AsyncAPI: "3.0.0",
+		Info: parser.Info{
+			Title:   "Fire-and-Forget Consumer with Incompatible Message",
+			Version: "1.0.0",
+		},
+		Servers: map[string]parser.Server{
+			"development": {
+				Host:     "localhost:1883",
+				Protocol: "mqtt",
+			},
+		},
+		Channels: map[string]parser.Channel{
+			"events/process": {
+				Address: "events.process",
+				Messages: map[string]parser.MessageRef{
+					"eventData": {
+						Ref: "#/components/messages/EventData",
+					},
+				},
+				Servers: []parser.ServerRef{
+					{Ref: "#/servers/development"},
+				},
+			},
+		},
+		Operations: map[string]parser.Operation{
+			"sendEventData": {
+				Action:  "send",
+				Channel: parser.ChannelRef{Ref: "#/channels/events~1process"},
+				Messages: []parser.MessageRef{
+					{Ref: "#/components/messages/EventData"},
+				},
+				// Нет Reply - это Fire-and-Forget
+			},
+		},
+		Components: &parser.Components{
+			Messages: map[string]parser.Message{
+				"EventData": {
+					Name:        "EventData",
+					ContentType: "application/json",
+					Payload: &parser.Schema{
+						Type: "object",
+						Properties: map[string]parser.Schema{
+							"userId":    {Type: "string"},
+							"action":    {Type: "string"},
+							"metadata":  {Type: "object"},
+						},
+						Required: []string{"userId", "action"}, // Другие required поля
+					},
+				},
+			},
+		},
+	}
+}
+
+func createFireAndForgetProviderSpecWithIncompatibleMessage() *parser.AsyncAPISpec {
+	return &parser.AsyncAPISpec{
+		AsyncAPI: "3.0.0",
+		Info: parser.Info{
+			Title:   "Fire-and-Forget Provider with Incompatible Message",
+			Version: "1.0.0",
+		},
+		Servers: map[string]parser.Server{
+			"development": {
+				Host:     "localhost:1883",
+				Protocol: "mqtt",
+			},
+		},
+		Channels: map[string]parser.Channel{
+			"events/process": {
+				Address: "events.process",
+				Messages: map[string]parser.MessageRef{
+					"eventData": {
+						Ref: "#/components/messages/EventData",
+					},
+				},
+				Servers: []parser.ServerRef{
+					{Ref: "#/servers/development"},
+				},
+			},
+		},
+		Operations: map[string]parser.Operation{
+			"receiveEventData": {
+				Action:  "receive",
+				Channel: parser.ChannelRef{Ref: "#/channels/events~1process"},
+				Messages: []parser.MessageRef{
+					{Ref: "#/components/messages/EventData"},
+				},
+				// Нет Reply - это Fire-and-Forget
+			},
+		},
+		Components: &parser.Components{
+			Messages: map[string]parser.Message{
+				"EventData": {
+					Name:        "EventData",
+					ContentType: "application/json",
+					Payload: &parser.Schema{
+						Type: "object",
+						Properties: map[string]parser.Schema{
+							"eventId":   {Type: "string"},
+							"timestamp": {Type: "string"},
+							"status":    {Type: "string"},
+						},
+						Required: []string{"eventId", "timestamp", "status"}, // Несовместимые required поля
 					},
 				},
 			},
