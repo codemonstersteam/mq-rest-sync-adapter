@@ -515,6 +515,11 @@ func (v *ChannelValidator) areMessagesCompatible(msg1, msg2 *MessageInfo, spec1,
 		return false
 	}
 
+	// Проверяем совместимость ContentType
+	if msg1.ContentType != msg2.ContentType {
+		return false
+	}
+
 	// Проверяем наличие свойств (обязательно по нашему стандарту)
 	props1, ok1 := msg1.Payload["properties"].(map[string]interface{})
 	props2, ok2 := msg2.Payload["properties"].(map[string]interface{})
