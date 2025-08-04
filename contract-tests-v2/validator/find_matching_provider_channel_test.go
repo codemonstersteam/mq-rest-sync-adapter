@@ -629,7 +629,7 @@ func TestFindMatchingProviderChannel_FireAndForget(t *testing.T) {
 			consumerChannelName: "events/process",
 			expectedMatch:       false,
 			expectedChannelName: "",
-			expectedErrorContains: "request message incompatible",
+			expectedErrorContains: "Fire-and-Forget failed: message incompatible",
 			communicationPattern: "fire-and-forget",
 			protocol:            "mqtt",
 			description:         "Несовместимые структуры основного сообщения в Fire-and-Forget паттерне",
@@ -1234,5 +1234,608 @@ func createFireAndForgetProviderSpecWithIncompatibleMessage() *parser.AsyncAPISp
 }
 
 func TestFindMatchingProviderChannel_PubSub(t *testing.T) {
-	t.Skip("Будет реализовано в следующей итерации")
+	validator := NewChannelValidator()
+
+	testCases := []FindMatchingProviderChannelTestCase{
+		{
+			name:                "pub_sub_one_publisher_multiple_subscribers",
+			consumerSpec:        createPubSubSubscriber(),
+			providerSpec:        createPubSubPublisher(),
+			consumerChannelName: "notifications/events",
+			expectedMatch:       true,
+			expectedChannelName: "notifications/events",
+			expectedErrorContains: "",
+			communicationPattern: "pub-sub",
+			protocol:            "mqtt",
+			description:         "Один Publisher (Provider) → Множественные Subscribers (Consumer)",
+		},
+		{
+			name:                "pub_sub_multiple_channels_same_message_format",
+			consumerSpec:        createPubSubSubscriberMultipleChannels(),
+			providerSpec:        createPubSubPublisherMultipleChannels(),
+			consumerChannelName: "user/created",
+			expectedMatch:       true,
+			expectedChannelName: "", // Любой совместимый канал (user/created, user/updated, user/deleted)
+			expectedErrorContains: "",
+			communicationPattern: "pub-sub",
+			protocol:            "mqtt",
+			description:         "Множественные каналы с одинаковым форматом сообщений",
+		},
+		{
+			name:                "pub_sub_topic_based_routing",
+			consumerSpec:        createPubSubSubscriberTopicRouting(),
+			providerSpec:        createPubSubPublisherTopicRouting(),
+			consumerChannelName: "notifications/email",
+			expectedMatch:       true,
+			expectedChannelName: "notifications/email",
+			expectedErrorContains: "",
+			communicationPattern: "pub-sub",
+			protocol:            "mqtt",
+			description:         "Topic-based routing через имена каналов",
+		},
+		{
+			name:                "pub_sub_broadcast_to_all_subscribers",
+			consumerSpec:        createPubSubSubscriberBroadcast(),
+			providerSpec:        createPubSubPublisherBroadcast(),
+			consumerChannelName: "broadcast/notifications",
+			expectedMatch:       true,
+			expectedChannelName: "broadcast/notifications",
+			expectedErrorContains: "",
+			communicationPattern: "pub-sub",
+			protocol:            "mqtt",
+			description:         "Broadcast сообщения для всех подписчиков",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			contractValidate := &ContractValidate{
+				ConsumerChannelName: tc.consumerChannelName,
+				ProviderSpec:        tc.providerSpec,
+				ConsumerSpec:        tc.consumerSpec,
+			}
+
+			// Первоначально извлекаем канал потребителя
+			consumerChannel, err := validator.extractConsumerChannel(contractValidate)
+			require.NoError(t, err, "Failed to extract consumer channel for test: %s", tc.name)
+
+			// Act
+			result, err := validator.findMatchingProviderChannel(contractValidate, consumerChannel)
+
+			// Assert
+			if tc.expectedMatch {
+				require.NoError(t, err, "Expected successful match for test case: %s", tc.name)
+				require.NotNil(t, result, "Expected non-nil result for test case: %s", tc.name)
+				
+				// Проверяем имя канала только если оно задано (не пустое)
+				if tc.expectedChannelName != "" {
+					assert.Equal(t, tc.expectedChannelName, result.Name, "Channel name mismatch for test case: %s", tc.name)
+				}
+				assert.Equal(t, tc.protocol, result.Protocol, "Protocol mismatch for test case: %s", tc.name)
+				
+				// Специфичные проверки для Pub-Sub паттерна
+				t.Logf("✅ Pub-Sub pattern validated: %s", tc.description)
+				t.Logf("   Consumer (Subscriber): %s with action 'receive'", consumerChannel.Name)
+				t.Logf("   Provider (Publisher): %s with action 'send'", result.Name)
+				t.Logf("   Protocol: %s", result.Protocol)
+			} else {
+				require.Error(t, err, "Expected error for test case: %s", tc.name)
+				if tc.expectedErrorContains != "" {
+					assert.Contains(t, err.Error(), tc.expectedErrorContains, "Error message mismatch for test case: %s", tc.name)
+				}
+				t.Logf("❌ Expected incompatibility for %s: %v", tc.description, err)
+			}
+		})
+	}
+}
+
+// ====== PUBLISH-SUBSCRIBE PATTERN HELPER FUNCTIONS ======
+
+// Helper функции для Pub-Sub паттерна (строка 551): Один Publisher → Множественные Subscribers
+
+func createPubSubSubscriber() *parser.AsyncAPISpec {
+	return &parser.AsyncAPISpec{
+		AsyncAPI: "3.0.0",
+		Info: parser.Info{
+			Title:   "Pub-Sub Subscriber (Consumer)",
+			Version: "1.0.0",
+		},
+		Servers: map[string]parser.Server{
+			"mqtt-broker": {
+				Host:     "localhost:1883",
+				Protocol: "mqtt",
+			},
+		},
+		Channels: map[string]parser.Channel{
+			"notifications/events": {
+				Address: "notifications.events",
+				Messages: map[string]parser.MessageRef{
+					"eventNotification": {
+						Ref: "#/components/messages/EventNotification",
+					},
+				},
+				Servers: []parser.ServerRef{
+					{Ref: "#/servers/mqtt-broker"},
+				},
+			},
+		},
+		Operations: map[string]parser.Operation{
+			"subscribeToEvents": {
+				Action:  "receive", // Consumer получает сообщения в Pub-Sub
+				Channel: parser.ChannelRef{Ref: "#/channels/notifications~1events"},
+				Messages: []parser.MessageRef{
+					{Ref: "#/components/messages/EventNotification"},
+				},
+				// Нет Reply - это Pub-Sub паттерн
+			},
+		},
+		Components: &parser.Components{
+			Messages: map[string]parser.Message{
+				"EventNotification": {
+					Name:        "EventNotification",
+					ContentType: "application/json",
+					Payload: &parser.Schema{
+						Type: "object",
+						Properties: map[string]parser.Schema{
+							"eventId":   {Type: "string"},
+							"eventType": {Type: "string"},
+							"timestamp": {Type: "string"},
+							"data":      {Type: "object"},
+						},
+						Required: []string{"eventId", "eventType", "timestamp"},
+					},
+				},
+			},
+		},
+	}
+}
+
+func createPubSubPublisher() *parser.AsyncAPISpec {
+	return &parser.AsyncAPISpec{
+		AsyncAPI: "3.0.0",
+		Info: parser.Info{
+			Title:   "Pub-Sub Publisher (Provider)",
+			Version: "1.0.0",
+		},
+		Servers: map[string]parser.Server{
+			"mqtt-broker": {
+				Host:     "localhost:1883",
+				Protocol: "mqtt",
+			},
+		},
+		Channels: map[string]parser.Channel{
+			"notifications/events": {
+				Address: "notifications.events",
+				Messages: map[string]parser.MessageRef{
+					"eventNotification": {
+						Ref: "#/components/messages/EventNotification",
+					},
+				},
+				Servers: []parser.ServerRef{
+					{Ref: "#/servers/mqtt-broker"},
+				},
+			},
+		},
+		Operations: map[string]parser.Operation{
+			"publishEvents": {
+				Action:  "send", // Provider отправляет сообщения в Pub-Sub
+				Channel: parser.ChannelRef{Ref: "#/channels/notifications~1events"},
+				Messages: []parser.MessageRef{
+					{Ref: "#/components/messages/EventNotification"},
+				},
+				// Нет Reply - это Pub-Sub паттерн
+			},
+		},
+		Components: &parser.Components{
+			Messages: map[string]parser.Message{
+				"EventNotification": {
+					Name:        "EventNotification",
+					ContentType: "application/json",
+					Payload: &parser.Schema{
+						Type: "object",
+						Properties: map[string]parser.Schema{
+							"eventId":   {Type: "string"},
+							"eventType": {Type: "string"},
+							"timestamp": {Type: "string"},
+							"data":      {Type: "object"},
+						},
+						Required: []string{"eventId", "eventType", "timestamp"}, // Совместимые required поля
+					},
+				},
+			},
+		},
+	}
+}
+
+// Helper функции для строки 552: Множественные каналы с одинаковым форматом сообщений
+
+func createPubSubSubscriberMultipleChannels() *parser.AsyncAPISpec {
+	return &parser.AsyncAPISpec{
+		AsyncAPI: "3.0.0",
+		Info: parser.Info{
+			Title:   "Multi-Channel Subscriber",
+			Version: "1.0.0",
+		},
+		Servers: map[string]parser.Server{
+			"mqtt-broker": {
+				Host:     "localhost:1883",
+				Protocol: "mqtt",
+			},
+		},
+		Channels: map[string]parser.Channel{
+			"user/created": {
+				Address: "user.created",
+				Messages: map[string]parser.MessageRef{
+					"userEvent": {Ref: "#/components/messages/UserEvent"},
+				},
+				Servers: []parser.ServerRef{{Ref: "#/servers/mqtt-broker"}},
+			},
+			"user/updated": {
+				Address: "user.updated",
+				Messages: map[string]parser.MessageRef{
+					"userEvent": {Ref: "#/components/messages/UserEvent"},
+				},
+				Servers: []parser.ServerRef{{Ref: "#/servers/mqtt-broker"}},
+			},
+			"user/deleted": {
+				Address: "user.deleted", 
+				Messages: map[string]parser.MessageRef{
+					"userEvent": {Ref: "#/components/messages/UserEvent"},
+				},
+				Servers: []parser.ServerRef{{Ref: "#/servers/mqtt-broker"}},
+			},
+		},
+		Operations: map[string]parser.Operation{
+			"subscribeUserCreated": {
+				Action:   "receive",
+				Channel:  parser.ChannelRef{Ref: "#/channels/user~1created"},
+				Messages: []parser.MessageRef{{Ref: "#/components/messages/UserEvent"}},
+			},
+			"subscribeUserUpdated": {
+				Action:   "receive",
+				Channel:  parser.ChannelRef{Ref: "#/channels/user~1updated"},
+				Messages: []parser.MessageRef{{Ref: "#/components/messages/UserEvent"}},
+			},
+			"subscribeUserDeleted": {
+				Action:   "receive",
+				Channel:  parser.ChannelRef{Ref: "#/channels/user~1deleted"},
+				Messages: []parser.MessageRef{{Ref: "#/components/messages/UserEvent"}},
+			},
+		},
+		Components: &parser.Components{
+			Messages: map[string]parser.Message{
+				"UserEvent": {
+					Name:        "UserEvent",
+					ContentType: "application/json",
+					Payload: &parser.Schema{
+						Type: "object",
+						Properties: map[string]parser.Schema{
+							"userId":    {Type: "string"},
+							"action":    {Type: "string"},
+							"timestamp": {Type: "string"},
+						},
+						Required: []string{"userId", "action", "timestamp"},
+					},
+				},
+			},
+		},
+	}
+}
+
+func createPubSubPublisherMultipleChannels() *parser.AsyncAPISpec {
+	return &parser.AsyncAPISpec{
+		AsyncAPI: "3.0.0",
+		Info: parser.Info{
+			Title:   "Multi-Channel Publisher",
+			Version: "1.0.0",
+		},
+		Servers: map[string]parser.Server{
+			"mqtt-broker": {
+				Host:     "localhost:1883",
+				Protocol: "mqtt",
+			},
+		},
+		Channels: map[string]parser.Channel{
+			"user/created": {
+				Address: "user.created",
+				Messages: map[string]parser.MessageRef{
+					"userEvent": {Ref: "#/components/messages/UserEvent"},
+				},
+				Servers: []parser.ServerRef{{Ref: "#/servers/mqtt-broker"}},
+			},
+			"user/updated": {
+				Address: "user.updated",
+				Messages: map[string]parser.MessageRef{
+					"userEvent": {Ref: "#/components/messages/UserEvent"},
+				},
+				Servers: []parser.ServerRef{{Ref: "#/servers/mqtt-broker"}},
+			},
+			"user/deleted": {
+				Address: "user.deleted",
+				Messages: map[string]parser.MessageRef{
+					"userEvent": {Ref: "#/components/messages/UserEvent"},
+				},
+				Servers: []parser.ServerRef{{Ref: "#/servers/mqtt-broker"}},
+			},
+		},
+		Operations: map[string]parser.Operation{
+			"publishUserCreated": {
+				Action:   "send", // Publisher отправляет в множественные каналы
+				Channel:  parser.ChannelRef{Ref: "#/channels/user~1created"},
+				Messages: []parser.MessageRef{{Ref: "#/components/messages/UserEvent"}},
+			},
+			"publishUserUpdated": {
+				Action:   "send",
+				Channel:  parser.ChannelRef{Ref: "#/channels/user~1updated"},
+				Messages: []parser.MessageRef{{Ref: "#/components/messages/UserEvent"}},
+			},
+			"publishUserDeleted": {
+				Action:   "send",
+				Channel:  parser.ChannelRef{Ref: "#/channels/user~1deleted"},
+				Messages: []parser.MessageRef{{Ref: "#/components/messages/UserEvent"}},
+			},
+		},
+		Components: &parser.Components{
+			Messages: map[string]parser.Message{
+				"UserEvent": {
+					Name:        "UserEvent",
+					ContentType: "application/json",
+					Payload: &parser.Schema{
+						Type: "object",
+						Properties: map[string]parser.Schema{
+							"userId":    {Type: "string"},
+							"action":    {Type: "string"},
+							"timestamp": {Type: "string"},
+						},
+						Required: []string{"userId", "action", "timestamp"}, // Совместимые поля
+					},
+				},
+			},
+		},
+	}
+}
+
+// Helper функции для строки 553: Topic-based routing через имена каналов
+
+func createPubSubSubscriberTopicRouting() *parser.AsyncAPISpec {
+	return &parser.AsyncAPISpec{
+		AsyncAPI: "3.0.0",
+		Info: parser.Info{
+			Title:   "Topic-Based Subscriber",
+			Version: "1.0.0",
+		},
+		Servers: map[string]parser.Server{
+			"mqtt-broker": {
+				Host:     "localhost:1883",
+				Protocol: "mqtt",
+			},
+		},
+		Channels: map[string]parser.Channel{
+			"notifications/email": {
+				Address: "notifications.email", // topic.subtopic routing
+				Messages: map[string]parser.MessageRef{
+					"notification": {Ref: "#/components/messages/Notification"},
+				},
+				Servers: []parser.ServerRef{{Ref: "#/servers/mqtt-broker"}},
+			},
+			"notifications/sms": {
+				Address: "notifications.sms",
+				Messages: map[string]parser.MessageRef{
+					"notification": {Ref: "#/components/messages/Notification"},
+				},
+				Servers: []parser.ServerRef{{Ref: "#/servers/mqtt-broker"}},
+			},
+			"notifications/push": {
+				Address: "notifications.push",
+				Messages: map[string]parser.MessageRef{
+					"notification": {Ref: "#/components/messages/Notification"},
+				},
+				Servers: []parser.ServerRef{{Ref: "#/servers/mqtt-broker"}},
+			},
+		},
+		Operations: map[string]parser.Operation{
+			"subscribeEmailNotifications": {
+				Action:   "receive", // Подписка на email notifications
+				Channel:  parser.ChannelRef{Ref: "#/channels/notifications~1email"},
+				Messages: []parser.MessageRef{{Ref: "#/components/messages/Notification"}},
+			},
+		},
+		Components: &parser.Components{
+			Messages: map[string]parser.Message{
+				"Notification": {
+					Name:        "Notification",
+					ContentType: "application/json",
+					Payload: &parser.Schema{
+						Type: "object",
+						Properties: map[string]parser.Schema{
+							"notificationId": {Type: "string"},
+							"recipient":      {Type: "string"},
+							"content":        {Type: "string"},
+							"channel":        {Type: "string"}, // email, sms, push
+						},
+						Required: []string{"notificationId", "recipient", "content"},
+					},
+				},
+			},
+		},
+	}
+}
+
+func createPubSubPublisherTopicRouting() *parser.AsyncAPISpec {
+	return &parser.AsyncAPISpec{
+		AsyncAPI: "3.0.0",
+		Info: parser.Info{
+			Title:   "Topic-Based Publisher",
+			Version: "1.0.0",
+		},
+		Servers: map[string]parser.Server{
+			"mqtt-broker": {
+				Host:     "localhost:1883",
+				Protocol: "mqtt",
+			},
+		},
+		Channels: map[string]parser.Channel{
+			"notifications/email": {
+				Address: "notifications.email",
+				Messages: map[string]parser.MessageRef{
+					"notification": {Ref: "#/components/messages/Notification"},
+				},
+				Servers: []parser.ServerRef{{Ref: "#/servers/mqtt-broker"}},
+			},
+			"notifications/sms": {
+				Address: "notifications.sms",
+				Messages: map[string]parser.MessageRef{
+					"notification": {Ref: "#/components/messages/Notification"},
+				},
+				Servers: []parser.ServerRef{{Ref: "#/servers/mqtt-broker"}},
+			},
+			"notifications/push": {
+				Address: "notifications.push",
+				Messages: map[string]parser.MessageRef{
+					"notification": {Ref: "#/components/messages/Notification"},
+				},
+				Servers: []parser.ServerRef{{Ref: "#/servers/mqtt-broker"}},
+			},
+		},
+		Operations: map[string]parser.Operation{
+			"publishEmailNotification": {
+				Action:   "send", // Publisher отправляет в разные topic каналы
+				Channel:  parser.ChannelRef{Ref: "#/channels/notifications~1email"},
+				Messages: []parser.MessageRef{{Ref: "#/components/messages/Notification"}},
+			},
+			"publishSmsNotification": {
+				Action:   "send",
+				Channel:  parser.ChannelRef{Ref: "#/channels/notifications~1sms"},
+				Messages: []parser.MessageRef{{Ref: "#/components/messages/Notification"}},
+			},
+			"publishPushNotification": {
+				Action:   "send",
+				Channel:  parser.ChannelRef{Ref: "#/channels/notifications~1push"},
+				Messages: []parser.MessageRef{{Ref: "#/components/messages/Notification"}},
+			},
+		},
+		Components: &parser.Components{
+			Messages: map[string]parser.Message{
+				"Notification": {
+					Name:        "Notification",
+					ContentType: "application/json",
+					Payload: &parser.Schema{
+						Type: "object",
+						Properties: map[string]parser.Schema{
+							"notificationId": {Type: "string"},
+							"recipient":      {Type: "string"},
+							"content":        {Type: "string"},
+							"channel":        {Type: "string"},
+						},
+						Required: []string{"notificationId", "recipient", "content"}, // Совместимые поля
+					},
+				},
+			},
+		},
+	}
+}
+
+// Helper функции для строки 554: Broadcast сообщения для всех подписчиков
+
+func createPubSubSubscriberBroadcast() *parser.AsyncAPISpec {
+	return &parser.AsyncAPISpec{
+		AsyncAPI: "3.0.0",
+		Info: parser.Info{
+			Title:   "Broadcast Subscriber",
+			Version: "1.0.0",
+		},
+		Servers: map[string]parser.Server{
+			"mqtt-broker": {
+				Host:     "localhost:1883",
+				Protocol: "mqtt",
+			},
+		},
+		Channels: map[string]parser.Channel{
+			"broadcast/notifications": {
+				Address: "broadcast.notifications", // Широковещательный канал
+				Messages: map[string]parser.MessageRef{
+					"broadcastMessage": {Ref: "#/components/messages/BroadcastMessage"},
+				},
+				Servers: []parser.ServerRef{{Ref: "#/servers/mqtt-broker"}},
+			},
+		},
+		Operations: map[string]parser.Operation{
+			"subscribeToBroadcast": {
+				Action:   "receive", // Получение broadcast сообщений
+				Channel:  parser.ChannelRef{Ref: "#/channels/broadcast~1notifications"},
+				Messages: []parser.MessageRef{{Ref: "#/components/messages/BroadcastMessage"}},
+			},
+		},
+		Components: &parser.Components{
+			Messages: map[string]parser.Message{
+				"BroadcastMessage": {
+					Name:        "BroadcastMessage",
+					ContentType: "application/json",
+					Payload: &parser.Schema{
+						Type: "object",
+						Properties: map[string]parser.Schema{
+							"messageId": {Type: "string"},
+							"title":     {Type: "string"},
+							"body":      {Type: "string"},
+							"priority":  {Type: "string"},
+							"timestamp": {Type: "string"},
+						},
+						Required: []string{"messageId", "title", "body"}, // Broadcast требует точности
+					},
+				},
+			},
+		},
+	}
+}
+
+func createPubSubPublisherBroadcast() *parser.AsyncAPISpec {
+	return &parser.AsyncAPISpec{
+		AsyncAPI: "3.0.0",
+		Info: parser.Info{
+			Title:   "Broadcast Publisher",
+			Version: "1.0.0",
+		},
+		Servers: map[string]parser.Server{
+			"mqtt-broker": {
+				Host:     "localhost:1883",
+				Protocol: "mqtt",
+			},
+		},
+		Channels: map[string]parser.Channel{
+			"broadcast/notifications": { 
+				Address: "broadcast.notifications",
+				Messages: map[string]parser.MessageRef{
+					"broadcastMessage": {Ref: "#/components/messages/BroadcastMessage"},
+				},
+				Servers: []parser.ServerRef{{Ref: "#/servers/mqtt-broker"}},
+			},
+		},
+		Operations: map[string]parser.Operation{
+			"sendBroadcast": {
+				Action:   "send", // Отправка broadcast для всех подписчиков
+				Channel:  parser.ChannelRef{Ref: "#/channels/broadcast~1notifications"},
+				Messages: []parser.MessageRef{{Ref: "#/components/messages/BroadcastMessage"}},
+			},
+		},
+		Components: &parser.Components{
+			Messages: map[string]parser.Message{
+				"BroadcastMessage": {
+					Name:        "BroadcastMessage",
+					ContentType: "application/json",
+					Payload: &parser.Schema{
+						Type: "object",
+						Properties: map[string]parser.Schema{
+							"messageId": {Type: "string"},
+							"title":     {Type: "string"},
+							"body":      {Type: "string"},
+							"priority":  {Type: "string"},
+							"timestamp": {Type: "string"},
+						},
+						Required: []string{"messageId", "title", "body"}, // Идентичные required поля для broadcast
+					},
+				},
+			},
+		},
+	}
 }

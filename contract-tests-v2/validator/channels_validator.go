@@ -97,59 +97,26 @@ func (v *ChannelValidator) findMatchingProviderChannel(contractValidate *Contrac
 			continue // Пропускаем каналы с проблемными сообщениями
 		}
 
-		// Проверяем совместимость сообщений
-		// 1. Проверяем структуру входящего сообщения поставщика с запросом потребителя
-		if consumerChannel.OutMessage != nil && inMessage != nil {
-			if !v.areMessagesCompatible(consumerChannel.OutMessage, inMessage, contractValidate.ConsumerSpec, contractValidate.ProviderSpec) {
-				// Получаем детали о required полях для отладки
-				consumerReq, _ := v.getRequiredFields(consumerChannel.OutMessage.Payload)
-				providerReq, _ := v.getRequiredFields(inMessage.Payload)
-				
-				// Добавим информацию о payload для отладки
-				consumerPayloadInfo := "nil"
-				if consumerChannel.OutMessage.Payload != nil {
-					consumerPayloadInfo = fmt.Sprintf("type: %T", consumerChannel.OutMessage.Payload)
+		// Определяем паттерн коммуникации и проверяем совместимость
+		messageCompatible, compatibilityReason := v.validateCommunicationPattern(
+			*consumerChannel, inMessage, outMessage, contractValidate)
+		
+		// Если ни один паттерн не подошел, проверяем причины
+		if !messageCompatible {
+			if compatibilityReason == "" {
+				// Нет подходящих сообщений для любого паттерна
+				if consumerChannel.OutMessage == nil && consumerChannel.InMessage == nil {
+					compatibilityReason = "consumer has no messages"
+				} else if inMessage == nil && outMessage == nil {
+					compatibilityReason = "provider has no messages"
+				} else {
+					compatibilityReason = "no matching message pattern (neither request-reply nor pub-sub)"
 				}
-				providerPayloadInfo := "nil"
-				if inMessage.Payload != nil {
-					providerPayloadInfo = fmt.Sprintf("type: %T", inMessage.Payload)
-				}
-				
-				candidateChannels = append(candidateChannels, candidateInfo + 
-					fmt.Sprintf(" - request message incompatible (consumer: payload=%s, required=%v; provider: payload=%s, required=%v)", 
-						consumerPayloadInfo, consumerReq, providerPayloadInfo, providerReq))
-				continue // Структуры не совпадают, переходим к следующему каналу
 			}
-		} else {
-			// Если нет сообщений для проверки, пропускаем канал
-			if consumerChannel.OutMessage == nil {
-				candidateChannels = append(candidateChannels, candidateInfo + " - consumer has no outgoing message")
-			} else {
-				candidateChannels = append(candidateChannels, candidateInfo + " - provider has no incoming message")
-			}
+			candidateChannels = append(candidateChannels, candidateInfo + " - " + compatibilityReason)
 			continue
 		}
 
-		// 2. Проверяем структуру исходящего сообщения поставщика с ожидаемым ответом потребителя
-		if consumerChannel.InMessage != nil && outMessage != nil {
-			if !v.areMessagesCompatible(consumerChannel.InMessage, outMessage, contractValidate.ConsumerSpec, contractValidate.ProviderSpec) {
-				// Получаем детали о required полях для отладки
-				consumerReq, _ := v.getRequiredFields(consumerChannel.InMessage.Payload)
-				providerReq, _ := v.getRequiredFields(outMessage.Payload)
-				candidateChannels = append(candidateChannels, candidateInfo + 
-					fmt.Sprintf(" - response message incompatible (consumer required fields: %v, provider required fields: %v)", 
-						consumerReq, providerReq))
-				continue // Структуры ответа не совпадают, переходим к следующему каналу
-			}
-		} else if consumerChannel.InMessage != nil || outMessage != nil {
-			// Если у одного есть reply, а у другого нет - несовместимо
-			if consumerChannel.InMessage == nil {
-				candidateChannels = append(candidateChannels, candidateInfo + " - consumer expects no reply but provider sends one")
-			} else {
-				candidateChannels = append(candidateChannels, candidateInfo + " - consumer expects reply but provider sends none")
-			}
-			continue
-		}
 
 		// Все проверки пройдены - возвращаем подходящий канал
 		return &ChannelInfo{
@@ -211,27 +178,8 @@ func (v *ChannelValidator) extractConsumerMessages(spec *parser.AsyncAPISpec, ch
 	escapedChannelName, _ := v.escapeChannelName(channelName) // ошибки не ожидаются для валидных имен
 	channelRef := "#/channels/" + escapedChannelName
 
-	// Ищем операции, которые ссылаются на этот канал
-	for _, operation := range spec.Operations {
-		if operation.Channel.Ref == channelRef && operation.Action == "send" {
-			// Для потребителя action "send" означает исходящее сообщение
-			if len(operation.Messages) > 0 {
-				msg, err := v.extractMessageInfo(spec, operation.Messages[0])
-				if err == nil {
-					outMessage = msg
-				}
-			}
-
-			// Проверяем есть ли reply для входящего сообщения
-			if operation.Reply != nil && len(operation.Reply.Messages) > 0 {
-				msg, err := v.extractMessageInfo(spec, operation.Reply.Messages[0])
-				if err == nil {
-					inMessage = msg
-				}
-			}
-			break
-		}
-	}
+	// Ищем операции для данного канала и извлекаем сообщения
+	outMessage, inMessage = v.extractConsumerMessagesFromOperations(spec, channelRef)
 
 	return outMessage, inMessage, nil
 }
@@ -244,27 +192,8 @@ func (v *ChannelValidator) extractProviderMessages(spec *parser.AsyncAPISpec, ch
 	escapedChannelName, _ := v.escapeChannelName(channelName) // ошибки не ожидаются для валидных имен
 	channelRef := "#/channels/" + escapedChannelName
 
-	// Ищем операции, которые ссылаются на этот канал
-	for _, operation := range spec.Operations {
-		if operation.Channel.Ref == channelRef && operation.Action == "receive" {
-			// Для поставщика action "receive" означает входящее сообщение
-			if len(operation.Messages) > 0 {
-				msg, err := v.extractMessageInfo(spec, operation.Messages[0])
-				if err == nil {
-					inMessage = msg
-				}
-			}
-
-			// Проверяем есть ли reply для исходящего сообщения
-			if operation.Reply != nil && len(operation.Reply.Messages) > 0 {
-				msg, err := v.extractMessageInfo(spec, operation.Reply.Messages[0])
-				if err == nil {
-					outMessage = msg
-				}
-			}
-			break
-		}
-	}
+	// Ищем операции для данного канала и извлекаем сообщения  
+	inMessage, outMessage = v.extractProviderMessagesFromOperations(spec, channelRef)
 
 	return inMessage, outMessage, nil
 }
@@ -871,4 +800,234 @@ func (v *ChannelValidator) areCorrelationIdsCompatible(corrId1, corrId2 *Correla
 	// В AsyncAPI 3.0 location указывает, где в сообщении находится correlation ID
 	// Они должны использовать одинаковый location для совместимости
 	return corrId1.Location == corrId2.Location
+}
+
+// extractConsumerMessagesFromOperations извлекает сообщения Consumer из операций
+// Поддерживает оба паттерна: Request-Reply/Fire-and-Forget (send) и Publish-Subscribe (receive)
+func (v *ChannelValidator) extractConsumerMessagesFromOperations(spec *parser.AsyncAPISpec, channelRef string) (*MessageInfo, *MessageInfo) {
+	var outMessage, inMessage *MessageInfo
+	
+	for _, operation := range spec.Operations {
+		if operation.Channel.Ref != channelRef {
+			continue
+		}
+		
+		switch operation.Action {
+		case "send":
+			// Request-Reply/Fire-and-Forget: Consumer отправляет сообщения
+			outMessage = v.extractOutMessageFromOperation(spec, operation)
+			inMessage = v.extractReplyMessageFromOperation(spec, operation)
+			return outMessage, inMessage
+			
+		case "receive":
+			// Publish-Subscribe: Consumer получает сообщения
+			inMessage = v.extractInMessageFromOperation(spec, operation)
+			// В Pub-Sub нет reply операций
+			return outMessage, inMessage
+		}
+	}
+	
+	return outMessage, inMessage
+}
+
+// extractOutMessageFromOperation извлекает исходящее сообщение из операции
+func (v *ChannelValidator) extractOutMessageFromOperation(spec *parser.AsyncAPISpec, operation parser.Operation) *MessageInfo {
+	if len(operation.Messages) == 0 {
+		return nil
+	}
+	
+	msg, err := v.extractMessageInfo(spec, operation.Messages[0])
+	if err != nil {
+		return nil
+	}
+	
+	return msg
+}
+
+// extractInMessageFromOperation извлекает входящее сообщение из операции
+func (v *ChannelValidator) extractInMessageFromOperation(spec *parser.AsyncAPISpec, operation parser.Operation) *MessageInfo {
+	if len(operation.Messages) == 0 {
+		return nil
+	}
+	
+	msg, err := v.extractMessageInfo(spec, operation.Messages[0])
+	if err != nil {
+		return nil
+	}
+	
+	return msg
+}
+
+// extractReplyMessageFromOperation извлекает reply сообщение из операции
+func (v *ChannelValidator) extractReplyMessageFromOperation(spec *parser.AsyncAPISpec, operation parser.Operation) *MessageInfo {
+	if operation.Reply == nil || len(operation.Reply.Messages) == 0 {
+		return nil
+	}
+	
+	msg, err := v.extractMessageInfo(spec, operation.Reply.Messages[0])
+	if err != nil {
+		return nil
+	}
+	
+	return msg
+}
+
+// extractProviderMessagesFromOperations извлекает сообщения Provider из операций  
+// Поддерживает оба паттерна: Request-Reply/Fire-and-Forget (receive) и Publish-Subscribe (send)
+func (v *ChannelValidator) extractProviderMessagesFromOperations(spec *parser.AsyncAPISpec, channelRef string) (*MessageInfo, *MessageInfo) {
+	var inMessage, outMessage *MessageInfo
+	
+	for _, operation := range spec.Operations {
+		if operation.Channel.Ref != channelRef {
+			continue
+		}
+		
+		switch operation.Action {
+		case "receive":
+			// Request-Reply/Fire-and-Forget: Provider получает сообщения
+			inMessage = v.extractInMessageFromOperation(spec, operation)
+			outMessage = v.extractReplyMessageFromOperation(spec, operation)
+			return inMessage, outMessage
+			
+		case "send":
+			// Publish-Subscribe: Provider отправляет сообщения
+			outMessage = v.extractOutMessageFromOperation(spec, operation)
+			// В Pub-Sub нет reply операций
+			return inMessage, outMessage
+		}
+	}
+	
+	return inMessage, outMessage
+}
+
+// validateCommunicationPattern определяет паттерн коммуникации и проверяет совместимость
+func (v *ChannelValidator) validateCommunicationPattern(
+	consumerChannel ChannelInfo, 
+	providerInMessage, providerOutMessage *MessageInfo,
+	contractValidate *ContractValidate,
+) (bool, string) {
+	
+	hasConsumerOut := consumerChannel.OutMessage != nil
+	hasConsumerIn := consumerChannel.InMessage != nil
+
+	// Определяем паттерн коммуникации на основе сообщений Consumer
+	switch {
+	case hasConsumerOut && hasConsumerIn:
+		// Request-Reply паттерн: требуется совместимость ОБЕИХ сообщений
+		return v.validateRequestReplyPattern(
+			consumerChannel, providerInMessage, providerOutMessage, contractValidate)
+			
+	case hasConsumerOut && !hasConsumerIn:
+		// Fire-and-Forget паттерн: только request сообщение
+		return v.validateFireAndForgetPattern(
+			consumerChannel, providerInMessage, contractValidate)
+			
+	case !hasConsumerOut && hasConsumerIn:
+		// Publish-Subscribe паттерн: только subscription сообщение
+		return v.validatePublishSubscribePattern(
+			consumerChannel, providerOutMessage, contractValidate)
+			
+	default:
+		// Consumer не имеет сообщений
+		return false, "consumer has no messages"
+	}
+}
+
+// validateRequestReplyPattern проверяет совместимость Request-Reply паттерна
+func (v *ChannelValidator) validateRequestReplyPattern(
+	consumerChannel ChannelInfo,
+	providerInMessage, providerOutMessage *MessageInfo,
+	contractValidate *ContractValidate,
+) (bool, string) {
+	
+	var reasons []string
+	
+	// Проверяем request сообщение (Consumer.Out → Provider.In)
+	requestCompatible := providerInMessage != nil && 
+		v.areMessagesCompatible(consumerChannel.OutMessage, providerInMessage, 
+			contractValidate.ConsumerSpec, contractValidate.ProviderSpec)
+			
+	if !requestCompatible {
+		if providerInMessage == nil {
+			reasons = append(reasons, "provider has no incoming message for request")
+		} else {
+			consumerReq, _ := v.getRequiredFields(consumerChannel.OutMessage.Payload)
+			providerReq, _ := v.getRequiredFields(providerInMessage.Payload)
+			reasons = append(reasons, fmt.Sprintf(
+				"request incompatible (consumer required: %v, provider required: %v)", 
+				consumerReq, providerReq))
+		}
+	}
+	
+	// Проверяем response сообщение (Consumer.In ← Provider.Out)
+	responseCompatible := providerOutMessage != nil && 
+		v.areMessagesCompatible(consumerChannel.InMessage, providerOutMessage,
+			contractValidate.ConsumerSpec, contractValidate.ProviderSpec)
+			
+	if !responseCompatible {
+		if providerOutMessage == nil {
+			reasons = append(reasons, "provider has no outgoing message for response")
+		} else {
+			consumerReq, _ := v.getRequiredFields(consumerChannel.InMessage.Payload)
+			providerReq, _ := v.getRequiredFields(providerOutMessage.Payload)
+			reasons = append(reasons, fmt.Sprintf(
+				"response incompatible (consumer required: %v, provider required: %v)", 
+				consumerReq, providerReq))
+		}
+	}
+	
+	// Для Request-Reply ОБЯЗАТЕЛЬНО оба сообщения должны быть совместимы
+	if requestCompatible && responseCompatible {
+		return true, "Request-Reply pattern match (both request and response compatible)"
+	}
+	
+	return false, fmt.Sprintf("Request-Reply pattern failed: %s", strings.Join(reasons, "; "))
+}
+
+// validateFireAndForgetPattern проверяет совместимость Fire-and-Forget паттерна
+func (v *ChannelValidator) validateFireAndForgetPattern(
+	consumerChannel ChannelInfo,
+	providerInMessage *MessageInfo,
+	contractValidate *ContractValidate,
+) (bool, string) {
+	
+	if providerInMessage == nil {
+		return false, "Fire-and-Forget failed: provider has no incoming message"
+	}
+	
+	if v.areMessagesCompatible(consumerChannel.OutMessage, providerInMessage,
+		contractValidate.ConsumerSpec, contractValidate.ProviderSpec) {
+		return true, "Fire-and-Forget pattern match"
+	}
+	
+	// Сообщения несовместимы
+	consumerReq, _ := v.getRequiredFields(consumerChannel.OutMessage.Payload)
+	providerReq, _ := v.getRequiredFields(providerInMessage.Payload)
+	return false, fmt.Sprintf(
+		"Fire-and-Forget failed: message incompatible (consumer required: %v, provider required: %v)", 
+		consumerReq, providerReq)
+}
+
+// validatePublishSubscribePattern проверяет совместимость Publish-Subscribe паттерна  
+func (v *ChannelValidator) validatePublishSubscribePattern(
+	consumerChannel ChannelInfo,
+	providerOutMessage *MessageInfo,
+	contractValidate *ContractValidate,
+) (bool, string) {
+	
+	if providerOutMessage == nil {
+		return false, "Publish-Subscribe failed: provider has no outgoing message"
+	}
+	
+	if v.areMessagesCompatible(providerOutMessage, consumerChannel.InMessage,
+		contractValidate.ProviderSpec, contractValidate.ConsumerSpec) {
+		return true, "Publish-Subscribe pattern match"
+	}
+	
+	// Сообщения несовместимы
+	providerReq, _ := v.getRequiredFields(providerOutMessage.Payload)
+	consumerReq, _ := v.getRequiredFields(consumerChannel.InMessage.Payload)
+	return false, fmt.Sprintf(
+		"Publish-Subscribe failed: message incompatible (provider required: %v, consumer required: %v)", 
+		providerReq, consumerReq)
 }
