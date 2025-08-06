@@ -239,7 +239,10 @@ info:
 
 		assert.Error(t, err)
 		assert.Nil(t, spec)
-		assert.Contains(t, err.Error(), "failed to parse YAML")
+		
+		// Проверяем стандартизированное сообщение об ошибке
+		assert.Contains(t, err.Error(), "failed to parse YAML", "Error should mention YAML parsing")
+		assert.Contains(t, err.Error(), "yaml:", "Error should contain YAML parsing details")
 	})
 }
 

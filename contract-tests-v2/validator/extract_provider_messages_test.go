@@ -46,11 +46,11 @@ func TestExtractProviderMessages(t *testing.T) {
 			expectedOut: nil,
 		},
 		{
-			name:        "operation with action send (should be ignored)",
+			name:        "operation with action send (Pub-Sub pattern)",
 			spec:        createProviderSpecWithSendOperation(),
 			channelName: "user/events",
 			expectedIn:  nil,
-			expectedOut: nil,
+			expectedOut: createExpectedProviderSendMessage(), // Provider sends message in Pub-Sub
 		},
 		{
 			name:        "multiple receive operations",
@@ -344,6 +344,20 @@ func createExpectedProviderOutMessage() *MessageInfo {
 				"result":    map[string]interface{}{"type": "string"},
 			},
 			"required": []string{"status", "timestamp"},
+		},
+	}
+}
+
+func createExpectedProviderSendMessage() *MessageInfo {
+	return &MessageInfo{
+		Name:        "UserEventRequest",
+		ContentType: "application/json",
+		Payload: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"userId": map[string]interface{}{"type": "string"},
+			},
+			"required": []string{"userId"},
 		},
 	}
 }

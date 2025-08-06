@@ -144,7 +144,11 @@ func TestExtractConsumerChannel(t *testing.T) {
 		// Assert
 		assert.Error(t, err)
 		assert.Nil(t, result)
-		assert.Contains(t, err.Error(), "channel non/existent not found in consumer spec")
+		
+		// Проверяем стандартизированное сообщение об ошибке
+		assert.Contains(t, err.Error(), "CHANNEL_NOT_FOUND", "Error should contain CHANNEL_NOT_FOUND code")
+		assert.Contains(t, err.Error(), "channel 'non/existent' not found", "Error should mention channel name")
+		assert.Contains(t, err.Error(), "at consumer.channels", "Error should mention location")
 	})
 
 	t.Run("Канал без серверов (ошибка протокола)", func(t *testing.T) {
@@ -161,8 +165,11 @@ func TestExtractConsumerChannel(t *testing.T) {
 		// Assert
 		assert.Error(t, err)
 		assert.Nil(t, result)
-		assert.Contains(t, err.Error(), "failed to extract protocol")
-		assert.Contains(t, err.Error(), "no servers defined for channel")
+		
+		// Проверяем стандартизированное сообщение об ошибке  
+		assert.Contains(t, err.Error(), "VALIDATION_ERROR", "Error should contain VALIDATION_ERROR code")
+		assert.Contains(t, err.Error(), "failed to extract protocol", "Error should mention protocol extraction")
+		assert.Contains(t, err.Error(), "no servers defined for channel", "Error should mention missing servers")
 	})
 
 	t.Run("Канал без операций (нет сообщений)", func(t *testing.T) {
@@ -211,6 +218,10 @@ func TestExtractConsumerChannel(t *testing.T) {
 		// Assert
 		assert.Error(t, err)
 		assert.Nil(t, result)
-		assert.Contains(t, err.Error(), "channel user/signedup not found in consumer spec")
+		
+		// Проверяем стандартизированное сообщение об ошибке
+		assert.Contains(t, err.Error(), "CHANNEL_NOT_FOUND", "Error should contain CHANNEL_NOT_FOUND code")
+		assert.Contains(t, err.Error(), "channel 'user/signedup' not found", "Error should mention channel name") 
+		assert.Contains(t, err.Error(), "at consumer.channels", "Error should mention location")
 	})
 }

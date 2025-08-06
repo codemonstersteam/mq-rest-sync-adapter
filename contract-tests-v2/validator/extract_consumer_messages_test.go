@@ -46,11 +46,11 @@ func TestExtractConsumerMessages(t *testing.T) {
 			expectedIn:  nil,
 		},
 		{
-			name:        "operation with action receive (should be ignored)",
+			name:        "operation with action receive (Pub-Sub pattern)",
 			spec:        createSpecWithReceiveOperation(),
 			channelName: "user/events",
 			expectedOut: nil,
-			expectedIn:  nil,
+			expectedIn:  createExpectedUserEventMessage(), // Consumer receives message in Pub-Sub
 		},
 		{
 			name:        "multiple operations on one channel",
@@ -351,6 +351,20 @@ func createExpectedInMessage() *MessageInfo {
 				"timestamp": map[string]interface{}{"type": "string"},
 			},
 			"required": []string{"status"},
+		},
+	}
+}
+
+func createExpectedUserEventMessage() *MessageInfo {
+	return &MessageInfo{
+		Name:        "UserEvent",
+		ContentType: "application/json",
+		Payload: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"userId": map[string]interface{}{"type": "string"},
+			},
+			"required": []string{"userId"},
 		},
 	}
 }

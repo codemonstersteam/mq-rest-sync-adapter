@@ -71,7 +71,10 @@ func TestContractValidator_LoadConfig(t *testing.T) {
 
 		assert.Error(t, err, "Should return error for non-existent file")
 		assert.Nil(t, config, "Config should be nil on error")
-		assert.Contains(t, err.Error(), "failed to read config file", "Error should mention config file")
+		// Проверяем стандартизированное сообщение об ошибке
+		assert.Contains(t, err.Error(), "FILE_NOT_FOUND", "Error should contain FILE_NOT_FOUND code")
+		assert.Contains(t, err.Error(), "non-existent-file.yaml", "Error should mention config file")
+		assert.Contains(t, err.Error(), "at config.load", "Error should mention location")
 	})
 
 	t.Run("should return error for invalid YAML", func(t *testing.T) {
@@ -95,7 +98,11 @@ func TestContractValidator_LoadConfig(t *testing.T) {
 
 		assert.Error(t, err, "Should return error for invalid YAML")
 		assert.Nil(t, config, "Config should be nil on error")
+		
+		// Проверяем стандартизированное сообщение об ошибке
+		assert.Contains(t, err.Error(), "YAML_PARSE_ERROR", "Error should contain YAML_PARSE_ERROR code")
 		assert.Contains(t, err.Error(), "failed to parse config", "Error should mention parsing")
+		assert.Contains(t, err.Error(), "invalid-config.yaml", "Error should mention the file path")
 	})
 
 	t.Run("should check file paths resolution", func(t *testing.T) {

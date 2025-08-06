@@ -37,7 +37,7 @@ func (v *ContractValidator) Validate(configPath string) (*ValidationResult, erro
 	// Шаг 1: Загрузка конфигурации
 	config, err := v.loadConfig(configPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load config: %w", err)
+		return nil, fmt.Errorf("CONFIG_ERROR: failed to load config - %w", err)
 	}
 
 	// Обновляем timeout если указан в конфигурации
@@ -51,7 +51,7 @@ func (v *ContractValidator) Validate(configPath string) (*ValidationResult, erro
 	// Шаг 2: Парсинг спецификации потребителя
 	consumerSpec, err := v.parseSpecWithBaseDir(config.ContractTests.Consumer.SpecPath, configDir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse consumer spec: %w", err)
+		return nil, fmt.Errorf("PARSE_ERROR: failed to parse consumer spec at %s - %w", config.ContractTests.Consumer.SpecPath, err)
 	}
 
 	// Шаг 3: Парсинг спецификации поставщика
@@ -61,13 +61,13 @@ func (v *ContractValidator) Validate(configPath string) (*ValidationResult, erro
 	}
 	providerSpec, err := v.parseSpecWithBaseDir(providerPath, configDir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse provider spec: %w", err)
+		return nil, fmt.Errorf("PARSE_ERROR: failed to parse provider spec at %s - %w", providerPath, err)
 	}
 
 	// Для простоты берем первый канал из списка
 	// В будущем можно расширить для валидации всех каналов
 	if len(config.ContractTests.Consumer.Channels) == 0 {
-		return nil, fmt.Errorf("no consumer channels specified")
+		return nil, newMissingFieldError("consumer.channels", "config.contract_tests")
 	}
 	consumerChannel := config.ContractTests.Consumer.Channels[0]
 
@@ -81,7 +81,7 @@ func (v *ContractValidator) Validate(configPath string) (*ValidationResult, erro
 	// Шаг 5: Валидация каналов
 	_, err = v.channelValidator.ValidateChannels(contractValidate)
 	if err != nil {
-		return nil, fmt.Errorf("channel validation failed: %w", err)
+		return nil, fmt.Errorf("VALIDATION_ERROR: channel validation failed - %w", err)
 	}
 
 	// Формируем финальный результат валидации
@@ -100,23 +100,23 @@ func (v *ContractValidator) Validate(configPath string) (*ValidationResult, erro
 func (v *ContractValidator) loadConfig(configPath string) (*Config, error) {
 	data, err := os.ReadFile(configPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read config file: %w", err)
+		return nil, newFileNotFoundError(configPath, "config.load")
 	}
 
 	var config Config
 	if err := yaml.Unmarshal(data, &config); err != nil {
-		return nil, fmt.Errorf("failed to parse config YAML: %w", err)
+		return nil, fmt.Errorf("YAML_PARSE_ERROR: failed to parse config YAML at %s - %w", configPath, err)
 	}
 
 	// Валидация обязательных полей
 	if config.ContractTests.Consumer.SpecPath == "" {
-		return nil, fmt.Errorf("consumer.spec_path is required")
+		return nil, newMissingFieldError("consumer.spec_path", "config.contract_tests.consumer")
 	}
 	if len(config.ContractTests.Consumer.Channels) == 0 {
-		return nil, fmt.Errorf("consumer.channels is required")
+		return nil, newMissingFieldError("consumer.channels", "config.contract_tests.consumer")
 	}
 	if config.ContractTests.Provider.SpecURL == "" && config.ContractTests.Provider.SpecPath == "" {
-		return nil, fmt.Errorf("provider.spec_url or provider.spec_path is required")
+		return nil, newMissingFieldError("provider.spec_url or provider.spec_path", "config.contract_tests.provider")
 	}
 
 	return &config, nil
@@ -131,18 +131,18 @@ func (v *ContractValidator) parseSpec(pathOrURL string) (*parser.AsyncAPISpec, e
 	if strings.HasPrefix(pathOrURL, "http://") || strings.HasPrefix(pathOrURL, "https://") {
 		data, err = v.loadFromURL(pathOrURL)
 		if err != nil {
-			return nil, fmt.Errorf("failed to load spec from URL: %w", err)
+			return nil, fmt.Errorf("HTTP_ERROR: failed to load spec from URL %s - %w", pathOrURL, err)
 		}
 	} else {
 		data, err = v.loadFromFile(pathOrURL)
 		if err != nil {
-			return nil, fmt.Errorf("failed to load spec from file: %w", err)
+			return nil, fmt.Errorf("FILE_NOT_FOUND: failed to load spec from file %s - %w", pathOrURL, err)
 		}
 	}
 
 	spec, err := v.parser.ParseFromBytes(data)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse spec: %w", err)
+		return nil, fmt.Errorf("PARSE_ERROR: failed to parse spec from %s - %w", pathOrURL, err)
 	}
 
 	return spec, nil
@@ -171,7 +171,7 @@ func (v *ContractValidator) parseSpecWithBaseDir(pathOrURL, baseDir string) (*pa
 func (v *ContractValidator) loadFromFile(filePath string) ([]byte, error) {
 	data, err := os.ReadFile(filePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read file: %w", err)
+		return nil, newFileNotFoundError(filePath, "file.read")
 	}
 	return data, nil
 }
@@ -180,17 +180,21 @@ func (v *ContractValidator) loadFromFile(filePath string) ([]byte, error) {
 func (v *ContractValidator) loadFromURL(url string) ([]byte, error) {
 	resp, err := v.httpClient.Get(url)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch URL: %w", err)
+		// Проверяем на timeout
+		if strings.Contains(err.Error(), "timeout") || strings.Contains(err.Error(), "deadline exceeded") {
+			return nil, newTimeoutError("HTTP request", "url.fetch")
+		}
+		return nil, fmt.Errorf("HTTP_ERROR: failed to fetch URL %s - %w", url, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		return nil, newHTTPError(resp.StatusCode, url, "url.fetch")
 	}
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
+		return nil, fmt.Errorf("HTTP_ERROR: failed to read response body from %s - %w", url, err)
 	}
 
 	return data, nil

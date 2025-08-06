@@ -88,6 +88,22 @@ func TestExtractChannelProtocol(t *testing.T) {
 				if tt.errorMsg != "" && !containsString(err.Error(), tt.errorMsg) {
 					t.Errorf("expected error message to contain '%s', got '%s'", tt.errorMsg, err.Error())
 				}
+				
+				// Проверяем стандартизированные коды ошибок для некоторых кейсов
+				switch tt.name {
+				case "channel without servers":
+					if !containsString(err.Error(), "VALIDATION_ERROR") {
+						t.Errorf("error should contain VALIDATION_ERROR code, got '%s'", err.Error())
+					}
+				case "invalid server reference", "reference to nonexistent server":
+					if !containsString(err.Error(), "VALIDATION_ERROR") {
+						t.Errorf("error should contain VALIDATION_ERROR code, got '%s'", err.Error())
+					}
+				case "empty server reference":
+					if !containsString(err.Error(), "VALIDATION_ERROR") {
+						t.Errorf("error should contain VALIDATION_ERROR code, got '%s'", err.Error())
+					}
+				}
 			} else {
 				if err != nil {
 					t.Errorf("unexpected error: %v", err)

@@ -27,7 +27,12 @@ func TestChannelValidator_NoMatchingMessageStructure(t *testing.T) {
 		// Assert
 		require.Error(t, err, "Should return error when no matching message structures found")
 		assert.Nil(t, result, "Result should be nil on error")
+		
+		// Проверяем стандартизированное сообщение об ошибке
+		assert.Contains(t, err.Error(), "VALIDATION_ERROR", "Error should contain VALIDATION_ERROR code")
 		assert.Contains(t, err.Error(), "no compatible provider channel found", "Error should mention no compatible channel")
+		assert.Contains(t, err.Error(), "user/events", "Error should mention consumer channel name")
+		assert.Contains(t, err.Error(), "at channel.matching", "Error should mention location")
 
 		// Логирование для документации
 		t.Logf("❌ Test case: Provider has 2 AMQP channels but none match consumer message structure")

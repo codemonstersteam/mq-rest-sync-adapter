@@ -43,13 +43,13 @@ func (v *ChannelValidator) extractConsumerChannel(contractValidate *ContractVali
 	// Проверяем существование канала
 	channel, exists := spec.Channels[channelName]
 	if !exists {
-		return nil, fmt.Errorf("channel %s not found in consumer spec", channelName)
+		return nil, newChannelNotFoundErrorValidator(channelName, "consumer.channels")
 	}
 
 	// Извлекаем протокол канала
 	protocol, err := v.extractChannelProtocol(spec, &channel)
 	if err != nil {
-		return nil, fmt.Errorf("failed to extract protocol for channel %s: %w", channelName, err)
+		return nil, newValidationError(fmt.Sprintf("failed to extract protocol for channel %s - %s", channelName, err.Error()), "consumer.channel.protocol")
 	}
 
 	// Извлекаем сообщения из операций
@@ -127,44 +127,49 @@ func (v *ChannelValidator) findMatchingProviderChannel(contractValidate *Contrac
 		}, nil
 	}
 
-	// Формируем детальное сообщение об ошибке
-	errorMsg := fmt.Sprintf("no compatible provider channel found for protocol %s", consumerChannel.Protocol)
-	errorMsg += fmt.Sprintf("\nConsumer channel: %s", consumerChannel.Name)
+	// Формируем детальное сообщение об ошибке с использованием стандартизированного формата
+	var incompatibleDetails []string
 	
 	if len(spec.Channels) == 0 {
-		errorMsg += "\nProvider has no channels defined"
+		incompatibleDetails = append(incompatibleDetails, "Provider has no channels defined")
 	} else {
-		errorMsg += fmt.Sprintf("\nProvider channels analyzed: %d", len(spec.Channels))
-		errorMsg += fmt.Sprintf("\nChannels with matching protocol: %d", channelsWithProtocol)
+		incompatibleDetails = append(incompatibleDetails, fmt.Sprintf("Provider channels analyzed: %d", len(spec.Channels)))
+		incompatibleDetails = append(incompatibleDetails, fmt.Sprintf("Channels with matching protocol: %d", channelsWithProtocol))
 	}
 	
 	if len(protocolErrors) > 0 {
-		errorMsg += fmt.Sprintf("\n\nProtocol extraction errors:\n  - %s", strings.Join(protocolErrors, "\n  - "))
+		incompatibleDetails = append(incompatibleDetails, "Protocol extraction errors:")
+		for _, err := range protocolErrors {
+			incompatibleDetails = append(incompatibleDetails, "  "+err)
+		}
 	}
 	
 	if len(candidateChannels) > 0 {
-		errorMsg += fmt.Sprintf("\n\nChannels with matching protocol but failed validation:\n  - %s", strings.Join(candidateChannels, "\n  - "))
+		incompatibleDetails = append(incompatibleDetails, "Channels with matching protocol but failed validation:")
+		for _, channel := range candidateChannels {
+			incompatibleDetails = append(incompatibleDetails, "  "+channel)
+		}
 	}
 	
-	return nil, fmt.Errorf("%s", errorMsg)
+	return nil, formatChannelCompatibilityError(consumerChannel.Name, len(spec.Channels), incompatibleDetails)
 }
 
 // extractChannelProtocol извлекает протокол канала из серверов
 func (v *ChannelValidator) extractChannelProtocol(spec *parser.AsyncAPISpec, channel *parser.Channel) (string, error) {
 	if len(channel.Servers) == 0 {
-		return "", fmt.Errorf("no servers defined for channel")
+		return "", newValidationError("no servers defined for channel", "channel.servers")
 	}
 
 	// Берем первый сервер
 	serverRef := channel.Servers[0].Ref
 	if !strings.HasPrefix(serverRef, "#/servers/") {
-		return "", fmt.Errorf("invalid server reference: %s", serverRef)
+		return "", newValidationError(fmt.Sprintf("invalid server reference: %s", serverRef), "channel.server.ref")
 	}
 
 	serverName := strings.TrimPrefix(serverRef, "#/servers/")
 	server, exists := spec.Servers[serverName]
 	if !exists {
-		return "", fmt.Errorf("server %s not found", serverName)
+		return "", newValidationError(fmt.Sprintf("server %s not found", serverName), "spec.servers")
 	}
 
 	return server.Protocol, nil
@@ -814,16 +819,20 @@ func (v *ChannelValidator) extractConsumerMessagesFromOperations(spec *parser.As
 		
 		switch operation.Action {
 		case "send":
-			// Request-Reply/Fire-and-Forget: Consumer отправляет сообщения
-			outMessage = v.extractOutMessageFromOperation(spec, operation)
-			inMessage = v.extractReplyMessageFromOperation(spec, operation)
-			return outMessage, inMessage
+			// Consumer отправляет сообщения (request)
+			if outMessage == nil {
+				outMessage = v.extractOutMessageFromOperation(spec, operation)
+			}
+			// Проверяем reply для получения ответа (response)
+			if inMessage == nil {
+				inMessage = v.extractReplyMessageFromOperation(spec, operation)
+			}
 			
 		case "receive":
-			// Publish-Subscribe: Consumer получает сообщения
-			inMessage = v.extractInMessageFromOperation(spec, operation)
-			// В Pub-Sub нет reply операций
-			return outMessage, inMessage
+			// Consumer получает сообщения (notifications, events)
+			if inMessage == nil {
+				inMessage = v.extractInMessageFromOperation(spec, operation)
+			}
 		}
 	}
 	
@@ -884,16 +893,20 @@ func (v *ChannelValidator) extractProviderMessagesFromOperations(spec *parser.As
 		
 		switch operation.Action {
 		case "receive":
-			// Request-Reply/Fire-and-Forget: Provider получает сообщения
-			inMessage = v.extractInMessageFromOperation(spec, operation)
-			outMessage = v.extractReplyMessageFromOperation(spec, operation)
-			return inMessage, outMessage
+			// Provider получает сообщения (requests)
+			if inMessage == nil {
+				inMessage = v.extractInMessageFromOperation(spec, operation)
+			}
+			// Проверяем reply для отправки ответа (response)
+			if outMessage == nil {
+				outMessage = v.extractReplyMessageFromOperation(spec, operation)
+			}
 			
 		case "send":
-			// Publish-Subscribe: Provider отправляет сообщения
-			outMessage = v.extractOutMessageFromOperation(spec, operation)
-			// В Pub-Sub нет reply операций
-			return inMessage, outMessage
+			// Provider отправляет сообщения (notifications, events)
+			if outMessage == nil {
+				outMessage = v.extractOutMessageFromOperation(spec, operation)
+			}
 		}
 	}
 	
