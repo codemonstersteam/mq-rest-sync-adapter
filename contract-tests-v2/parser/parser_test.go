@@ -174,7 +174,9 @@ info:
 
 		assert.Error(t, err)
 		assert.Nil(t, spec)
-		assert.Contains(t, err.Error(), "failed to parse YAML")
+		// Проверяем стандартизированное сообщение об ошибке
+		assert.Contains(t, err.Error(), "YAML_PARSE_ERROR")
+		assert.Contains(t, err.Error(), "at input")
 	})
 
 	t.Run("should handle empty string", func(t *testing.T) {
@@ -183,6 +185,42 @@ info:
 
 		assert.Error(t, err)
 		assert.Nil(t, spec)
+		// Проверяем стандартизированное сообщение об ошибке
+		assert.Contains(t, err.Error(), "PARSE_ERROR")
 		assert.Contains(t, err.Error(), "specification content is empty")
+		assert.Contains(t, err.Error(), "at input")
+	})
+
+	t.Run("should handle missing asyncapi version", func(t *testing.T) {
+		specContent := `info:
+  title: Test Service
+  version: 1.0.0`
+
+		parser := New()
+		spec, err := parser.ParseFromString(specContent)
+
+		assert.Error(t, err)
+		assert.Nil(t, spec)
+		// Проверяем стандартизированное сообщение об ошибке
+		assert.Contains(t, err.Error(), "PARSE_ERROR")
+		assert.Contains(t, err.Error(), "asyncapi version is required")
+		assert.Contains(t, err.Error(), "at spec.asyncapi")
+	})
+
+	t.Run("should handle invalid asyncapi version", func(t *testing.T) {
+		specContent := `asyncapi: 2.6.0
+info:
+  title: Test Service
+  version: 1.0.0`
+
+		parser := New()
+		spec, err := parser.ParseFromString(specContent)
+
+		assert.Error(t, err)
+		assert.Nil(t, spec)
+		// Проверяем стандартизированное сообщение об ошибке
+		assert.Contains(t, err.Error(), "INVALID_VERSION_ERROR")
+		assert.Contains(t, err.Error(), "unsupported AsyncAPI version '2.6.0'")
+		assert.Contains(t, err.Error(), "at spec.asyncapi")
 	})
 }

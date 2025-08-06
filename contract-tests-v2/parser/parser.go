@@ -18,26 +18,26 @@ func New() *Parser {
 // ParseFromString парсит AsyncAPI спецификацию из строки
 func (p *Parser) ParseFromString(content string) (*AsyncAPISpec, error) {
 	if strings.TrimSpace(content) == "" {
-		return nil, fmt.Errorf("specification content is empty")
+		return nil, newParseError("specification content is empty", "input")
 	}
 
 	var spec AsyncAPISpec
 	if err := yaml.Unmarshal([]byte(content), &spec); err != nil {
-		return nil, fmt.Errorf("failed to parse YAML: %w", err)
+		return nil, newYAMLParseError(err, "input")
 	}
 
 	// Базовая валидация
 	if spec.AsyncAPI == "" {
-		return nil, fmt.Errorf("asyncapi version is required")
+		return nil, newParseError("asyncapi version is required", "spec.asyncapi")
 	}
 
 	if !strings.HasPrefix(spec.AsyncAPI, "3.") {
-		return nil, fmt.Errorf("only AsyncAPI 3.x is supported, got %s", spec.AsyncAPI)
+		return nil, newInvalidVersionError(spec.AsyncAPI, "spec.asyncapi")
 	}
 
 	// Резолвинг ссылок (упрощенная версия для основных случаев)
 	if err := p.resolveReferences(&spec); err != nil {
-		return nil, fmt.Errorf("failed to resolve references: %w", err)
+		return nil, fmt.Errorf("REF_ERROR: failed to resolve references - %w", err)
 	}
 
 	return &spec, nil
@@ -74,13 +74,13 @@ func (p *Parser) GetChannelByName(spec *AsyncAPISpec, name string) (*Channel, er
 		return &channel, nil
 	}
 
-	return nil, fmt.Errorf("channel %s not found", name)
+	return nil, newChannelNotFoundError(name, "spec.channels")
 }
 
 // GetMessageByRef возвращает сообщение по ссылке
 func (p *Parser) GetMessageByRef(spec *AsyncAPISpec, ref string) (*Message, error) {
 	if ref == "" {
-		return nil, fmt.Errorf("empty reference")
+		return nil, newInvalidRefError("", "empty reference", "messageRef")
 	}
 
 	// Обработка ссылок на компоненты
@@ -91,7 +91,7 @@ func (p *Parser) GetMessageByRef(spec *AsyncAPISpec, ref string) (*Message, erro
 				return &msg, nil
 			}
 		}
-		return nil, fmt.Errorf("message %s not found in components", msgName)
+		return nil, newComponentNotFoundError("message", msgName, "#/components/messages")
 	}
 
 	// Обработка ссылок на сообщения в каналах
@@ -120,13 +120,13 @@ func (p *Parser) GetMessageByRef(spec *AsyncAPISpec, ref string) (*Message, erro
 		}
 	}
 
-	return nil, fmt.Errorf("unable to resolve message reference: %s", ref)
+	return nil, newInvalidRefError(ref, "unable to resolve reference", "messageRef")
 }
 
 // GetServerByRef возвращает сервер по ссылке
 func (p *Parser) GetServerByRef(spec *AsyncAPISpec, ref string) (*Server, error) {
 	if ref == "" {
-		return nil, fmt.Errorf("empty reference")
+		return nil, newInvalidRefError("", "empty reference", "serverRef")
 	}
 
 	if strings.HasPrefix(ref, "#/servers/") {
@@ -134,10 +134,10 @@ func (p *Parser) GetServerByRef(spec *AsyncAPISpec, ref string) (*Server, error)
 		if server, ok := spec.Servers[serverName]; ok {
 			return &server, nil
 		}
-		return nil, fmt.Errorf("server %s not found", serverName)
+		return nil, newComponentNotFoundError("server", serverName, "#/servers")
 	}
 
-	return nil, fmt.Errorf("unable to resolve server reference: %s", ref)
+	return nil, newInvalidRefError(ref, "unable to resolve reference", "serverRef")
 }
 
 // GetOperationByName возвращает операцию по имени
@@ -145,5 +145,5 @@ func (p *Parser) GetOperationByName(spec *AsyncAPISpec, name string) (*Operation
 	if operation, ok := spec.Operations[name]; ok {
 		return &operation, nil
 	}
-	return nil, fmt.Errorf("operation %s not found", name)
+	return nil, newComponentNotFoundError("operation", name, "spec.operations")
 }

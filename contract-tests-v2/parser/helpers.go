@@ -4,6 +4,41 @@ import (
 	"fmt"
 )
 
+// ===== HELPER ФУНКЦИИ ДЛЯ СТАНДАРТИЗИРОВАННЫХ ОШИБОК =====
+
+// newParseError создает стандартизированную ошибку парсинга
+func newParseError(message, location string) error {
+	if location != "" {
+		return fmt.Errorf("PARSE_ERROR: %s at %s", message, location)
+	}
+	return fmt.Errorf("PARSE_ERROR: %s", message)
+}
+
+// newYAMLParseError создает ошибку парсинга YAML
+func newYAMLParseError(err error, location string) error {
+	return fmt.Errorf("YAML_PARSE_ERROR: failed to parse YAML at %s - %w", location, err)
+}
+
+// newInvalidVersionError создает ошибку неподдерживаемой версии
+func newInvalidVersionError(version, location string) error {
+	return fmt.Errorf("INVALID_VERSION_ERROR: unsupported AsyncAPI version '%s' at %s - only 3.x is supported", version, location)
+}
+
+// newComponentNotFoundError создает ошибку отсутствующего компонента
+func newComponentNotFoundError(componentType, name, location string) error {
+	return fmt.Errorf("COMPONENT_NOT_FOUND: %s '%s' not found at %s", componentType, name, location)
+}
+
+// newInvalidRefError создает ошибку неверной ссылки
+func newInvalidRefError(ref, reason, location string) error {
+	return fmt.Errorf("INVALID_REF_ERROR: invalid reference '%s' at %s - %s", ref, location, reason)
+}
+
+// newChannelNotFoundError создает ошибку отсутствующего канала
+func newChannelNotFoundError(channelName, location string) error {
+	return fmt.Errorf("CHANNEL_NOT_FOUND: channel '%s' not found at %s", channelName, location)
+}
+
 // ExtractFullMessage извлекает полную информацию о сообщении включая headers и payload
 func (p *Parser) ExtractFullMessage(spec *AsyncAPISpec, messageRef MessageRef) (*Message, error) {
 	if messageRef.Ref == "" {
