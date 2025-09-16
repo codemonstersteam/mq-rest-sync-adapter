@@ -4,7 +4,69 @@
 Инструмент отлично вписывается в экосистему, где все системы описываются в AsyncAPI спецификациях.
 Валидация контрактов позволяет обеспечить совместимость между системами, что является важным свойством для интеграции и совместной работы программных систем.
 
+## Постановка задачи
+Нуженмодуль contract_validator - головной модуль валидации контрактов
+
+Который будет спроектирован по ROP https://fsharpforfunandprofit.com/rop/  
+Который поддерживается Го из коробки  
+
+Основная функция validate  
+Должна содержать шаги:  
+
+извлечение конфигурации проекта из contract-tests.yaml  
+Если ошибка - возвращаем исчерпывающую информацию об ошибке из функции  
+
+Парсим спецификацию потребителя в структуру  
+Если ошибка - возвращаем исчерпывающую информацию об ошибке из функции  
+
+Парсим спецификацию поставщика в структуру  
+Если ошибка возвращаем исчерпывающую информацию об ошибке из функци
+
+Формируем структуру которая называется ContractValidate и состоит из:    
+- Название канала потребителя  
+- Структура спецификации поставщика  
+- Структура спецификации потребителя  
+
+Проверяем контракты по каналу потребителя (Передаем эту структуру в функцию модуля валидации каналов)
+
+Если ошибка валидации каналов, возвращаем исчерпывающую информацию об ошибке из функции.
+
+Разрабатываем маленькими частями с тестами.
+
 ## Архитектура
+
+### Описание работы программы
+Основная функция validate содержит шаги:  
+
+извлечение конфигурации проекта из contract-tests.yaml в структуру Config
+Если ошибка - возвращаем исчерпывающую информацию об ошибке из функции  
+
+извлекаем адрес спецификации потребителя из Config
+
+Парсим спецификацию потребителя в структуру 
+Если ошибка - возвращаем исчерпывающую информацию об ошибке из функции  
+
+извлекаем адрес спецификации поставщика из Config
+
+Парсим спецификацию поставщика в структуру  
+Если ошибка возвращаем исчерпывающую информацию об ошибке из функци
+
+Формируем структуру для валидации контрактов (ContractValidate), которая состоит из:    
+- Название Канала потребителя  
+- Структура спецификации поставщика  
+- Структура спецификации потребителя  
+
+Проверяем контракты взаимодействия модулей по Каналу потребителя, используем структуры спецификаций поставщика и потребителя.
+Если ошибка валидации каналов, возвращаем исчерпывающую информацию об ошибке из функции.
+
+### Схема иерархий модулей
+
+![layer-0.png](layer-0.png)
+
+### Блок-схема алгоритма работы программы
+
+![layer-2.png](layer-2.png)
+
 
 ### Модули
 
@@ -1067,6 +1129,106 @@ cmd/
 #### 6.5 Ожидаемый результат
 
 После завершения этого этапа у нас будет готовый к продакшену инструмент валидации контрактов с удобным CLI интерфейсом. Инструмент можно будет легко интегрировать в CI/CD пайплайны и использовать разработчиками для локальной проверки совместимости сервисов.
+
+#### 6.6 Карта разработки CLI по TDD (упрощенная версия)
+
+**Принцип:** Минимальный CLI без флагов - только основная функциональность.
+
+##### Шаг 1: Основа CLI (15 минут)
+**Тест:** `cmd/main_test.go`
+```go
+func TestCLI_VersionCommand(t *testing.T) {
+    cmd := rootCmd()
+    output := executeCommand(cmd, "version")
+    assert.Contains(t, output, "contract-validator version")
+}
+```
+**Реализация:** `cmd/main.go` с cobra + команда `version`
+
+##### Шаг 2: Команда validate (20 минут)
+**Тест:** `cmd/validate_test.go`
+```go
+func TestValidateCommand_WithConfigFile(t *testing.T) {
+    configFile := createTestConfig()
+    cmd := validateCmd()
+    err := cmd.RunE(cmd, []string{configFile})
+    assert.NoError(t, err)
+}
+```
+**Реализация:** `cmd/validate.go` - принимает путь к config, интеграция с `validator.Validate()`
+
+##### Шаг 3: Успешный вывод (15 минут)
+**Тест:** `cmd/output/formatter_test.go`
+```go
+func TestFormatter_SuccessfulValidation(t *testing.T) {
+    result := createChannelValidationResult()
+    output := FormatSuccess(result)
+    assert.Contains(t, output, "✅ Контракты совместимы")
+    assert.Contains(t, output, "Потребитель:")
+}
+```
+**Реализация:** `cmd/output/formatter.go` - простой текстовый вывод с ✅
+
+##### Шаг 4: Вывод ошибок (20 минут)
+**Тест:** `cmd/output/formatter_test.go`
+```go
+func TestFormatter_ValidationError(t *testing.T) {
+    validationErr := createValidationError()
+    output := FormatValidationError(validationErr)
+    assert.Contains(t, output, "❌ Контракты несовместимы")
+    assert.Contains(t, output, "VALIDATION_ERROR:")
+}
+```
+**Реализация:** `FormatValidationError()` - использует ValidationError из этапа 4.5
+
+##### Шаг 5: Exit codes (10 минут)
+**Тест:** `cmd/validate_test.go`
+```go
+func TestValidateCommand_ExitCodes(t *testing.T) {
+    tests := []struct{
+        scenario string
+        expectedExitCode int
+    }{
+        {"success", 0},
+        {"validation_error", 1},
+        {"config_error", 2},
+    }
+    // table-driven тест для всех кодов
+}
+```
+**Реализация:** Mapping ValidationError → exit code (0=успех, 1=валидация, 2=конфиг)
+
+##### Шаг 6: Интеграционный тест (10 минут)
+**Тест:** `cmd/integration_test.go`
+```go
+func TestCLI_HappyPath_EndToEnd(t *testing.T) {
+    // Переиспользуем testdata/contract_validator/contract-tests-local.yaml
+    exitCode, output := runCLISubprocess("validate", configFile)
+    assert.Equal(t, 0, exitCode)
+    assert.Contains(t, output, "✅ Контракты совместимы")
+}
+```
+**Реализация:** Один smoke test для проверки склейки компонентов
+
+##### Итого:
+- **Время:** ~1.5 часа
+- **Файлов:** 5-6
+- **Тест-кейсов:** 10-15
+
+##### Финальная структура:
+```
+cmd/
+├── main.go                    # Cobra setup + version
+├── validate.go                # validate config.yaml
+├── main_test.go              # Тесты версии
+├── validate_test.go          # Тесты validate + exit codes
+├── integration_test.go       # 1 smoke test
+└── output/
+    ├── formatter.go          # FormatSuccess + FormatValidationError
+    └── formatter_test.go     # Unit-тесты форматирования
+```
+
+**Результат:** Простой, надежный CLI - `./contract-validator validate config.yaml` и получи результат.
 
 ---
 
