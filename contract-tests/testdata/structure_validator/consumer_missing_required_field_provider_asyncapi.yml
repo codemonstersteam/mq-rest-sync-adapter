@@ -1,0 +1,64 @@
+asyncapi: 3.0.0
+info:
+  title: Incompatible Provider API
+  version: 1.0.0
+  description: Provider requiring missing field
+
+servers:
+  httpServer:
+    host: localhost:8080
+    protocol: http
+
+channels:
+  walletBalanceRequest:
+    address: /api/client/{Api-clientId}/wallet/balance
+    servers:
+      - $ref: '#/servers/httpServer'
+    messages:
+      httpBalanceRequest:
+        $ref: '#/components/messages/getBalanceRequest'
+
+operations:
+  receiveBalanceRequest:
+    action: receive
+    channel:
+      $ref: "#/channels/walletBalanceRequest"
+
+components:
+  messages:
+    getBalanceRequest:
+      name: GetBalanceRequest
+      title: Запрос с обязательными полями
+      contentType: application/json
+      headers:
+        type: object
+        properties:
+          Api-clientId:
+            type: string
+          RequestID:
+            type: string
+          Content-Type:
+            type: string
+        required:
+          - Api-clientId
+          - RequestID
+          - Content-Type
+      payload:
+        type: object
+        properties:
+          field1:
+            type: string
+          field2:
+            type: string
+          field3:
+            type: string
+          field4:
+            type: string
+          field5:
+            type: string  # Обязательное поле, которого нет у потребителя
+        required:
+          - field1
+          - field2
+          - field3
+          - field4
+          - field5  # Провайдер требует это поле, но потребитель его не предоставляет

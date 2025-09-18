@@ -1,0 +1,177 @@
+asyncapi: 3.0.0
+info:
+  title: Event Processing Consumer
+  version: 1.0.0
+  description: |
+    Потребитель для асинхронного взаимодействия по паттерну request-reply.
+    Отправляет запросы на обработку событий и получает ответы с результатами выполнения.
+
+servers:
+  rabbitmq:
+    host: localhost:5672
+    protocol: amqp
+    description: RabbitMQ сервер для асинхронного взаимодействия
+    bindings:
+      amqp:
+        exchange:
+          name: event_processing
+          type: topic
+          durable: true
+
+channels:
+  process_event_request:
+    address: event.process.request
+    description: Канал для отправки запросов на обработку событий
+    servers:
+      - $ref: '#/servers/rabbitmq'
+    messages:
+      ProcessEventRequest:
+        $ref: '#/components/messages/ProcessEventRequest'
+
+  process_event_response:
+    address: event.process.response
+    description: Канал для получения ответов о результатах обработки событий
+    servers:
+      - $ref: '#/servers/rabbitmq'
+    messages:
+      ProcessEventResponse:
+        $ref: '#/components/messages/ProcessEventResponse'
+
+operations:
+  sendProcessEventRequest:
+    action: send
+    channel:
+      $ref: '#/channels/process_event_request'
+    summary: Отправка запроса на обработку события
+    description: Потребитель отправляет запрос на обработку события с указанием параметров
+    reply:
+      channel:
+        $ref: '#/channels/process_event_response'
+      messages:
+        - $ref: '#/components/messages/ProcessEventResponse'
+
+  receiveProcessEventResponse:
+    action: receive
+    channel:
+      $ref: '#/channels/process_event_response'
+    summary: Получение ответа о результате обработки события
+    description: Потребитель получает информацию о результате выполнения обработки события
+
+components:
+  messages:
+    ProcessEventRequest:
+      name: ProcessEventRequest
+      title: Запрос на обработку события
+      contentType: application/json
+      headers:
+        type: object
+        properties:
+          correlationId:
+            type: string
+            description: Уникальный идентификатор для корреляции запроса и ответа (AMQP message property)
+            example: "req-12345-abcde"
+          replyTo:
+            type: string
+            description: Адрес канала для получения ответа (AMQP message property)
+            example: "event.process.response"
+          timestamp:
+            type: string
+            format: date-time
+            description: Время отправки запроса
+            example: "2025-07-13T10:30:00Z"
+        required:
+          - correlationId
+          - replyTo
+      payload:
+        $ref: '#/components/schemas/ProcessEventRequestPayload'
+
+    ProcessEventResponse:
+      name: ProcessEventResponse
+      title: Ответ о результате обработки события
+      contentType: application/json
+      headers:
+        type: object
+        properties:
+          correlationId:
+            type: string
+            description: Идентификатор корреляции из исходного запроса (AMQP message property)
+            example: "req-12345-abcde"
+          timestamp:
+            type: string
+            format: date-time
+            description: Время формирования ответа
+            example: "2025-07-13T10:30:05Z"
+        required:
+          - correlationId
+      payload:
+        $ref: '#/components/schemas/ProcessEventResponsePayload'
+
+  schemas:
+    ProcessEventRequestPayload:
+      type: object
+      description: Структура запроса на обработку события
+      properties:
+        eventType:
+          type: string
+          description: Тип события для обработки
+          example: "user.registration"
+        eventSource:
+          type: string
+          description: Источник события (обязательное поле)
+          example: "user-service"
+        eventData:
+          type: string
+          description: Данные события в JSON строке (обязательное поле)
+          example: '{"userId": "12345", "email": "user@example.com"}'
+      required:
+        - eventSource
+        - eventData
+
+    ProcessEventResponsePayload:
+      type: object
+      description: Структура ответа о результате обработки события (Event-Driven паттерн)
+      properties:
+        eventId:
+          type: string
+          description: Уникальный идентификатор обработанного события
+          example: "evt-67890-fghij"
+        status:
+          type: string
+          description: Статус выполнения обработки события
+          enum: ["success", "failed", "retry", "rejected"]
+          example: "success"
+        eventType:
+          type: string
+          description: Тип обработанного события (эхо от запроса)
+          example: "user.registration"
+        eventSource:
+          type: string
+          description: Источник события (эхо от запроса)
+          example: "user-service"
+        processingDuration:
+          type: string
+          description: Время выполнения обработки в миллисекундах
+          example: "1250ms"
+        resultDescription:
+          type: string
+          description: Описание результата обработки события
+          example: "User successfully registered and welcome email sent"
+        errorDetails:
+          type: string
+          description: Детали ошибки (только при status = failed)
+          example: "Email service unavailable"
+        nextActions:
+          type: array
+          description: Список следующих действий или событий (Event-Driven паттерн)
+          items:
+            type: string
+          example: ["send_welcome_email", "update_analytics"]
+        retryable:
+          type: boolean
+          description: Можно ли повторить обработку при ошибке
+          example: true
+      required:
+        - eventId
+        - status
+        - eventType
+        - processingDuration

@@ -1,0 +1,18 @@
+{
+  "isCompatible": true,
+  "breakingChanges": [],
+  "warnings": [],
+  "checkedAt": "2025-07-14T20:20:15.554963683+03:00",
+  "consumerVersion": "1.0.0",
+  "providerVersion": "1.0.0",
+  "consumerName": "mq-rest-sync-adapter",
+  "providerName": "wallet-balance-service",
+  "validatedChannels": [
+    {
+      "ConsumerChannelName": "restGetBalanceRequest",
+      "ProviderChannelName": "walletBalanceRequest",
+      "Address": "/api/client/{Api-clientId}/wallet/balance",
+      "Protocol": "http"
+    }
+  ]
+}

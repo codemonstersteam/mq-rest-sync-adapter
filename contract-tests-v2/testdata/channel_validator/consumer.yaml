@@ -1,0 +1,85 @@
+asyncapi: 3.0.0
+info:
+  title: User Service Consumer
+  version: 1.0.0
+  description: Consumer service that publishes user signup events
+
+servers:
+  rabbitmq:
+    host: localhost:5672
+    protocol: amqp
+    description: RabbitMQ broker
+
+channels:
+  user/signedup:
+    address: user.signedup
+    servers:
+      - $ref: '#/servers/rabbitmq'
+    messages:
+      userSignedUp:
+        $ref: '#/components/messages/UserSignedUp'
+
+operations:
+  publishUserSignedUp:
+    action: send
+    channel:
+      $ref: '#/channels/user~1signedup'
+    messages:
+      - $ref: '#/channels/user~1signedup/messages/userSignedUp'
+    reply:
+      channel:
+        $ref: '#/channels/user~1signedup'
+      messages:
+        - $ref: '#/components/messages/SignupConfirmation'
+
+components:
+  messages:
+    UserSignedUp:
+      name: UserSignedUp
+      title: User signed up event
+      summary: Inform about a new user registration
+      contentType: application/json
+      payload:
+        type: object
+        properties:
+          userId:
+            type: string
+            description: Unique user identifier
+          email:
+            type: string
+            format: email
+            description: User email address
+          username:
+            type: string
+            description: Username
+          signedUpAt:
+            type: string
+            format: date-time
+            description: Signup timestamp
+        required:
+          - userId
+          - email
+          - username
+          - signedUpAt
+
+    SignupConfirmation:
+      name: SignupConfirmation
+      title: Signup confirmation
+      summary: Confirmation that signup was processed
+      contentType: application/json
+      payload:
+        type: object
+        properties:
+          userId:
+            type: string
+            description: User ID from the signup event
+          status:
+            type: string
+            enum: [confirmed, failed]
+            description: Signup processing status
+          message:
+            type: string
+            description: Additional information
+        required:
+          - userId
+          - status

@@ -1,0 +1,32 @@
+# Конфигурация для проверки совместимости контрактов
+contract_tests:
+  # Спецификация потребителя (локальная)
+  consumer:
+    spec_path: "../api-specification/asyncapi.yml"
+    name: "mq-rest-sync-adapter"
+    channels:
+      - restGetBalanceRequest
+    
+  # Спецификация поставщика (удаленная)
+  provider:
+    spec_url: "https://git.codemonsters.team/guides/wallet-balance/-/raw/main/api-specification/asyncapi.yml"
+    name: "wallet-balance-service"
+    # Ограничения проверки каналов для данного провайдера
+
+    
+  # Настройки проверки
+  settings:
+    # Уровень логирования: debug, info, warn, error
+    log_level: "info"
+    
+    # Сохранять ли детальный отчет в JSON
+    save_json_report: true
+    
+    # Имя файла для JSON отчета
+    json_report_file: "compatibility_report.json"
+    
+    # Максимальное время ожидания загрузки спецификации поставщика (секунды)
+    timeout: 30
+    
+    # Игнорировать предупреждения (только breaking changes)
+    ignore_warnings: false

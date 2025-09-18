@@ -1,0 +1,16 @@
+asyncapi: 3.0.0
+info:
+  title: Test Consumer with HTTPS Protocol
+  version: 1.0.0
+  description: Тестовый потребитель с неизвестным протоколом https
+servers:
+  httpsServer:
+    host: https://localhost:8080
+    protocol: https
+    description: HTTPS сервер (неизвестный протокол)
+channels:
+  restGetBalanceRequest:
+    address: "/api/client/{clientId}/wallet/balance"
+    description: Канал с неизвестным протоколом https
+    servers:
+      - $ref: "#/servers/httpsServer"

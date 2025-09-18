@@ -1,0 +1,136 @@
+asyncapi: 3.0.0
+info:
+  title: Wallet Balance Service Provider (returns actualTimestamp)
+  version: 1.0.0
+  description: Провайдер, который возвращает actualTimestamp вместо timestamp
+servers:
+  restServer:
+    host: https://localhost:8080
+    protocol: http
+    pathname: '/api/client/{clientId}/wallet/balance'
+channels:
+  walletBalanceRequest:
+    address: "/api/client/{clientId}/wallet/balance"
+    description: Канал для обработки запросов баланса
+    messages:
+      getBalanceRequest:
+        $ref: '#/components/messages/getBalanceRequest'
+      getBalanceResponse:
+        $ref: '#/components/messages/getBalanceResponse'
+    servers:
+      - $ref: "#/servers/restServer"
+operations:
+  receiveBalanceRequest:
+    action: receive
+    channel:
+      $ref: "#/channels/walletBalanceRequest"
+  sendBalanceResponse:
+    action: send
+    channel:
+      $ref: "#/channels/walletBalanceRequest"
+components:
+  messages:
+    getBalanceRequest:
+      name: GetBalanceRequest
+      title: Запрос на получение баланса кошелька
+      contentType: application/json
+      headers:
+        $ref: '#/components/schemas/requestHeaders'
+      payload:
+        $ref: '#/components/schemas/balanceRequestPayload'
+    getBalanceResponse:
+      name: GetBalanceResponse
+      title: Ответ с балансом (провайдер использует actualTimestamp)
+      contentType: application/json
+      headers:
+        $ref: '#/components/schemas/responseHeaders'
+      payload:
+        $ref: '#/components/schemas/actualBalanceResponsePayload'
+  schemas:
+    requestHeaders:
+      type: object
+      properties:
+        Content-Type:
+          type: string
+          enum: ["application/json"]
+        Api-clientId:
+          type: string
+      required:
+        - Content-Type
+        - Api-clientId
+    responseHeaders:
+      type: object
+      properties:
+        Content-Type:
+          type: string
+          enum: ["application/json"]
+        RequestID:
+          type: string
+      required:
+        - Content-Type
+    balanceRequestPayload:
+      type: object
+      required:
+        - requestType
+        - dateFrom
+        - dateTo
+        - operTime
+      properties:
+        requestType:
+          type: string
+        dateFrom:
+          type: number
+        dateTo:
+          type: number
+        operTime:
+          type: number
+    actualBalanceResponsePayload:
+      type: object
+      required:
+        - status
+        - actualTimestamp
+        - data
+      properties:
+        status:
+          type: string
+          description: Статус выполнения запроса
+        actualTimestamp:
+          type: integer
+          format: int64
+          description: Актуальное время ответа (провайдер использует actualTimestamp)
+        data:
+          type: object
+          description: Данные баланса
+          required:
+            - createTime
+            - operationId
+            - balance
+          properties:
+            createTime:
+              type: integer
+              format: int64
+              description: Время создания записи
+            operationId:
+              type: string
+              description: Уникальный идентификатор операции
+            balance:
+              type: object
+              required:
+                - value
+                - currency
+              properties:
+                value:
+                  type: number
+                  format: double
+                  description: Сумма баланса
+                currency:
+                  type: string
+                  description: Код валюты баланса
+        error:
+          type: object
+          description: Информация об ошибке
+          properties:
+            code:
+              type: integer
+            message:
+              type: string

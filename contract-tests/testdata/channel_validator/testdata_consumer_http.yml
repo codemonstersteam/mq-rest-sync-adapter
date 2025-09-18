@@ -1,0 +1,25 @@
+asyncapi: 3.0.0
+info:
+  title: Test Consumer AsyncAPI Spec - HTTP Protocol
+  version: 1.0.0
+  description: Тестовая спецификация потребителя с HTTP протоколом
+servers:
+  httpServer:
+    host: http://localhost:8080
+    protocol: http
+    pathname: '/api/client/{clientId}/wallet/balance'
+    description: HTTP сервер для баланса кошельков
+channels:
+  restGetBalanceRequest:
+    address: "/api/client/{Api-clientId}/wallet/balance"
+    description: HTTP канал для получения баланса кошелька
+    messages:
+      httpBalanceRequest:
+        contentType: application/json
+        payload:
+          type: object
+          properties:
+            clientId:
+              type: string
+    servers:
+      - $ref: "#/servers/httpServer"

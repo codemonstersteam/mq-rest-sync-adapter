@@ -1,0 +1,16 @@
+asyncapi: 3.0.0
+info:
+  title: Test Consumer with Unknown Protocol
+  version: 1.0.0
+  description: Тестовый потребитель с неизвестным протоколом
+servers:
+  customServer:
+    host: custom://localhost:9999
+    protocol: custom-protocol
+    description: Кастомный сервер с неизвестным протоколом
+channels:
+  testChannel:
+    address: "test.channel"
+    description: Тестовый канал с неизвестным протоколом
+    servers:
+      - $ref: "#/servers/customServer"

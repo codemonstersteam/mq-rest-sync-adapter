@@ -1,0 +1,54 @@
+asyncapi: 3.0.0
+info:
+  title: Notification Service
+  version: 1.0.0
+  description: Notification service with single AMQP channel matching consumer user/events
+
+servers:
+  rabbitmq:
+    host: localhost:5672
+    protocol: amqp
+    description: RabbitMQ broker
+
+channels:
+  # Единственный канал поставщика - AMQP с UserSignup
+  # Совместим только с consumer user/events каналом (тот же протокол + структура сообщений)
+  notifications/users:
+    address: notifications.users
+    servers:
+      - $ref: '#/servers/rabbitmq'
+    messages:
+      userNotification:
+        $ref: '#/components/messages/UserSignup'
+
+operations:
+  # Операция получения уведомлений о пользователях
+  receiveUserNotification:
+    action: receive
+    channel:
+      $ref: '#/channels/notifications~1users'
+    messages:
+      - $ref: '#/channels/notifications~1users/messages/userNotification'
+
+components:
+  messages:
+    UserSignup:
+      name: UserSignup
+      title: User signed up event
+      contentType: application/json
+      payload:
+        type: object
+        properties:
+          userId:
+            type: string
+            example: "user123"
+          email:
+            type: string
+            example: "user@example.com"
+          name:
+            type: string
+            example: "John Doe"
+        required:
+          - userId
+          - email
+          - name

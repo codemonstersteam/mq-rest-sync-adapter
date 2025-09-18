@@ -1,0 +1,1841 @@
+package validator
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/codemonsters/contract-tests-v2/parser"
+)
+
+// TestCase структура для table-driven тестов функции findMatchingProviderChannel
+type FindMatchingProviderChannelTestCase struct {
+	name                 string
+	consumerSpec         *parser.AsyncAPISpec
+	providerSpec         *parser.AsyncAPISpec
+	consumerChannelName  string
+	expectedMatch        bool
+	expectedChannelName  string
+	expectedErrorContains string
+	communicationPattern string // "request-reply", "fire-and-forget", "pub-sub"
+	protocol             string // "amqp", "mqtt", "kafka", "ws"
+	description          string
+}
+
+// Базовая функция для создания тестовых спецификаций
+func createBasicConsumerSpec() *parser.AsyncAPISpec {
+	return &parser.AsyncAPISpec{
+		AsyncAPI: "3.0.0",
+		Info: parser.Info{
+			Title:   "Consumer Service",
+			Version: "1.0.0",
+		},
+		Servers: map[string]parser.Server{
+			"production": {
+				Host:     "localhost:5672",
+				Protocol: "amqp",
+			},
+		},
+		Channels: map[string]parser.Channel{
+			"user/events": {
+				Address: "user.events",
+				Messages: map[string]parser.MessageRef{
+					"userSignup": {
+						Ref: "#/components/messages/UserSignup",
+					},
+				},
+				Servers: []parser.ServerRef{
+					{Ref: "#/servers/production"},
+				},
+			},
+		},
+		Operations: map[string]parser.Operation{
+			"sendUserSignup": {
+				Action: "send",
+				Channel: parser.ChannelRef{
+					Ref: "#/channels/user~1events",
+				},
+				Messages: []parser.MessageRef{
+					{Ref: "#/components/messages/UserSignup"},
+				},
+				Reply: &parser.Reply{
+					Channel: parser.ChannelRef{
+						Ref: "#/channels/user~1events",
+					},
+					Messages: []parser.MessageRef{
+						{Ref: "#/components/messages/UserSignupResponse"},
+					},
+				},
+			},
+		},
+		Components: &parser.Components{
+			Messages: map[string]parser.Message{
+				"UserSignup": {
+					Name:        "UserSignup",
+					ContentType: "application/json",
+					Payload: &parser.Schema{
+						Type: "object",
+						Properties: map[string]parser.Schema{
+							"userId": {Type: "string"},
+							"email":  {Type: "string"},
+						},
+						Required: []string{"userId", "email"},
+					},
+				},
+				"UserSignupResponse": {
+					Name:        "UserSignupResponse",
+					ContentType: "application/json",
+					Payload: &parser.Schema{
+						Type: "object",
+						Properties: map[string]parser.Schema{
+							"success": {Type: "boolean"},
+							"userId":  {Type: "string"},
+						},
+						Required: []string{"success", "userId"},
+					},
+				},
+			},
+		},
+	}
+}
+
+func createBasicProviderSpec() *parser.AsyncAPISpec {
+	return &parser.AsyncAPISpec{
+		AsyncAPI: "3.0.0",
+		Info: parser.Info{
+			Title:   "Provider Service",
+			Version: "1.0.0",
+		},
+		Servers: map[string]parser.Server{
+			"production": {
+				Host:     "localhost:5672",
+				Protocol: "amqp",
+			},
+		},
+		Channels: map[string]parser.Channel{
+			"user/events": {
+				Address: "user.events",
+				Messages: map[string]parser.MessageRef{
+					"userSignup": {
+						Ref: "#/components/messages/UserSignup",
+					},
+				},
+				Servers: []parser.ServerRef{
+					{Ref: "#/servers/production"},
+				},
+			},
+		},
+		Operations: map[string]parser.Operation{
+			"receiveUserSignup": {
+				Action: "receive",
+				Channel: parser.ChannelRef{
+					Ref: "#/channels/user~1events",
+				},
+				Messages: []parser.MessageRef{
+					{Ref: "#/components/messages/UserSignup"},
+				},
+				Reply: &parser.Reply{
+					Channel: parser.ChannelRef{
+						Ref: "#/channels/user~1events",
+					},
+					Messages: []parser.MessageRef{
+						{Ref: "#/components/messages/UserSignupResponse"},
+					},
+				},
+			},
+		},
+		Components: &parser.Components{
+			Messages: map[string]parser.Message{
+				"UserSignup": {
+					Name:        "UserSignup",
+					ContentType: "application/json",
+					Payload: &parser.Schema{
+						Type: "object",
+						Properties: map[string]parser.Schema{
+							"userId": {Type: "string"},
+							"email":  {Type: "string"},
+						},
+						Required: []string{"userId", "email"},
+					},
+				},
+				"UserSignupResponse": {
+					Name:        "UserSignupResponse",
+					ContentType: "application/json",
+					Payload: &parser.Schema{
+						Type: "object",
+						Properties: map[string]parser.Schema{
+							"success": {Type: "boolean"},
+							"userId":  {Type: "string"},
+						},
+						Required: []string{"success", "userId"},
+					},
+				},
+			},
+		},
+	}
+}
+
+func createProviderSpecWithExtraFields() *parser.AsyncAPISpec {
+	spec := createBasicProviderSpec()
+	
+	// Добавляем дополнительные поля к UserSignup схеме
+	spec.Components.Messages["UserSignup"].Payload.Properties["timestamp"] = parser.Schema{Type: "string"}
+	spec.Components.Messages["UserSignup"].Payload.Properties["source"] = parser.Schema{Type: "string"}
+	
+	// Добавляем дополнительные поля к UserSignupResponse схеме  
+	spec.Components.Messages["UserSignupResponse"].Payload.Properties["timestamp"] = parser.Schema{Type: "string"}
+	spec.Components.Messages["UserSignupResponse"].Payload.Properties["code"] = parser.Schema{Type: "integer"}
+	
+	return spec
+}
+
+func createProviderSpecWithIncompatibleResponse() *parser.AsyncAPISpec {
+	spec := createBasicProviderSpec()
+	
+	// Делаем response несовместимым - меняем тип success на string вместо boolean
+	spec.Components.Messages["UserSignupResponse"].Payload.Properties["success"] = parser.Schema{Type: "string"}
+	// Удаляем обязательное поле userId
+	spec.Components.Messages["UserSignupResponse"].Payload.Required = []string{"success"}
+	
+	return spec
+}
+
+func createProviderSpecWithIncompatibleRequest() *parser.AsyncAPISpec {
+	spec := createBasicProviderSpec()
+	
+	// Делаем request несовместимым - меняем тип email на integer вместо string
+	spec.Components.Messages["UserSignup"].Payload.Properties["email"] = parser.Schema{Type: "integer"}
+	// Добавляем дополнительное обязательное поле
+	spec.Components.Messages["UserSignup"].Payload.Properties["phone"] = parser.Schema{Type: "string"}
+	spec.Components.Messages["UserSignup"].Payload.Required = []string{"userId", "email", "phone"}
+	
+	return spec
+}
+
+func createProviderSpecWithBothIncompatibleMessages() *parser.AsyncAPISpec {
+	spec := createBasicProviderSpec()
+	
+	// Делаем request несовместимым
+	spec.Components.Messages["UserSignup"].Payload.Properties["email"] = parser.Schema{Type: "integer"}
+	spec.Components.Messages["UserSignup"].Payload.Properties["phone"] = parser.Schema{Type: "string"}
+	spec.Components.Messages["UserSignup"].Payload.Required = []string{"userId", "email", "phone"}
+	
+	// Делаем response несовместимым
+	spec.Components.Messages["UserSignupResponse"].Payload.Properties["success"] = parser.Schema{Type: "string"}
+	spec.Components.Messages["UserSignupResponse"].Payload.Required = []string{"success"}
+	
+	return spec
+}
+
+func createFireAndForgetConsumerSpec() *parser.AsyncAPISpec {
+	return &parser.AsyncAPISpec{
+		AsyncAPI: "3.0.0",
+		Info: parser.Info{
+			Title:   "Consumer Service Fire-and-Forget",
+			Version: "1.0.0",
+		},
+		Servers: map[string]parser.Server{
+			"production": {
+				Host:     "localhost:1883",
+				Protocol: "mqtt",
+			},
+		},
+		Channels: map[string]parser.Channel{
+			"notifications/send": {
+				Address: "notifications.send",
+				Messages: map[string]parser.MessageRef{
+					"notification": {
+						Ref: "#/components/messages/NotificationMessage",
+					},
+				},
+				Servers: []parser.ServerRef{
+					{Ref: "#/servers/production"},
+				},
+			},
+		},
+		Operations: map[string]parser.Operation{
+			"sendNotification": {
+				Action: "send",
+				Channel: parser.ChannelRef{
+					Ref: "#/channels/notifications~1send",
+				},
+				Messages: []parser.MessageRef{
+					{Ref: "#/components/messages/NotificationMessage"},
+				},
+				// Нет Reply - это Fire-and-Forget
+			},
+		},
+		Components: &parser.Components{
+			Messages: map[string]parser.Message{
+				"NotificationMessage": {
+					Name:        "NotificationMessage",
+					ContentType: "application/json",
+					Payload: &parser.Schema{
+						Type: "object",
+						Properties: map[string]parser.Schema{
+							"message": {Type: "string"},
+							"userId":  {Type: "string"},
+						},
+						Required: []string{"message", "userId"},
+					},
+				},
+			},
+		},
+	}
+}
+
+func createFireAndForgetProviderSpec() *parser.AsyncAPISpec {
+	return &parser.AsyncAPISpec{
+		AsyncAPI: "3.0.0",
+		Info: parser.Info{
+			Title:   "Provider Service Fire-and-Forget",
+			Version: "1.0.0",
+		},
+		Servers: map[string]parser.Server{
+			"production": {
+				Host:     "localhost:1883",
+				Protocol: "mqtt",
+			},
+		},
+		Channels: map[string]parser.Channel{
+			"notifications/send": {
+				Address: "notifications.send",
+				Messages: map[string]parser.MessageRef{
+					"notification": {
+						Ref: "#/components/messages/NotificationMessage",
+					},
+				},
+				Servers: []parser.ServerRef{
+					{Ref: "#/servers/production"},
+				},
+			},
+		},
+		Operations: map[string]parser.Operation{
+			"receiveNotification": {
+				Action: "receive",
+				Channel: parser.ChannelRef{
+					Ref: "#/channels/notifications~1send",
+				},
+				Messages: []parser.MessageRef{
+					{Ref: "#/components/messages/NotificationMessage"},
+				},
+				// Нет Reply - это Fire-and-Forget
+			},
+		},
+		Components: &parser.Components{
+			Messages: map[string]parser.Message{
+				"NotificationMessage": {
+					Name:        "NotificationMessage",
+					ContentType: "application/json",
+					Payload: &parser.Schema{
+						Type: "object",
+						Properties: map[string]parser.Schema{
+							"message": {Type: "string"},
+							"userId":  {Type: "string"},
+						},
+						Required: []string{"message", "userId"},
+					},
+				},
+			},
+		},
+	}
+}
+
+func createProviderSpecWithDifferentProtocol() *parser.AsyncAPISpec {
+	spec := createBasicProviderSpec()
+	// Создаем новый сервер с другим протоколом
+	kafkaServer := spec.Servers["production"]
+	kafkaServer.Protocol = "kafka"
+	spec.Servers["production"] = kafkaServer
+	return spec
+}
+
+func createProviderSpecWithoutServers() *parser.AsyncAPISpec {
+	spec := createBasicProviderSpec()
+	spec.Servers = map[string]parser.Server{} // Пустые серверы
+	return spec
+}
+
+func createEmptyProviderSpec() *parser.AsyncAPISpec {
+	return &parser.AsyncAPISpec{
+		AsyncAPI: "3.0.0",
+		Info: parser.Info{
+			Title:   "Empty Provider Service",
+			Version: "1.0.0",
+		},
+		Servers: map[string]parser.Server{
+			"production": {
+				Host:     "localhost:5672",
+				Protocol: "amqp",
+			},
+		},
+		Channels: map[string]parser.Channel{}, // Пустые каналы
+		Operations: map[string]parser.Operation{},
+		Components: &parser.Components{
+			Messages: map[string]parser.Message{},
+		},
+	}
+}
+
+func createProviderSpecWithoutOperations() *parser.AsyncAPISpec {
+	spec := createBasicProviderSpec()
+	spec.Operations = map[string]parser.Operation{} // Пустые операции
+	return spec
+}
+
+func createProviderSpecWithXMLContentType() *parser.AsyncAPISpec {
+	spec := createBasicProviderSpec()
+	
+	// Меняем ContentType на XML
+	userSignup := spec.Components.Messages["UserSignup"]
+	userSignup.ContentType = "application/xml"
+	spec.Components.Messages["UserSignup"] = userSignup
+	
+	userSignupResponse := spec.Components.Messages["UserSignupResponse"]
+	userSignupResponse.ContentType = "application/xml"
+	spec.Components.Messages["UserSignupResponse"] = userSignupResponse
+	
+	return spec
+}
+
+// TestFindMatchingProviderChannel_RequestReply тестирует Request-Reply паттерн
+func TestFindMatchingProviderChannel_RequestReply(t *testing.T) {
+	validator := NewChannelValidator()
+
+	testCases := []FindMatchingProviderChannelTestCase{
+		{
+			name:                "request_reply_perfect_match",
+			consumerSpec:        createBasicConsumerSpec(),
+			providerSpec:        createBasicProviderSpec(),
+			consumerChannelName: "user/events",
+			expectedMatch:       true,
+			expectedChannelName: "user/events",
+			expectedErrorContains: "",
+			communicationPattern: "request-reply",
+			protocol:            "amqp",
+			description:         "Полная совместимость: consumer(out+in) ↔ provider(in+out)",
+		},
+		{
+			name:                "request_reply_compatible_with_extra_fields",
+			consumerSpec:        createBasicConsumerSpec(),
+			providerSpec:        createProviderSpecWithExtraFields(),
+			consumerChannelName: "user/events",
+			expectedMatch:       true,
+			expectedChannelName: "user/events",
+			expectedErrorContains: "",
+			communicationPattern: "request-reply",
+			protocol:            "amqp",
+			description:         "Совместимые типы с расширенными полями у поставщика",
+		},
+		{
+			name:                "request_reply_identical_schemas",
+			consumerSpec:        createBasicConsumerSpec(),
+			providerSpec:        createBasicProviderSpec(),
+			consumerChannelName: "user/events",
+			expectedMatch:       true,
+			expectedChannelName: "user/events",
+			expectedErrorContains: "",
+			communicationPattern: "request-reply",
+			protocol:            "amqp",
+			description:         "Идентичные схемы сообщений для request и response",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			contractValidate := &ContractValidate{
+				ConsumerChannelName: tc.consumerChannelName,
+				ProviderSpec:        tc.providerSpec,
+				ConsumerSpec:        tc.consumerSpec,
+			}
+
+			// Первоначально извлекаем канал потребителя
+			consumerChannel, err := validator.extractConsumerChannel(contractValidate)
+			require.NoError(t, err, "Failed to extract consumer channel for test: %s", tc.name)
+
+			// Act
+			result, err := validator.findMatchingProviderChannel(contractValidate, consumerChannel)
+
+			// Assert
+			if tc.expectedMatch {
+				require.NoError(t, err, "Expected successful match for test case: %s", tc.name)
+				require.NotNil(t, result, "Expected non-nil result for test case: %s", tc.name)
+				assert.Equal(t, tc.expectedChannelName, result.Name, "Channel name mismatch for test case: %s", tc.name)
+				assert.Equal(t, tc.protocol, result.Protocol, "Protocol mismatch for test case: %s", tc.name)
+				
+				// Проверяем, что у нас есть как входящие так и исходящие сообщения для Request-Reply
+				if tc.communicationPattern == "request-reply" {
+					assert.NotNil(t, result.InMessage, "Expected InMessage for Request-Reply pattern: %s", tc.name)
+					assert.NotNil(t, result.OutMessage, "Expected OutMessage for Request-Reply pattern: %s", tc.name)
+				}
+			} else {
+				require.Error(t, err, "Expected error for test case: %s", tc.name)
+				if tc.expectedErrorContains != "" {
+					assert.Contains(t, err.Error(), tc.expectedErrorContains, "Error message mismatch for test case: %s", tc.name)
+				}
+				assert.Nil(t, result, "Expected nil result for failed test case: %s", tc.name)
+			}
+		})
+	}
+}
+
+// TestFindMatchingProviderChannel_RequestReply_Incompatible тестирует несовместимые кейсы Request-Reply паттерна
+func TestFindMatchingProviderChannel_RequestReply_Incompatible(t *testing.T) {
+	validator := NewChannelValidator()
+
+	testCases := []FindMatchingProviderChannelTestCase{
+		{
+			name:                "request_reply_request_compatible_response_incompatible",
+			consumerSpec:        createBasicConsumerSpec(),
+			providerSpec:        createProviderSpecWithIncompatibleResponse(),
+			consumerChannelName: "user/events",
+			expectedMatch:       false,
+			expectedChannelName: "",
+			expectedErrorContains: "no compatible provider channel found",
+			communicationPattern: "request-reply",
+			protocol:            "amqp",
+			description:         "Request совместим, response несовместим",
+		},
+		{
+			name:                "request_reply_request_incompatible_response_compatible",
+			consumerSpec:        createBasicConsumerSpec(),
+			providerSpec:        createProviderSpecWithIncompatibleRequest(),
+			consumerChannelName: "user/events",
+			expectedMatch:       false,
+			expectedChannelName: "",
+			expectedErrorContains: "no compatible provider channel found",
+			communicationPattern: "request-reply",
+			protocol:            "amqp",
+			description:         "Request несовместим, response совместим",
+		},
+		{
+			name:                "request_reply_both_messages_incompatible",
+			consumerSpec:        createBasicConsumerSpec(),
+			providerSpec:        createProviderSpecWithBothIncompatibleMessages(),
+			consumerChannelName: "user/events",
+			expectedMatch:       false,
+			expectedChannelName: "",
+			expectedErrorContains: "no compatible provider channel found",
+			communicationPattern: "request-reply",
+			protocol:            "amqp",
+			description:         "Оба сообщения несовместимы",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			contractValidate := &ContractValidate{
+				ConsumerChannelName: tc.consumerChannelName,
+				ProviderSpec:        tc.providerSpec,
+				ConsumerSpec:        tc.consumerSpec,
+			}
+
+			// Первоначально извлекаем канал потребителя
+			consumerChannel, err := validator.extractConsumerChannel(contractValidate)
+			require.NoError(t, err, "Failed to extract consumer channel for test: %s", tc.name)
+
+			// Act
+			result, err := validator.findMatchingProviderChannel(contractValidate, consumerChannel)
+
+			// Assert
+			if tc.expectedMatch {
+				require.NoError(t, err, "Expected successful match for test case: %s", tc.name)
+				require.NotNil(t, result, "Expected non-nil result for test case: %s", tc.name)
+				assert.Equal(t, tc.expectedChannelName, result.Name, "Channel name mismatch for test case: %s", tc.name)
+				assert.Equal(t, tc.protocol, result.Protocol, "Protocol mismatch for test case: %s", tc.name)
+			} else {
+				require.Error(t, err, "Expected error for test case: %s", tc.name)
+				if tc.expectedErrorContains != "" {
+					assert.Contains(t, err.Error(), tc.expectedErrorContains, "Error message mismatch for test case: %s", tc.name)
+				}
+				assert.Nil(t, result, "Expected nil result for failed test case: %s", tc.name)
+			}
+		})
+	}
+}
+
+// TestFindMatchingProviderChannel_FireAndForget тестирует Fire-and-Forget паттерн
+func TestFindMatchingProviderChannel_FireAndForget(t *testing.T) {
+	validator := NewChannelValidator()
+
+	testCases := []FindMatchingProviderChannelTestCase{
+		{
+			name:                "fire_and_forget_consumer_send_provider_receive",
+			consumerSpec:        createFireAndForgetConsumerSpec(),
+			providerSpec:        createFireAndForgetProviderSpec(),
+			consumerChannelName: "notifications/send",
+			expectedMatch:       true,
+			expectedChannelName: "notifications/send",
+			expectedErrorContains: "",
+			communicationPattern: "fire-and-forget",
+			protocol:            "mqtt",
+			description:         "Consumer только send (OutMessage), Provider только receive (InMessage)",
+		},
+		{
+			name:                "fire_and_forget_no_reply_operations",
+			consumerSpec:        createFireAndForgetConsumerSpec(),
+			providerSpec:        createFireAndForgetProviderSpec(),
+			consumerChannelName: "notifications/send",
+			expectedMatch:       true,
+			expectedChannelName: "notifications/send",
+			expectedErrorContains: "",
+			communicationPattern: "fire-and-forget",
+			protocol:            "mqtt",
+			description:         "Отсутствие reply операций у обеих сторон",
+		},
+		{
+			name:                "fire_and_forget_consumer_expects_reply_provider_no_reply",
+			consumerSpec:        createBasicConsumerSpec(), // У него есть reply
+			providerSpec:        createFireAndForgetProviderSpec(), // У него нет reply
+			consumerChannelName: "user/events",
+			expectedMatch:       false,
+			expectedChannelName: "",
+			expectedErrorContains: "no compatible provider channel found",
+			communicationPattern: "fire-and-forget",
+			protocol:            "amqp",
+			description:         "Consumer ожидает ответ, но Provider не отвечает",
+		},
+		{
+			name:                "fire_and_forget_provider_sends_reply_consumer_no_expect",
+			consumerSpec:        createFireAndForgetConsumerSpec(), // У него нет reply
+			providerSpec:        createBasicProviderSpec(), // У него есть reply
+			consumerChannelName: "notifications/send",
+			expectedMatch:       false,
+			expectedChannelName: "",
+			expectedErrorContains: "no compatible provider channel found",
+			communicationPattern: "fire-and-forget",
+			protocol:            "mqtt",
+			description:         "Provider отправляет ответ, но Consumer не ждет",
+		},
+		{
+			name:                "fire_and_forget_incoming_message_compatibility_only",
+			consumerSpec:        createFireAndForgetConsumerSpecWithCompatibleMessage(),
+			providerSpec:        createFireAndForgetProviderSpecWithCompatibleMessage(),
+			consumerChannelName: "events/process",
+			expectedMatch:       true,
+			expectedChannelName: "events/process",
+			expectedErrorContains: "",
+			communicationPattern: "fire-and-forget",
+			protocol:            "mqtt",
+			description:         "Совместимость только входящих сообщений в Fire-and-Forget паттерне",
+		},
+		{
+			name:                "fire_and_forget_incompatible_main_message_structure",
+			consumerSpec:        createFireAndForgetConsumerSpecWithIncompatibleMessage(),
+			providerSpec:        createFireAndForgetProviderSpecWithIncompatibleMessage(),
+			consumerChannelName: "events/process",
+			expectedMatch:       false,
+			expectedChannelName: "",
+			expectedErrorContains: "Fire-and-Forget failed: message incompatible",
+			communicationPattern: "fire-and-forget",
+			protocol:            "mqtt",
+			description:         "Несовместимые структуры основного сообщения в Fire-and-Forget паттерне",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			contractValidate := &ContractValidate{
+				ConsumerChannelName: tc.consumerChannelName,
+				ProviderSpec:        tc.providerSpec,
+				ConsumerSpec:        tc.consumerSpec,
+			}
+
+			// Первоначально извлекаем канал потребителя
+			consumerChannel, err := validator.extractConsumerChannel(contractValidate)
+			require.NoError(t, err, "Failed to extract consumer channel for test: %s", tc.name)
+
+			// Act
+			result, err := validator.findMatchingProviderChannel(contractValidate, consumerChannel)
+
+			// Assert
+			if tc.expectedMatch {
+				require.NoError(t, err, "Expected successful match for test case: %s", tc.name)
+				require.NotNil(t, result, "Expected non-nil result for test case: %s", tc.name)
+				assert.Equal(t, tc.expectedChannelName, result.Name, "Channel name mismatch for test case: %s", tc.name)
+				assert.Equal(t, tc.protocol, result.Protocol, "Protocol mismatch for test case: %s", tc.name)
+				
+				// Проверяем, что у нас есть только входящие сообщения для Fire-and-Forget
+				if tc.communicationPattern == "fire-and-forget" {
+					assert.NotNil(t, result.InMessage, "Expected InMessage for Fire-and-Forget pattern: %s", tc.name)
+					assert.Nil(t, result.OutMessage, "Expected no OutMessage for Fire-and-Forget pattern: %s", tc.name)
+				}
+			} else {
+				require.Error(t, err, "Expected error for test case: %s", tc.name)
+				if tc.expectedErrorContains != "" {
+					assert.Contains(t, err.Error(), tc.expectedErrorContains, "Error message mismatch for test case: %s", tc.name)
+				}
+				assert.Nil(t, result, "Expected nil result for failed test case: %s", tc.name)
+			}
+		})
+	}
+}
+
+// TestFindMatchingProviderChannel_EdgeCases тестирует граничные случаи и ошибки
+func TestFindMatchingProviderChannel_EdgeCases(t *testing.T) {
+	validator := NewChannelValidator()
+
+	testCases := []FindMatchingProviderChannelTestCase{
+		{
+			name:                "no_channels_with_matching_protocol",
+			consumerSpec:        createBasicConsumerSpec(), // amqp
+			providerSpec:        createProviderSpecWithDifferentProtocol(), // kafka
+			consumerChannelName: "user/events",
+			expectedMatch:       false,
+			expectedChannelName: "",
+			expectedErrorContains: "no compatible provider channel found",
+			communicationPattern: "request-reply",
+			protocol:            "amqp",
+			description:         "Нет каналов с нужным протоколом",
+		},
+		{
+			name:                "provider_spec_missing_servers",
+			consumerSpec:        createBasicConsumerSpec(),
+			providerSpec:        createProviderSpecWithoutServers(),
+			consumerChannelName: "user/events",
+			expectedMatch:       false,
+			expectedChannelName: "",
+			expectedErrorContains: "no compatible provider channel found",
+			communicationPattern: "request-reply",
+			protocol:            "amqp",
+			description:         "Отсутствующие servers в спецификации поставщика",
+		},
+		{
+			name:                "provider_spec_missing_channels",
+			consumerSpec:        createBasicConsumerSpec(),
+			providerSpec:        createEmptyProviderSpec(),
+			consumerChannelName: "user/events",
+			expectedMatch:       false,
+			expectedChannelName: "",
+			expectedErrorContains: "no compatible provider channel found",
+			communicationPattern: "request-reply",
+			protocol:            "amqp",
+			description:         "Отсутствующие channels в спецификации поставщика",
+		},
+		{
+			name:                "provider_spec_missing_operations",
+			consumerSpec:        createBasicConsumerSpec(),
+			providerSpec:        createProviderSpecWithoutOperations(),
+			consumerChannelName: "user/events",
+			expectedMatch:       false,
+			expectedChannelName: "",
+			expectedErrorContains: "no compatible provider channel found",
+			communicationPattern: "request-reply",
+			protocol:            "amqp",
+			description:         "Отсутствующие operations в спецификации поставщика",
+		},
+		{
+			name:                "different_content_types",
+			consumerSpec:        createBasicConsumerSpec(), // application/json
+			providerSpec:        createProviderSpecWithXMLContentType(), // application/xml
+			consumerChannelName: "user/events",
+			expectedMatch:       false,
+			expectedChannelName: "",
+			expectedErrorContains: "no compatible provider channel found",
+			communicationPattern: "request-reply",
+			protocol:            "amqp",
+			description:         "Различные ContentType (application/json vs application/xml)",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			contractValidate := &ContractValidate{
+				ConsumerChannelName: tc.consumerChannelName,
+				ProviderSpec:        tc.providerSpec,
+				ConsumerSpec:        tc.consumerSpec,
+			}
+
+			// Первоначально извлекаем канал потребителя
+			consumerChannel, err := validator.extractConsumerChannel(contractValidate)
+			require.NoError(t, err, "Failed to extract consumer channel for test: %s", tc.name)
+
+			// Act
+			result, err := validator.findMatchingProviderChannel(contractValidate, consumerChannel)
+
+			// Assert
+			require.Error(t, err, "Expected error for test case: %s", tc.name)
+			assert.Contains(t, err.Error(), tc.expectedErrorContains, "Error message mismatch for test case: %s", tc.name)
+			assert.Nil(t, result, "Expected nil result for failed test case: %s", tc.name)
+		})
+	}
+}
+
+// TestFindMatchingProviderChannel_CorrelationId тестирует поддержку Correlation ID для Request-Reply паттерна
+func TestFindMatchingProviderChannel_CorrelationId(t *testing.T) {
+	validator := NewChannelValidator()
+
+	testCases := []FindMatchingProviderChannelTestCase{
+		{
+			name:                "correlation_id_supported_by_both",
+			consumerSpec:        createConsumerSpecWithCorrelationId(),
+			providerSpec:        createProviderSpecWithCorrelationId(),
+			consumerChannelName: "user/events",
+			expectedMatch:       true,
+			expectedChannelName: "user/events",
+			expectedErrorContains: "",
+			communicationPattern: "request-reply",
+			protocol:            "amqp",
+			description:         "Consumer и Provider поддерживают Correlation ID - полная совместимость",
+		},
+		{
+			name:                "consumer_requires_correlation_id_provider_missing",
+			consumerSpec:        createConsumerSpecWithCorrelationId(),
+			providerSpec:        createBasicProviderSpec(), // без correlation ID
+			consumerChannelName: "user/events",
+			expectedMatch:       false,
+			expectedChannelName: "",
+			expectedErrorContains: "no compatible provider channel found",
+			communicationPattern: "request-reply",
+			protocol:            "amqp",
+			description:         "Consumer требует Correlation ID для связывания ответов, Provider не поддерживает - несовместимо",
+		},
+		{
+			name:                "provider_requires_correlation_id_consumer_missing",
+			consumerSpec:        createBasicConsumerSpec(), // без correlation ID
+			providerSpec:        createProviderSpecWithCorrelationId(),
+			consumerChannelName: "user/events",
+			expectedMatch:       false,
+			expectedChannelName: "",
+			expectedErrorContains: "no compatible provider channel found",
+			communicationPattern: "request-reply",
+			protocol:            "amqp",
+			description:         "Provider требует Correlation ID для обработки запросов, Consumer не предоставляет - несовместимо",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			contractValidate := &ContractValidate{
+				ConsumerChannelName: tc.consumerChannelName,
+				ProviderSpec:        tc.providerSpec,
+				ConsumerSpec:        tc.consumerSpec,
+			}
+
+			consumerChannel, err := validator.extractConsumerChannel(contractValidate)
+			require.NoError(t, err, "Failed to extract consumer channel for test: %s", tc.name)
+
+			// Act
+			result, err := validator.findMatchingProviderChannel(contractValidate, consumerChannel)
+
+			// Assert
+			if tc.expectedMatch {
+				require.NoError(t, err, "Expected successful match for test case: %s", tc.name)
+				require.NotNil(t, result, "Expected non-nil result for test case: %s", tc.name)
+				assert.Equal(t, tc.expectedChannelName, result.Name, "Channel name mismatch for test case: %s", tc.name)
+				assert.Equal(t, tc.protocol, result.Protocol, "Protocol mismatch for test case: %s", tc.name)
+
+				t.Logf("✅ %s: Found matching channel '%s' with protocol '%s'", tc.description, result.Name, result.Protocol)
+			} else {
+				require.Error(t, err, "Expected error for test case: %s", tc.name)
+				assert.Contains(t, err.Error(), tc.expectedErrorContains, "Error message mismatch for test case: %s", tc.name)
+				assert.Nil(t, result, "Expected nil result for failed test case: %s", tc.name)
+
+				t.Logf("❌ %s: %v", tc.description, err)
+			}
+		})
+	}
+}
+
+// Helper функции для создания спецификаций с Correlation ID
+
+func createConsumerSpecWithCorrelationId() *parser.AsyncAPISpec {
+	return &parser.AsyncAPISpec{
+		AsyncAPI: "3.0.0",
+		Info: parser.Info{
+			Title:   "Consumer Service with Correlation ID",
+			Version: "1.0.0",
+		},
+		Servers: map[string]parser.Server{
+			"production": {
+				Host:     "localhost:5672",
+				Protocol: "amqp",
+			},
+		},
+		Channels: map[string]parser.Channel{
+			"user/events": {
+				Address: "user.events",
+				Messages: map[string]parser.MessageRef{
+					"userSignup": {
+						Ref: "#/components/messages/UserSignupWithCorrelation",
+					},
+				},
+				Servers: []parser.ServerRef{
+					{Ref: "#/servers/production"},
+				},
+			},
+		},
+		Operations: map[string]parser.Operation{
+			"sendUserSignup": {
+				Action:  "send",
+				Channel: parser.ChannelRef{Ref: "#/channels/user~1events"},
+				Messages: []parser.MessageRef{
+					{Ref: "#/components/messages/UserSignupWithCorrelation"},
+				},
+				Reply: &parser.Reply{
+					Channel: parser.ChannelRef{Ref: "#/channels/user~1events"},
+					Messages: []parser.MessageRef{
+						{Ref: "#/components/messages/UserSignupResponseWithCorrelation"},
+					},
+				},
+			},
+		},
+		Components: &parser.Components{
+			Messages: map[string]parser.Message{
+				"UserSignupWithCorrelation": {
+					Name:        "UserSignupWithCorrelation",
+					ContentType: "application/json",
+					Payload: &parser.Schema{
+						Type: "object",
+						Properties: map[string]parser.Schema{
+							"userId": {Type: "string"},
+							"email":  {Type: "string"},
+						},
+						Required: []string{"userId", "email"},
+					},
+					CorrelationId: &parser.CorrelationId{
+						Location:    "$message.header#/correlationId",
+						Description: "Correlation ID for message tracking",
+					},
+				},
+				"UserSignupResponseWithCorrelation": {
+					Name:        "UserSignupResponseWithCorrelation",
+					ContentType: "application/json",
+					Payload: &parser.Schema{
+						Type: "object",
+						Properties: map[string]parser.Schema{
+							"success": {Type: "boolean"},
+							"userId":  {Type: "string"},
+						},
+						Required: []string{"success", "userId"},
+					},
+					CorrelationId: &parser.CorrelationId{
+						Location:    "$message.header#/correlationId",
+						Description: "Correlation ID for message tracking",
+					},
+				},
+			},
+		},
+	}
+}
+
+func createProviderSpecWithCorrelationId() *parser.AsyncAPISpec {
+	return &parser.AsyncAPISpec{
+		AsyncAPI: "3.0.0",
+		Info: parser.Info{
+			Title:   "Provider Service with Correlation ID",
+			Version: "1.0.0",
+		},
+		Servers: map[string]parser.Server{
+			"production": {
+				Host:     "localhost:5672",
+				Protocol: "amqp",
+			},
+		},
+		Channels: map[string]parser.Channel{
+			"user/events": {
+				Address: "user.events",
+				Messages: map[string]parser.MessageRef{
+					"userSignup": {
+						Ref: "#/components/messages/UserSignupWithCorrelation",
+					},
+				},
+				Servers: []parser.ServerRef{
+					{Ref: "#/servers/production"},
+				},
+			},
+		},
+		Operations: map[string]parser.Operation{
+			"receiveUserSignup": {
+				Action:  "receive",
+				Channel: parser.ChannelRef{Ref: "#/channels/user~1events"},
+				Messages: []parser.MessageRef{
+					{Ref: "#/components/messages/UserSignupWithCorrelation"},
+				},
+				Reply: &parser.Reply{
+					Channel: parser.ChannelRef{Ref: "#/channels/user~1events"},
+					Messages: []parser.MessageRef{
+						{Ref: "#/components/messages/UserSignupResponseWithCorrelation"},
+					},
+				},
+			},
+		},
+		Components: &parser.Components{
+			Messages: map[string]parser.Message{
+				"UserSignupWithCorrelation": {
+					Name:        "UserSignupWithCorrelation",
+					ContentType: "application/json",
+					Payload: &parser.Schema{
+						Type: "object",
+						Properties: map[string]parser.Schema{
+							"userId": {Type: "string"},
+							"email":  {Type: "string"},
+						},
+						Required: []string{"userId", "email"},
+					},
+					CorrelationId: &parser.CorrelationId{
+						Location:    "$message.header#/correlationId",
+						Description: "Correlation ID for message tracking",
+					},
+				},
+				"UserSignupResponseWithCorrelation": {
+					Name:        "UserSignupResponseWithCorrelation",
+					ContentType: "application/json",
+					Payload: &parser.Schema{
+						Type: "object",
+						Properties: map[string]parser.Schema{
+							"success": {Type: "boolean"},
+							"userId":  {Type: "string"},
+						},
+						Required: []string{"success", "userId"},
+					},
+					CorrelationId: &parser.CorrelationId{
+						Location:    "$message.header#/correlationId",
+						Description: "Correlation ID for message tracking",
+					},
+				},
+			},
+		},
+	}
+}
+
+// Helper функции для Fire-and-Forget с совместимыми сообщениями
+
+func createFireAndForgetConsumerSpecWithCompatibleMessage() *parser.AsyncAPISpec {
+	return &parser.AsyncAPISpec{
+		AsyncAPI: "3.0.0",
+		Info: parser.Info{
+			Title:   "Fire-and-Forget Consumer with Compatible Message",
+			Version: "1.0.0",
+		},
+		Servers: map[string]parser.Server{
+			"development": {
+				Host:     "localhost:1883",
+				Protocol: "mqtt",
+			},
+		},
+		Channels: map[string]parser.Channel{
+			"events/process": {
+				Address: "events.process",
+				Messages: map[string]parser.MessageRef{
+					"eventData": {
+						Ref: "#/components/messages/EventData",
+					},
+				},
+				Servers: []parser.ServerRef{
+					{Ref: "#/servers/development"},
+				},
+			},
+		},
+		Operations: map[string]parser.Operation{
+			"sendEventData": {
+				Action:  "send",
+				Channel: parser.ChannelRef{Ref: "#/channels/events~1process"},
+				Messages: []parser.MessageRef{
+					{Ref: "#/components/messages/EventData"},
+				},
+				// Нет Reply - это Fire-and-Forget
+			},
+		},
+		Components: &parser.Components{
+			Messages: map[string]parser.Message{
+				"EventData": {
+					Name:        "EventData",
+					ContentType: "application/json",
+					Payload: &parser.Schema{
+						Type: "object",
+						Properties: map[string]parser.Schema{
+							"eventId":   {Type: "string"},
+							"timestamp": {Type: "string"},
+							"data":      {Type: "object"},
+						},
+						Required: []string{"eventId", "timestamp"},
+					},
+				},
+			},
+		},
+	}
+}
+
+func createFireAndForgetProviderSpecWithCompatibleMessage() *parser.AsyncAPISpec {
+	return &parser.AsyncAPISpec{
+		AsyncAPI: "3.0.0",
+		Info: parser.Info{
+			Title:   "Fire-and-Forget Provider with Compatible Message",
+			Version: "1.0.0",
+		},
+		Servers: map[string]parser.Server{
+			"development": {
+				Host:     "localhost:1883",
+				Protocol: "mqtt",
+			},
+		},
+		Channels: map[string]parser.Channel{
+			"events/process": {
+				Address: "events.process",
+				Messages: map[string]parser.MessageRef{
+					"eventData": {
+						Ref: "#/components/messages/EventData",
+					},
+				},
+				Servers: []parser.ServerRef{
+					{Ref: "#/servers/development"},
+				},
+			},
+		},
+		Operations: map[string]parser.Operation{
+			"receiveEventData": {
+				Action:  "receive",
+				Channel: parser.ChannelRef{Ref: "#/channels/events~1process"},
+				Messages: []parser.MessageRef{
+					{Ref: "#/components/messages/EventData"},
+				},
+				// Нет Reply - это Fire-and-Forget
+			},
+		},
+		Components: &parser.Components{
+			Messages: map[string]parser.Message{
+				"EventData": {
+					Name:        "EventData",
+					ContentType: "application/json",
+					Payload: &parser.Schema{
+						Type: "object",
+						Properties: map[string]parser.Schema{
+							"eventId":   {Type: "string"},
+							"timestamp": {Type: "string"},
+							"data":      {Type: "object"},
+						},
+						Required: []string{"eventId", "timestamp"}, // Совместимые required поля
+					},
+				},
+			},
+		},
+	}
+}
+
+// Helper функции для Fire-and-Forget с несовместимыми сообщениями
+
+func createFireAndForgetConsumerSpecWithIncompatibleMessage() *parser.AsyncAPISpec {
+	return &parser.AsyncAPISpec{
+		AsyncAPI: "3.0.0",
+		Info: parser.Info{
+			Title:   "Fire-and-Forget Consumer with Incompatible Message",
+			Version: "1.0.0",
+		},
+		Servers: map[string]parser.Server{
+			"development": {
+				Host:     "localhost:1883",
+				Protocol: "mqtt",
+			},
+		},
+		Channels: map[string]parser.Channel{
+			"events/process": {
+				Address: "events.process",
+				Messages: map[string]parser.MessageRef{
+					"eventData": {
+						Ref: "#/components/messages/EventData",
+					},
+				},
+				Servers: []parser.ServerRef{
+					{Ref: "#/servers/development"},
+				},
+			},
+		},
+		Operations: map[string]parser.Operation{
+			"sendEventData": {
+				Action:  "send",
+				Channel: parser.ChannelRef{Ref: "#/channels/events~1process"},
+				Messages: []parser.MessageRef{
+					{Ref: "#/components/messages/EventData"},
+				},
+				// Нет Reply - это Fire-and-Forget
+			},
+		},
+		Components: &parser.Components{
+			Messages: map[string]parser.Message{
+				"EventData": {
+					Name:        "EventData",
+					ContentType: "application/json",
+					Payload: &parser.Schema{
+						Type: "object",
+						Properties: map[string]parser.Schema{
+							"userId":    {Type: "string"},
+							"action":    {Type: "string"},
+							"metadata":  {Type: "object"},
+						},
+						Required: []string{"userId", "action"}, // Другие required поля
+					},
+				},
+			},
+		},
+	}
+}
+
+func createFireAndForgetProviderSpecWithIncompatibleMessage() *parser.AsyncAPISpec {
+	return &parser.AsyncAPISpec{
+		AsyncAPI: "3.0.0",
+		Info: parser.Info{
+			Title:   "Fire-and-Forget Provider with Incompatible Message",
+			Version: "1.0.0",
+		},
+		Servers: map[string]parser.Server{
+			"development": {
+				Host:     "localhost:1883",
+				Protocol: "mqtt",
+			},
+		},
+		Channels: map[string]parser.Channel{
+			"events/process": {
+				Address: "events.process",
+				Messages: map[string]parser.MessageRef{
+					"eventData": {
+						Ref: "#/components/messages/EventData",
+					},
+				},
+				Servers: []parser.ServerRef{
+					{Ref: "#/servers/development"},
+				},
+			},
+		},
+		Operations: map[string]parser.Operation{
+			"receiveEventData": {
+				Action:  "receive",
+				Channel: parser.ChannelRef{Ref: "#/channels/events~1process"},
+				Messages: []parser.MessageRef{
+					{Ref: "#/components/messages/EventData"},
+				},
+				// Нет Reply - это Fire-and-Forget
+			},
+		},
+		Components: &parser.Components{
+			Messages: map[string]parser.Message{
+				"EventData": {
+					Name:        "EventData",
+					ContentType: "application/json",
+					Payload: &parser.Schema{
+						Type: "object",
+						Properties: map[string]parser.Schema{
+							"eventId":   {Type: "string"},
+							"timestamp": {Type: "string"},
+							"status":    {Type: "string"},
+						},
+						Required: []string{"eventId", "timestamp", "status"}, // Несовместимые required поля
+					},
+				},
+			},
+		},
+	}
+}
+
+func TestFindMatchingProviderChannel_PubSub(t *testing.T) {
+	validator := NewChannelValidator()
+
+	testCases := []FindMatchingProviderChannelTestCase{
+		{
+			name:                "pub_sub_one_publisher_multiple_subscribers",
+			consumerSpec:        createPubSubSubscriber(),
+			providerSpec:        createPubSubPublisher(),
+			consumerChannelName: "notifications/events",
+			expectedMatch:       true,
+			expectedChannelName: "notifications/events",
+			expectedErrorContains: "",
+			communicationPattern: "pub-sub",
+			protocol:            "mqtt",
+			description:         "Один Publisher (Provider) → Множественные Subscribers (Consumer)",
+		},
+		{
+			name:                "pub_sub_multiple_channels_same_message_format",
+			consumerSpec:        createPubSubSubscriberMultipleChannels(),
+			providerSpec:        createPubSubPublisherMultipleChannels(),
+			consumerChannelName: "user/created",
+			expectedMatch:       true,
+			expectedChannelName: "", // Любой совместимый канал (user/created, user/updated, user/deleted)
+			expectedErrorContains: "",
+			communicationPattern: "pub-sub",
+			protocol:            "mqtt",
+			description:         "Множественные каналы с одинаковым форматом сообщений",
+		},
+		{
+			name:                "pub_sub_topic_based_routing",
+			consumerSpec:        createPubSubSubscriberTopicRouting(),
+			providerSpec:        createPubSubPublisherTopicRouting(),
+			consumerChannelName: "notifications/email",
+			expectedMatch:       true,
+			expectedChannelName: "notifications/email",
+			expectedErrorContains: "",
+			communicationPattern: "pub-sub",
+			protocol:            "mqtt",
+			description:         "Topic-based routing через имена каналов",
+		},
+		{
+			name:                "pub_sub_broadcast_to_all_subscribers",
+			consumerSpec:        createPubSubSubscriberBroadcast(),
+			providerSpec:        createPubSubPublisherBroadcast(),
+			consumerChannelName: "broadcast/notifications",
+			expectedMatch:       true,
+			expectedChannelName: "broadcast/notifications",
+			expectedErrorContains: "",
+			communicationPattern: "pub-sub",
+			protocol:            "mqtt",
+			description:         "Broadcast сообщения для всех подписчиков",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			contractValidate := &ContractValidate{
+				ConsumerChannelName: tc.consumerChannelName,
+				ProviderSpec:        tc.providerSpec,
+				ConsumerSpec:        tc.consumerSpec,
+			}
+
+			// Первоначально извлекаем канал потребителя
+			consumerChannel, err := validator.extractConsumerChannel(contractValidate)
+			require.NoError(t, err, "Failed to extract consumer channel for test: %s", tc.name)
+
+			// Act
+			result, err := validator.findMatchingProviderChannel(contractValidate, consumerChannel)
+
+			// Assert
+			if tc.expectedMatch {
+				require.NoError(t, err, "Expected successful match for test case: %s", tc.name)
+				require.NotNil(t, result, "Expected non-nil result for test case: %s", tc.name)
+				
+				// Проверяем имя канала только если оно задано (не пустое)
+				if tc.expectedChannelName != "" {
+					assert.Equal(t, tc.expectedChannelName, result.Name, "Channel name mismatch for test case: %s", tc.name)
+				}
+				assert.Equal(t, tc.protocol, result.Protocol, "Protocol mismatch for test case: %s", tc.name)
+				
+				// Специфичные проверки для Pub-Sub паттерна
+				t.Logf("✅ Pub-Sub pattern validated: %s", tc.description)
+				t.Logf("   Consumer (Subscriber): %s with action 'receive'", consumerChannel.Name)
+				t.Logf("   Provider (Publisher): %s with action 'send'", result.Name)
+				t.Logf("   Protocol: %s", result.Protocol)
+			} else {
+				require.Error(t, err, "Expected error for test case: %s", tc.name)
+				if tc.expectedErrorContains != "" {
+					assert.Contains(t, err.Error(), tc.expectedErrorContains, "Error message mismatch for test case: %s", tc.name)
+				}
+				t.Logf("❌ Expected incompatibility for %s: %v", tc.description, err)
+			}
+		})
+	}
+}
+
+// ====== PUBLISH-SUBSCRIBE PATTERN HELPER FUNCTIONS ======
+
+// Helper функции для Pub-Sub паттерна (строка 551): Один Publisher → Множественные Subscribers
+
+func createPubSubSubscriber() *parser.AsyncAPISpec {
+	return &parser.AsyncAPISpec{
+		AsyncAPI: "3.0.0",
+		Info: parser.Info{
+			Title:   "Pub-Sub Subscriber (Consumer)",
+			Version: "1.0.0",
+		},
+		Servers: map[string]parser.Server{
+			"mqtt-broker": {
+				Host:     "localhost:1883",
+				Protocol: "mqtt",
+			},
+		},
+		Channels: map[string]parser.Channel{
+			"notifications/events": {
+				Address: "notifications.events",
+				Messages: map[string]parser.MessageRef{
+					"eventNotification": {
+						Ref: "#/components/messages/EventNotification",
+					},
+				},
+				Servers: []parser.ServerRef{
+					{Ref: "#/servers/mqtt-broker"},
+				},
+			},
+		},
+		Operations: map[string]parser.Operation{
+			"subscribeToEvents": {
+				Action:  "receive", // Consumer получает сообщения в Pub-Sub
+				Channel: parser.ChannelRef{Ref: "#/channels/notifications~1events"},
+				Messages: []parser.MessageRef{
+					{Ref: "#/components/messages/EventNotification"},
+				},
+				// Нет Reply - это Pub-Sub паттерн
+			},
+		},
+		Components: &parser.Components{
+			Messages: map[string]parser.Message{
+				"EventNotification": {
+					Name:        "EventNotification",
+					ContentType: "application/json",
+					Payload: &parser.Schema{
+						Type: "object",
+						Properties: map[string]parser.Schema{
+							"eventId":   {Type: "string"},
+							"eventType": {Type: "string"},
+							"timestamp": {Type: "string"},
+							"data":      {Type: "object"},
+						},
+						Required: []string{"eventId", "eventType", "timestamp"},
+					},
+				},
+			},
+		},
+	}
+}
+
+func createPubSubPublisher() *parser.AsyncAPISpec {
+	return &parser.AsyncAPISpec{
+		AsyncAPI: "3.0.0",
+		Info: parser.Info{
+			Title:   "Pub-Sub Publisher (Provider)",
+			Version: "1.0.0",
+		},
+		Servers: map[string]parser.Server{
+			"mqtt-broker": {
+				Host:     "localhost:1883",
+				Protocol: "mqtt",
+			},
+		},
+		Channels: map[string]parser.Channel{
+			"notifications/events": {
+				Address: "notifications.events",
+				Messages: map[string]parser.MessageRef{
+					"eventNotification": {
+						Ref: "#/components/messages/EventNotification",
+					},
+				},
+				Servers: []parser.ServerRef{
+					{Ref: "#/servers/mqtt-broker"},
+				},
+			},
+		},
+		Operations: map[string]parser.Operation{
+			"publishEvents": {
+				Action:  "send", // Provider отправляет сообщения в Pub-Sub
+				Channel: parser.ChannelRef{Ref: "#/channels/notifications~1events"},
+				Messages: []parser.MessageRef{
+					{Ref: "#/components/messages/EventNotification"},
+				},
+				// Нет Reply - это Pub-Sub паттерн
+			},
+		},
+		Components: &parser.Components{
+			Messages: map[string]parser.Message{
+				"EventNotification": {
+					Name:        "EventNotification",
+					ContentType: "application/json",
+					Payload: &parser.Schema{
+						Type: "object",
+						Properties: map[string]parser.Schema{
+							"eventId":   {Type: "string"},
+							"eventType": {Type: "string"},
+							"timestamp": {Type: "string"},
+							"data":      {Type: "object"},
+						},
+						Required: []string{"eventId", "eventType", "timestamp"}, // Совместимые required поля
+					},
+				},
+			},
+		},
+	}
+}
+
+// Helper функции для строки 552: Множественные каналы с одинаковым форматом сообщений
+
+func createPubSubSubscriberMultipleChannels() *parser.AsyncAPISpec {
+	return &parser.AsyncAPISpec{
+		AsyncAPI: "3.0.0",
+		Info: parser.Info{
+			Title:   "Multi-Channel Subscriber",
+			Version: "1.0.0",
+		},
+		Servers: map[string]parser.Server{
+			"mqtt-broker": {
+				Host:     "localhost:1883",
+				Protocol: "mqtt",
+			},
+		},
+		Channels: map[string]parser.Channel{
+			"user/created": {
+				Address: "user.created",
+				Messages: map[string]parser.MessageRef{
+					"userEvent": {Ref: "#/components/messages/UserEvent"},
+				},
+				Servers: []parser.ServerRef{{Ref: "#/servers/mqtt-broker"}},
+			},
+			"user/updated": {
+				Address: "user.updated",
+				Messages: map[string]parser.MessageRef{
+					"userEvent": {Ref: "#/components/messages/UserEvent"},
+				},
+				Servers: []parser.ServerRef{{Ref: "#/servers/mqtt-broker"}},
+			},
+			"user/deleted": {
+				Address: "user.deleted", 
+				Messages: map[string]parser.MessageRef{
+					"userEvent": {Ref: "#/components/messages/UserEvent"},
+				},
+				Servers: []parser.ServerRef{{Ref: "#/servers/mqtt-broker"}},
+			},
+		},
+		Operations: map[string]parser.Operation{
+			"subscribeUserCreated": {
+				Action:   "receive",
+				Channel:  parser.ChannelRef{Ref: "#/channels/user~1created"},
+				Messages: []parser.MessageRef{{Ref: "#/components/messages/UserEvent"}},
+			},
+			"subscribeUserUpdated": {
+				Action:   "receive",
+				Channel:  parser.ChannelRef{Ref: "#/channels/user~1updated"},
+				Messages: []parser.MessageRef{{Ref: "#/components/messages/UserEvent"}},
+			},
+			"subscribeUserDeleted": {
+				Action:   "receive",
+				Channel:  parser.ChannelRef{Ref: "#/channels/user~1deleted"},
+				Messages: []parser.MessageRef{{Ref: "#/components/messages/UserEvent"}},
+			},
+		},
+		Components: &parser.Components{
+			Messages: map[string]parser.Message{
+				"UserEvent": {
+					Name:        "UserEvent",
+					ContentType: "application/json",
+					Payload: &parser.Schema{
+						Type: "object",
+						Properties: map[string]parser.Schema{
+							"userId":    {Type: "string"},
+							"action":    {Type: "string"},
+							"timestamp": {Type: "string"},
+						},
+						Required: []string{"userId", "action", "timestamp"},
+					},
+				},
+			},
+		},
+	}
+}
+
+func createPubSubPublisherMultipleChannels() *parser.AsyncAPISpec {
+	return &parser.AsyncAPISpec{
+		AsyncAPI: "3.0.0",
+		Info: parser.Info{
+			Title:   "Multi-Channel Publisher",
+			Version: "1.0.0",
+		},
+		Servers: map[string]parser.Server{
+			"mqtt-broker": {
+				Host:     "localhost:1883",
+				Protocol: "mqtt",
+			},
+		},
+		Channels: map[string]parser.Channel{
+			"user/created": {
+				Address: "user.created",
+				Messages: map[string]parser.MessageRef{
+					"userEvent": {Ref: "#/components/messages/UserEvent"},
+				},
+				Servers: []parser.ServerRef{{Ref: "#/servers/mqtt-broker"}},
+			},
+			"user/updated": {
+				Address: "user.updated",
+				Messages: map[string]parser.MessageRef{
+					"userEvent": {Ref: "#/components/messages/UserEvent"},
+				},
+				Servers: []parser.ServerRef{{Ref: "#/servers/mqtt-broker"}},
+			},
+			"user/deleted": {
+				Address: "user.deleted",
+				Messages: map[string]parser.MessageRef{
+					"userEvent": {Ref: "#/components/messages/UserEvent"},
+				},
+				Servers: []parser.ServerRef{{Ref: "#/servers/mqtt-broker"}},
+			},
+		},
+		Operations: map[string]parser.Operation{
+			"publishUserCreated": {
+				Action:   "send", // Publisher отправляет в множественные каналы
+				Channel:  parser.ChannelRef{Ref: "#/channels/user~1created"},
+				Messages: []parser.MessageRef{{Ref: "#/components/messages/UserEvent"}},
+			},
+			"publishUserUpdated": {
+				Action:   "send",
+				Channel:  parser.ChannelRef{Ref: "#/channels/user~1updated"},
+				Messages: []parser.MessageRef{{Ref: "#/components/messages/UserEvent"}},
+			},
+			"publishUserDeleted": {
+				Action:   "send",
+				Channel:  parser.ChannelRef{Ref: "#/channels/user~1deleted"},
+				Messages: []parser.MessageRef{{Ref: "#/components/messages/UserEvent"}},
+			},
+		},
+		Components: &parser.Components{
+			Messages: map[string]parser.Message{
+				"UserEvent": {
+					Name:        "UserEvent",
+					ContentType: "application/json",
+					Payload: &parser.Schema{
+						Type: "object",
+						Properties: map[string]parser.Schema{
+							"userId":    {Type: "string"},
+							"action":    {Type: "string"},
+							"timestamp": {Type: "string"},
+						},
+						Required: []string{"userId", "action", "timestamp"}, // Совместимые поля
+					},
+				},
+			},
+		},
+	}
+}
+
+// Helper функции для строки 553: Topic-based routing через имена каналов
+
+func createPubSubSubscriberTopicRouting() *parser.AsyncAPISpec {
+	return &parser.AsyncAPISpec{
+		AsyncAPI: "3.0.0",
+		Info: parser.Info{
+			Title:   "Topic-Based Subscriber",
+			Version: "1.0.0",
+		},
+		Servers: map[string]parser.Server{
+			"mqtt-broker": {
+				Host:     "localhost:1883",
+				Protocol: "mqtt",
+			},
+		},
+		Channels: map[string]parser.Channel{
+			"notifications/email": {
+				Address: "notifications.email", // topic.subtopic routing
+				Messages: map[string]parser.MessageRef{
+					"notification": {Ref: "#/components/messages/Notification"},
+				},
+				Servers: []parser.ServerRef{{Ref: "#/servers/mqtt-broker"}},
+			},
+			"notifications/sms": {
+				Address: "notifications.sms",
+				Messages: map[string]parser.MessageRef{
+					"notification": {Ref: "#/components/messages/Notification"},
+				},
+				Servers: []parser.ServerRef{{Ref: "#/servers/mqtt-broker"}},
+			},
+			"notifications/push": {
+				Address: "notifications.push",
+				Messages: map[string]parser.MessageRef{
+					"notification": {Ref: "#/components/messages/Notification"},
+				},
+				Servers: []parser.ServerRef{{Ref: "#/servers/mqtt-broker"}},
+			},
+		},
+		Operations: map[string]parser.Operation{
+			"subscribeEmailNotifications": {
+				Action:   "receive", // Подписка на email notifications
+				Channel:  parser.ChannelRef{Ref: "#/channels/notifications~1email"},
+				Messages: []parser.MessageRef{{Ref: "#/components/messages/Notification"}},
+			},
+		},
+		Components: &parser.Components{
+			Messages: map[string]parser.Message{
+				"Notification": {
+					Name:        "Notification",
+					ContentType: "application/json",
+					Payload: &parser.Schema{
+						Type: "object",
+						Properties: map[string]parser.Schema{
+							"notificationId": {Type: "string"},
+							"recipient":      {Type: "string"},
+							"content":        {Type: "string"},
+							"channel":        {Type: "string"}, // email, sms, push
+						},
+						Required: []string{"notificationId", "recipient", "content"},
+					},
+				},
+			},
+		},
+	}
+}
+
+func createPubSubPublisherTopicRouting() *parser.AsyncAPISpec {
+	return &parser.AsyncAPISpec{
+		AsyncAPI: "3.0.0",
+		Info: parser.Info{
+			Title:   "Topic-Based Publisher",
+			Version: "1.0.0",
+		},
+		Servers: map[string]parser.Server{
+			"mqtt-broker": {
+				Host:     "localhost:1883",
+				Protocol: "mqtt",
+			},
+		},
+		Channels: map[string]parser.Channel{
+			"notifications/email": {
+				Address: "notifications.email",
+				Messages: map[string]parser.MessageRef{
+					"notification": {Ref: "#/components/messages/Notification"},
+				},
+				Servers: []parser.ServerRef{{Ref: "#/servers/mqtt-broker"}},
+			},
+			"notifications/sms": {
+				Address: "notifications.sms",
+				Messages: map[string]parser.MessageRef{
+					"notification": {Ref: "#/components/messages/Notification"},
+				},
+				Servers: []parser.ServerRef{{Ref: "#/servers/mqtt-broker"}},
+			},
+			"notifications/push": {
+				Address: "notifications.push",
+				Messages: map[string]parser.MessageRef{
+					"notification": {Ref: "#/components/messages/Notification"},
+				},
+				Servers: []parser.ServerRef{{Ref: "#/servers/mqtt-broker"}},
+			},
+		},
+		Operations: map[string]parser.Operation{
+			"publishEmailNotification": {
+				Action:   "send", // Publisher отправляет в разные topic каналы
+				Channel:  parser.ChannelRef{Ref: "#/channels/notifications~1email"},
+				Messages: []parser.MessageRef{{Ref: "#/components/messages/Notification"}},
+			},
+			"publishSmsNotification": {
+				Action:   "send",
+				Channel:  parser.ChannelRef{Ref: "#/channels/notifications~1sms"},
+				Messages: []parser.MessageRef{{Ref: "#/components/messages/Notification"}},
+			},
+			"publishPushNotification": {
+				Action:   "send",
+				Channel:  parser.ChannelRef{Ref: "#/channels/notifications~1push"},
+				Messages: []parser.MessageRef{{Ref: "#/components/messages/Notification"}},
+			},
+		},
+		Components: &parser.Components{
+			Messages: map[string]parser.Message{
+				"Notification": {
+					Name:        "Notification",
+					ContentType: "application/json",
+					Payload: &parser.Schema{
+						Type: "object",
+						Properties: map[string]parser.Schema{
+							"notificationId": {Type: "string"},
+							"recipient":      {Type: "string"},
+							"content":        {Type: "string"},
+							"channel":        {Type: "string"},
+						},
+						Required: []string{"notificationId", "recipient", "content"}, // Совместимые поля
+					},
+				},
+			},
+		},
+	}
+}
+
+// Helper функции для строки 554: Broadcast сообщения для всех подписчиков
+
+func createPubSubSubscriberBroadcast() *parser.AsyncAPISpec {
+	return &parser.AsyncAPISpec{
+		AsyncAPI: "3.0.0",
+		Info: parser.Info{
+			Title:   "Broadcast Subscriber",
+			Version: "1.0.0",
+		},
+		Servers: map[string]parser.Server{
+			"mqtt-broker": {
+				Host:     "localhost:1883",
+				Protocol: "mqtt",
+			},
+		},
+		Channels: map[string]parser.Channel{
+			"broadcast/notifications": {
+				Address: "broadcast.notifications", // Широковещательный канал
+				Messages: map[string]parser.MessageRef{
+					"broadcastMessage": {Ref: "#/components/messages/BroadcastMessage"},
+				},
+				Servers: []parser.ServerRef{{Ref: "#/servers/mqtt-broker"}},
+			},
+		},
+		Operations: map[string]parser.Operation{
+			"subscribeToBroadcast": {
+				Action:   "receive", // Получение broadcast сообщений
+				Channel:  parser.ChannelRef{Ref: "#/channels/broadcast~1notifications"},
+				Messages: []parser.MessageRef{{Ref: "#/components/messages/BroadcastMessage"}},
+			},
+		},
+		Components: &parser.Components{
+			Messages: map[string]parser.Message{
+				"BroadcastMessage": {
+					Name:        "BroadcastMessage",
+					ContentType: "application/json",
+					Payload: &parser.Schema{
+						Type: "object",
+						Properties: map[string]parser.Schema{
+							"messageId": {Type: "string"},
+							"title":     {Type: "string"},
+							"body":      {Type: "string"},
+							"priority":  {Type: "string"},
+							"timestamp": {Type: "string"},
+						},
+						Required: []string{"messageId", "title", "body"}, // Broadcast требует точности
+					},
+				},
+			},
+		},
+	}
+}
+
+func createPubSubPublisherBroadcast() *parser.AsyncAPISpec {
+	return &parser.AsyncAPISpec{
+		AsyncAPI: "3.0.0",
+		Info: parser.Info{
+			Title:   "Broadcast Publisher",
+			Version: "1.0.0",
+		},
+		Servers: map[string]parser.Server{
+			"mqtt-broker": {
+				Host:     "localhost:1883",
+				Protocol: "mqtt",
+			},
+		},
+		Channels: map[string]parser.Channel{
+			"broadcast/notifications": { 
+				Address: "broadcast.notifications",
+				Messages: map[string]parser.MessageRef{
+					"broadcastMessage": {Ref: "#/components/messages/BroadcastMessage"},
+				},
+				Servers: []parser.ServerRef{{Ref: "#/servers/mqtt-broker"}},
+			},
+		},
+		Operations: map[string]parser.Operation{
+			"sendBroadcast": {
+				Action:   "send", // Отправка broadcast для всех подписчиков
+				Channel:  parser.ChannelRef{Ref: "#/channels/broadcast~1notifications"},
+				Messages: []parser.MessageRef{{Ref: "#/components/messages/BroadcastMessage"}},
+			},
+		},
+		Components: &parser.Components{
+			Messages: map[string]parser.Message{
+				"BroadcastMessage": {
+					Name:        "BroadcastMessage",
+					ContentType: "application/json",
+					Payload: &parser.Schema{
+						Type: "object",
+						Properties: map[string]parser.Schema{
+							"messageId": {Type: "string"},
+							"title":     {Type: "string"},
+							"body":      {Type: "string"},
+							"priority":  {Type: "string"},
+							"timestamp": {Type: "string"},
+						},
+						Required: []string{"messageId", "title", "body"}, // Идентичные required поля для broadcast
+					},
+				},
+			},
+		},
+	}
+}

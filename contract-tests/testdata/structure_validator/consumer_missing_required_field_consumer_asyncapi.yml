@@ -1,0 +1,62 @@
+asyncapi: 3.0.0
+info:
+  title: Incompatible Consumer API
+  version: 1.0.0
+  description: Consumer with missing required fields
+
+servers:
+  httpServer:
+    host: localhost:8080
+    protocol: http
+
+channels:
+  restGetBalanceRequest:
+    address: /api/client/{Api-clientId}/wallet/balance
+    servers:
+      - $ref: '#/servers/httpServer'
+    messages:
+      httpBalanceRequest:
+        $ref: '#/components/messages/psGetBalanceRequest'
+
+operations:
+  getBalanceRequest:
+    action: send
+    channel:
+      $ref: "#/channels/restGetBalanceRequest"
+
+components:
+  messages:
+    psGetBalanceRequest:
+      name: PsGetBalanceRequest
+      title: Http Request with Missing Required Field
+      contentType: application/json
+      headers:
+        type: object
+        properties:
+          Api-clientId:
+            type: string
+          RequestID:
+            type: string
+          Content-Type:
+            type: string
+        required:
+          - Api-clientId
+          - RequestID
+          - Content-Type
+      payload:
+        type: object
+        properties:
+          field1:
+            type: string
+          field2:
+            type: string
+          field3:
+            type: string
+          field4:
+            type: string
+          # Отсутствует field5 - обязательное поле провайдера
+        required:
+          - field1
+          - field2
+          - field3
+          - field4
