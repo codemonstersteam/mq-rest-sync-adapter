@@ -82,8 +82,32 @@ func TestContractValidator_Validate_Integration(t *testing.T) {
 		t.Logf("Result: %s channel successfully matched", result.ConsumerChannelName)
 
 		// Проверяем что выбран именно правильный канал
-		assert.Equal(t, "user/events", result.ConsumerChannelName, 
+		assert.Equal(t, "user/events", result.ConsumerChannelName,
 			"Algorithm should select user/events as the only compatible channel")
+	})
+
+	t.Run("real project specs - incompatible patterns", func(t *testing.T) {
+		configPath, err := filepath.Abs("../cmd/testdata/cmd/real-project-contract-tests.yaml")
+		require.NoError(t, err)
+
+		validator := NewContractValidator()
+		_, err = validator.Validate(configPath)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "no compatible provider channel found")
+		assert.Contains(t, err.Error(), "provider has no outgoing message")
+	})
+
+	t.Run("real project specs - compatible after fix", func(t *testing.T) {
+		configPath, err := filepath.Abs("../cmd/testdata/cmd/real-project-contract-tests-fixed.yaml")
+		require.NoError(t, err)
+
+		validator := NewContractValidator()
+		result, err := validator.Validate(configPath)
+
+		require.NoError(t, err)
+		assert.True(t, result.IsValid)
+		assert.Equal(t, "restGetBalanceRequest", result.ConsumerChannelName)
 	})
 }
 

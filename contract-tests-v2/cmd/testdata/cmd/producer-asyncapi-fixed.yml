@@ -1,0 +1,233 @@
+asyncapi: 3.0.0
+info:
+  title: Wallet Balance Service
+  version: 1.0.0
+  description: |
+    Сервис для получения баланса электронного кошелька клиента.
+    Сервис принимает HTTP POST запросы и возвращает информацию о балансе
+    в формате JSON. Интегрируется с MQ адаптером через REST API.
+
+    ИСПРАВЛЕНА СОВМЕСТИМОСТЬ: Изменен паттерн с Publish-Subscribe на Request-Reply
+    для совместимости с потребителем.
+
+servers:
+  production:
+    host: localhost:8080
+    protocol: http
+    description: Production server для wallet balance service
+    tags:
+      - name: "env:prod"
+        description: "Production окружение"
+  development:
+    host: localhost:8080
+    protocol: http
+    description: Development server для тестирования
+    tags:
+      - name: "env:dev"
+        description: "Development окружение"
+      - name: "env:test"
+        description: "Test окружение"
+
+channels:
+  restGetBalanceRequest:
+    address: "/api/client/{clientId}/wallet/balance"
+    description: |
+      Канал для Request-Reply паттерна получения баланса кошелька клиента.
+      Принимает POST запросы с данными о периоде и типе операции,
+      возвращает информацию о балансе кошелька на том же канале.
+      clientId передается в URL path.
+    messages:
+      request:
+        $ref: '#/components/messages/getBalanceRequest'
+      response:
+        $ref: '#/components/messages/getBalanceResponse'
+    servers:
+      - $ref: '#/servers/production'
+      - $ref: '#/servers/development'
+
+operations:
+  receiveBalanceRequest:
+    action: receive
+    channel:
+      $ref: "#/channels/restGetBalanceRequest"
+    summary: Получение запроса на баланс кошелька с ответом
+    description: |
+      Request-Reply операция для получения POST запроса с параметрами
+      для получения баланса кошелька клиента и отправки ответа
+      на том же канале.
+    reply:
+      channel:
+        $ref: "#/channels/restGetBalanceRequest"
+      messages:
+        - $ref: "#/components/messages/getBalanceResponse"
+
+components:
+  messages:
+    getBalanceRequest:
+      name: GetBalanceRequest
+      title: Запрос на получение баланса кошелька
+      contentType: application/json
+      headers:
+        $ref: '#/components/schemas/requestHeaders'
+      payload:
+        $ref: '#/components/schemas/balanceRequestPayload'
+
+    getBalanceResponse:
+      name: GetBalanceResponse
+      title: Ответ с балансом кошелька
+      contentType: application/json
+      headers:
+        $ref: '#/components/schemas/responseHeaders'
+      payload:
+        $ref: '#/components/schemas/balanceResponsePayload'
+
+  schemas:
+    requestHeaders:
+      type: object
+      properties:
+        Api-clientId:
+          type: string
+          description: Идентификатор клиента из URL path
+          example: "Api-clientId-01"
+        RequestID:
+          type: string
+          description: Уникальный идентификатор запроса
+          example: "request-01"
+        Content-Type:
+          type: string
+          enum: ["application/json"]
+          example: "application/json"
+      required:
+        - Api-clientId
+        - Content-Type
+
+    responseHeaders:
+      type: object
+      properties:
+        Content-Type:
+          type: string
+          enum: ["application/json"]
+          example: "application/json"
+        RequestID:
+          type: string
+          description: Идентификатор запроса для корреляции
+          example: "request-01"
+      required:
+        - Content-Type
+
+    balanceRequestPayload:
+      type: object
+      required:
+        - requestType
+        - dateFrom
+        - dateTo
+        - operTime
+      properties:
+        requestType:
+          type: string
+          description: Тип запроса для получения истории операций
+          enum:
+            - operationHistory
+          example: "operationHistory"
+        dateFrom:
+          type: number
+          format: double
+          description: |
+            Дата начала периода в формате Unix timestamp с микросекундами
+            Соответствует Java OffsetDateTime
+          example: 1745299787.198193738
+        dateTo:
+          type: number
+          format: double
+          description: |
+            Дата окончания периода в формате Unix timestamp с микросекундами
+            Соответствует Java OffsetDateTime
+          example: 1745299792.198546764
+        operTime:
+          type: number
+          format: double
+          description: |
+            Время операции в формате Unix timestamp с микросекундами
+            Соответствует Java OffsetDateTime
+          example: 1745299737.198562113
+
+    balanceResponsePayload:
+      type: object
+      required:
+        - status
+        - actualTimestamp
+        - data
+      properties:
+        status:
+          type: string
+          description: Статус выполнения запроса
+          enum:
+            - success
+            - error
+          example: "success"
+        actualTimestamp:
+          type: integer
+          format: int64
+          description: |
+            Актуальное время ответа в миллисекундах Unix timestamp
+          example: 1607449018829
+        data:
+          $ref: '#/components/schemas/walletBalanceData'
+        error:
+          $ref: '#/components/schemas/errorInfo'
+
+    walletBalanceData:
+      type: object
+      required:
+        - createTime
+        - operationId
+        - balance
+      properties:
+        createTime:
+          type: integer
+          format: int64
+          description: |
+            Время создания записи о балансе в миллисекундах Unix timestamp
+          example: 1600443296227
+        operationId:
+          type: string
+          description: Уникальный идентификатор операции
+          example: "01"
+        balance:
+          $ref: '#/components/schemas/balanceInfo'
+
+    balanceInfo:
+      type: object
+      required:
+        - value
+        - currency
+      properties:
+        value:
+          type: number
+          format: double
+          description: Сумма баланса
+          example: 999.9
+        currency:
+          type: string
+          description: Код валюты баланса
+          enum:
+            - rub
+            - usd
+            - eur
+          example: "rub"
+
+    errorInfo:
+      type: object
+      properties:
+        code:
+          type: integer
+          description: Код ошибки
+          example: 1001
+        message:
+          type: string
+          description: Описание ошибки
+          example: "Client not found"
+        details:
+          type: string
+          description: Детальная информация об ошибке
+          example: "Client with ID Api-clientId-01 does not exist"
