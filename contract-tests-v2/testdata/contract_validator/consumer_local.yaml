@@ -1,0 +1,487 @@
+asyncapi: 3.0.0
+info:
+  title: MQ Adapter for REST wallet balance service
+  version: 1.0.0
+  description: |
+    Пример MQ адаптера для REST-сервиса
+    Имеем компонент в системе, который представляет собой синхронный REST сервис.
+    Сервис предоставляет информацию об электро кошельке клиента.
+    Нам необходимо обеспечить асинхронную работу с данным сервисом,
+    для этого мы реализовали адаптер, который с работает с броекром сообщений и передает запрос в REST сервис.
+servers:
+  broker:
+    host: ibmmq://localhost:1414
+    protocol: ibmmq
+    pathname: /QM1/DEV.ADMIN.SVRCONN
+    description: |
+      Тестовый инстанс ibm mq в докере
+    bindings:
+      ibmmq:
+        cipherSpec: ANY_TLS12
+    tags:
+      - name: "env:test"
+        description: "это окружение для тестирования"
+      - name: "env:api-first-test"
+        description: "это окружение для тестирования API"
+    externalDocs:
+      description: |
+        IBM MQ смысла использовать нет. Мы перейдем на более легковесное Open Source решение
+        Сведий контейнер переехал в репозиторий IBM https://developer.ibm.com/tutorials/mq-connect-app-queue-manager-containers/
+      url: "https://hub.docker.com/r/ibmcom/mq"
+  restServer:
+    host: https://localhost:8080
+    protocol: http
+    pathname: '/api/client/{clientId}/wallet/balance'
+    security:
+      - $ref: '#/components/securitySchemes/userPass'
+    variables:
+      clientId:
+        default: Api-clientId-01
+    description: |
+      Тестовый инстанс REST http в докере 
+      который предоставляет информацию о балансе
+    tags:
+      - name: "env:http-test"
+        description: "это окружение для тестирования"
+      - name: "env:api-first-test"
+        description: "это окружение для тестирования API"
+    externalDocs:
+      description: |
+        Сервер предоставляет информацию о балансе.
+      url: "https://localhost:8080"
+channels:
+  incomingMessages:
+    address: "IN.QUEUE.PS"
+    description: |
+      тригерное сообщение, которое приходит из очереди "запросов"
+      канал используется для вычитывания входящих сообщений из очереди "запросов"
+    messages:
+      httpRequestEnvelope:
+        $ref: '#/components/messages/httpRequestEnvelope'
+    servers:
+      - $ref: "#/servers/broker"
+  receiptReceived:
+    address: "RECEIPT.QUEUE.PS"
+    description: |
+      канал используется для доставки квитанции об успешном получении запроса и начале обработке запроса
+    messages:
+      receiptValidationAcceptance:
+        $ref: '#/components/messages/receiptValidationAcceptance'
+    servers:
+      - $ref: "#/servers/broker"
+  transactionReceipt:
+    address: "RECEIPT.QUEUE.PS"
+    description: канал используется для доставки квитанции о транзакции
+    messages:
+      transactionReceipt:
+        $ref: '#/components/messages/transactionReceipt'
+    servers:
+      - $ref: "#/servers/broker"
+  sendRestResponse:
+    address: "OUT.QUEUE.PS"
+    description: канал используется для доставки ответа от REST сервиса
+    messages:
+      httpResponseEnvelope:
+        $ref: '#/components/messages/httpResponseEnvelope'
+    servers:
+      - $ref: "#/servers/broker"
+  restGetBalanceRequest:
+    address: "/api/client/{Api-clientId}/wallet/balance"
+    description: |
+      Канал используется для обращения по REST-у в сервис
+      для получения баланса кошелька
+    messages:
+      request:
+        $ref: '#/components/messages/psGetBalanceRequest'
+      response:
+        $ref: '#/components/messages/psGetBalanceResponse'
+    servers:
+      - $ref: "#/servers/restServer"
+operations:
+  receiveEnvelope:
+    action: receive
+    channel:
+      $ref: "#/channels/incomingMessages"
+    summary: |
+      :Получает конверт с запросом
+  sendAcceptedReceipt:
+    action: send
+    channel:
+      $ref: "#/channels/receiptReceived"
+  sendTransactionReceipt:
+    action: send
+    channel:
+      $ref: "#/channels/transactionReceipt"
+  sendRestResponse:
+    action: send
+    channel:
+      $ref: "#/channels/sendRestResponse"
+  getBalanceRequest:
+    action: send
+    channel:
+      $ref: "#/channels/restGetBalanceRequest"
+    messages:
+      - $ref: "#/components/messages/psGetBalanceRequest"
+    reply:
+      channel:
+        $ref: "#/channels/restGetBalanceRequest"
+      messages:
+        - $ref: "#/components/messages/psGetBalanceResponse"
+components:
+  securitySchemes:
+    userPass:
+      type: userPassword
+  messages:
+    httpRequestEnvelope:
+      name: httpRequestEnvelope
+      title: Http Request Envelope
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/httpEnvelopePayload'
+    receiptValidationAcceptance:
+      name: ReceiptValidationAcceptance
+      title: Квитанция об успешном получении запроса
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/receiptValidationAcceptancePayload'
+    transactionReceipt:
+      name: TransactionReceipt
+      title: Квитанция об успешном получении запроса
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/transactionReceiptPayload'
+    httpResponseEnvelope:
+      name: httpResponseEnvelope
+      title: Http Response Envelope
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/httpResponseEnvelopePayload'
+    psGetBalanceRequest:
+      name: PsGetBalanceRequest
+      title: Http Request PsGetBalanceRequest
+      contentType: application/json
+      headers:
+        $ref: '#/components/schemas/psGetBalanceRequestHeaders'
+      payload:
+        $ref: '#/components/schemas/psGetBalanceRequestPayload'
+    psGetBalanceResponse:
+      name: PsGetBalanceResponse  
+      title: Ответ с балансом кошелька
+      contentType: application/json
+      headers:
+        $ref: '#/components/schemas/responseHeaders'
+      payload:
+        $ref: '#/components/schemas/balanceResponsePayload'
+    
+  schemas:
+    httpEnvelopePayload:
+      type: object
+      required:
+        - correlationId
+        - method
+        - service
+        - operation
+        - headers
+        - body
+      properties:
+        correlationId:
+          type: string
+          description: Correlation Id
+        method:
+          type: string
+          enum:
+            - GET
+            - POST
+          description: http метод
+        service:
+          type: string
+          enum:
+            - api-gateway
+          description: конфигурация вызова в перекладчике содержит название REST сервиса
+        operation:
+          type: string
+          enum:
+            - client-wallet-balance
+            - client-wallet-status
+          description: |
+            конфигурация вызова в перекладчике содержит название операции REST сервиса
+            из двух свойств service + operation из конфига собирается
+            url запроса в REST сервис
+        headers:
+          type: object
+          properties:
+            "Api-clientId":
+              type: string
+              description: |
+                Идентификатор клиента содержится в заголовке http запроса
+                Этот параметр также используется в формировании запроса в REST сервис
+          required:
+            - "Api-clientId"
+        body:
+          type: string
+          description: request body
+    receiptValidationAcceptancePayload:
+      type: object
+      required:
+        - requestType
+        - dateFrom
+        - operTime
+        - flag
+      properties:
+        requestType:
+          type: string
+          description: Тип запроса
+          enum:
+            - operationHistory
+        dateFrom:
+          type: number
+          description: |
+            Дата сформированного запроса 
+            Java OffsetDateTime
+            A date-time with an offset from UTC/Greenwich in the ISO-8601 calendar system, such as 2007-12-03T10:15:30+01:00.
+        operTime:
+          type: number
+          description: |
+            Дата и время операции
+            Java OffsetDateTime
+            A date-time with an offset from UTC/Greenwich in the ISO-8601 calendar system, such as 2007-12-03T10:15:30+01:00.
+        flag:
+          type: string
+          description: |
+            Флаг определяющий статус квитанции
+          enum:
+            - ACCEPTED
+        dateTo:
+          type: number
+          description: |
+            Дата и время окончания запроса
+            Java OffsetDateTime
+            A date-time with an offset from UTC/Greenwich in the ISO-8601 calendar system, such as 2007-12-03T10:15:30+01:00.
+        errorCode:
+          type: number
+          description: Код ошибки
+        description:
+          type: string
+          description: Описание ошибки
+    transactionReceiptPayload:
+      type: object
+      required:
+        - requestType
+        - dateFrom
+        - operTime
+        - flag
+      properties:
+        requestType:
+          type: string
+          description: Тип запроса
+          enum:
+            - operationHistory
+        dateFrom:
+          type: number
+          description: |
+            Дата сформированного запроса 
+            Java OffsetDateTime
+            A date-time with an offset from UTC/Greenwich in the ISO-8601 calendar system, such as 2007-12-03T10:15:30+01:00.
+        operTime:
+          type: number
+          description: |
+            Дата и время операции
+            Java OffsetDateTime
+            A date-time with an offset from UTC/Greenwich in the ISO-8601 calendar system, such as 2007-12-03T10:15:30+01:00.
+        flag:
+          type: string
+          description: |
+            Флаг определяющий статус квитанции
+          enum:
+            - SUCCESS
+            - ERROR
+        dateTo:
+          type: number
+          description: |
+            Дата и время окончания запроса
+            Java OffsetDateTime
+            A date-time with an offset from UTC/Greenwich in the ISO-8601 calendar system, such as 2007-12-03T10:15:30+01:00.
+        errorCode:
+          type: number
+          description: Код ошибки
+        description:
+          type: string
+          description: Описание ошибки
+    httpResponseEnvelopePayload:
+      type: object
+      required:
+        - correlationId
+        - status
+        - message
+        - method
+        - service
+        - operation
+        - headers
+        - body
+      properties:
+        correlationId:
+          type: string
+          description: Correlation Id
+        status:
+          type: integer
+          description: httpCode
+        message:
+          type: string
+          description: httpCode.reasonPhrase
+        method:
+          type: string
+          enum:
+            - GET
+            - POST
+          description: http метод
+        service:
+          type: string
+          enum:
+            - api-gateway
+          description: конфигурация вызова в перекладчике содержит название REST сервиса
+        operation:
+          type: string
+          enum:
+            - client-wallet-balance
+            - client-wallet-status
+          description: |
+            конфигурация вызова в перекладчике содержит название операции REST сервиса
+            из двух свойств service + operation из конфига собирается
+            url запроса в REST сервис
+        headers:
+          type: object
+          properties:
+            "Api-clientId":
+              type: string
+              description: |
+                Идентификатор клиента содержится в заголовке http запроса
+                Этот параметр также используется в формировании запроса в REST сервис
+          required:
+            - "Api-clientId"
+        body:
+          type: string
+          description: request body
+    psGetBalanceRequestHeaders:
+      type: object
+      properties:
+        Api-clientId:
+          type: string
+          example: Api-clientId-01
+        RequestID:
+          type: string
+          example: request-01
+    psGetBalanceRequestPayload:
+      type: object
+      required:
+        - requestType
+        - dateFrom
+        - dateTo
+        - operTime
+      properties:
+        requestType:
+          type: string
+          example: "operationHistory"
+        dateFrom:
+          type: number
+          format: double
+          example: 1747377682.865268036
+        dateTo:
+          type: number
+          format: double
+          example: 1748241682.865268036
+        operTime:
+          type: number
+          format: double
+          example: 1748241672.865268036
+    responseHeaders:
+      type: object
+      properties:
+        Content-Type:
+          type: string
+          enum: ["application/json"]
+          example: "application/json"
+        RequestID:
+          type: string
+          description: Идентификатор запроса для корреляции
+          example: "request-01"
+      required:
+        - Content-Type   
+    balanceResponsePayload:
+      type: object
+      required:
+        - status
+        - actualTimestamp
+        - data
+      properties:
+        status:
+          type: string
+          description: Статус выполнения запроса
+          enum:
+            - success
+            - error
+          example: "success"
+        actualTimestamp:
+          type: integer
+          format: int64
+          description: |
+            Актуальное время ответа в миллисекундах Unix timestamp
+          example: 1607449018829
+        data:
+          $ref: '#/components/schemas/walletBalanceData'
+        error:
+          $ref: '#/components/schemas/errorInfo'
+    walletBalanceData:
+      type: object
+      required:
+        - createTime
+        - operationId
+        - balance
+      properties:
+        createTime:
+          type: integer
+          format: int64
+          description: |
+            Время создания записи о балансе в миллисекундах Unix timestamp
+          example: 1600443296227
+        operationId:
+          type: string
+          description: Уникальный идентификатор операции
+          example: "01"
+        balance:
+          $ref: '#/components/schemas/balanceInfo'
+    balanceInfo:
+      type: object
+      required:
+        - value
+        - currency
+      properties:
+        value:
+          type: number
+          format: double
+          description: Сумма баланса
+          example: 999.9
+        currency:
+          type: string
+          description: Код валюты баланса
+          enum:
+            - rub
+            - usd
+            - eur
+          example: "rub"
+    errorInfo:
+      type: object
+      properties:
+        code:
+          type: integer
+          description: Код ошибки
+          example: 1001
+        message:
+          type: string
+          description: Описание ошибки
+          example: "Client not found"
+        details:
+          type: string
+          description: Детальная информация об ошибке
+          example: "Client with ID Api-clientId-01 does not exist"
+                       
+

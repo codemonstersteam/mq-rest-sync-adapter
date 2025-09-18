@@ -1,0 +1,117 @@
+asyncapi: 3.0.0
+info:
+  title: Notification Service Provider
+  version: 1.0.0
+  description: Provider service that processes user events
+
+servers:
+  rabbitmq:
+    host: localhost:5672
+    protocol: amqp
+    description: RabbitMQ broker
+
+channels:
+  notifications/user-events:
+    address: notifications.user.events
+    servers:
+      - $ref: '#/servers/rabbitmq'
+    messages:
+      userEvent:
+        $ref: '#/components/messages/UserEvent'
+
+  email/welcome:
+    address: email.welcome
+    servers:
+      - $ref: '#/servers/rabbitmq'
+    messages:
+      welcomeEmail:
+        $ref: '#/components/messages/WelcomeEmail'
+
+operations:
+  receiveUserEvent:
+    action: receive
+    channel:
+      $ref: '#/channels/notifications~1user-events'
+    messages:
+      - $ref: '#/channels/notifications~1user-events/messages/userEvent'
+    reply:
+      channel:
+        $ref: '#/channels/notifications~1user-events'
+      messages:
+        - $ref: '#/components/messages/EventConfirmation'
+
+  receiveWelcomeEmailRequest:
+    action: receive
+    channel:
+      $ref: '#/channels/email~1welcome'
+    messages:
+      - $ref: '#/channels/email~1welcome/messages/welcomeEmail'
+
+components:
+  messages:
+    UserEvent:
+      name: UserEvent
+      title: User event
+      summary: Generic user event
+      contentType: application/json
+      payload:
+        type: object
+        properties:
+          userId:
+            type: string
+            description: Unique user identifier
+          email:
+            type: string
+            format: email
+            description: User email address
+          username:
+            type: string
+            description: Username
+          signedUpAt:
+            type: string
+            format: date-time
+            description: Event timestamp
+        required:
+          - userId
+          - email
+          - username
+          - signedUpAt
+
+    EventConfirmation:
+      name: EventConfirmation
+      title: Event processing confirmation
+      summary: Confirmation that event was processed
+      contentType: application/json
+      payload:
+        type: object
+        properties:
+          userId:
+            type: string
+            description: User ID from the event
+          status:
+            type: string
+            enum: [confirmed, failed]
+            description: Processing status
+          message:
+            type: string
+            description: Additional information
+        required:
+          - userId
+          - status
+
+    WelcomeEmail:
+      name: WelcomeEmail
+      title: Welcome email request
+      summary: Request to send welcome email
+      contentType: application/json
+      payload:
+        type: object
+        properties:
+          email:
+            type: string
+            format: email
+          name:
+            type: string
+        required:
+          - email
+          - name

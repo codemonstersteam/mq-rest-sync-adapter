@@ -1,0 +1,30 @@
+# Автоматически генерируемые отчеты
+*_report.json
+*report.json
+compatibility_report.json
+test_compatibility_report.json
+test_fail_report.json
+missing_server_report.json
+protocol_mismatch_report.json
+provider_missing_server_report.json
+
+# Отчеты в reports директории
+reports/*.json
+
+# Собранные бинарники
+contract-checker
+contract-tests
+
+# Временные файлы Go
+*.tmp
+*.log
+
+# IDE файлы
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS файлы
+.DS_Store
+Thumbs.db

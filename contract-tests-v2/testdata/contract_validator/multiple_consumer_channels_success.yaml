@@ -1,0 +1,14 @@
+contract_tests:
+  consumer:
+    spec_path: "consumer_multiple_channels.yaml"
+    name: "user-service"
+    channels:
+      - "user/events"
+  provider:
+    spec_url: "provider_single_matching_channel.yaml"
+    name: "notification-service"
+  settings:
+    log_level: "info"
+    save_json_report: false
+    timeout: 30
+    ignore_warnings: false

@@ -1,0 +1,16 @@
+asyncapi: 3.0.0
+info:
+  title: Test Provider with Unknown Protocol Only
+  version: 1.0.0
+  description: Тестовый провайдер с неизвестным протоколом у провайдера
+servers:
+  grpcServer:
+    host: grpc://localhost:50051
+    protocol: grpc
+    description: gRPC сервер (неизвестный протокол)
+channels:
+  balanceRequest:
+    address: "/api/client/{clientId}/wallet/balance"
+    description: Канал с неизвестным протоколом grpc
+    servers:
+      - $ref: "#/servers/grpcServer"

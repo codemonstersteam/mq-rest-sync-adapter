@@ -1,0 +1,10 @@
+contract_tests:
+  consumer:
+    name: "test-consumer"
+    spec_path: "../../testdata/contract_validator/consumer_local.yaml"
+    channels:
+      - "restGetBalanceRequest"
+
+  provider:
+    name: "test-provider"
+    spec_path: "../../testdata/contract_validator/provider_external.yaml"

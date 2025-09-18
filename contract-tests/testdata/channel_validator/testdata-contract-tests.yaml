@@ -1,0 +1,30 @@
+# Тестовая конфигурация для юнит-тестов
+contract_tests:
+  # Спецификация потребителя (локальная)
+  consumer:
+    spec_path: "testdata/channel_validator/testdata_consumer_asyncapi.yml"
+    name: "test-consumer"
+    channels:
+      - restGetBalanceRequest
+    
+  # Спецификация поставщика (удаленная)
+  provider:
+    spec_url: "testdata/channel_validator/testdata_provider_success.yml"
+    name: "test-provider"
+    
+  # Настройки проверки
+  settings:
+    # Уровень логирования: debug, info, warn, error
+    log_level: "debug"
+    
+    # Сохранять ли детальный отчет в JSON
+    save_json_report: true
+    
+    # Имя файла для JSON отчета
+    json_report_file: "test_compatibility_report.json"
+    
+    # Максимальное время ожидания загрузки спецификации поставщика (секунды)
+    timeout: 10
+    
+    # Игнорировать предупреждения (только breaking changes)
+    ignore_warnings: true

@@ -1,0 +1,30 @@
+# Конфигурация для проверки совместимости контрактов с локальными спецификациями
+contract_tests:
+  # Спецификация потребителя (локальная)
+  consumer:
+    spec_path: "./consumer_local.yaml"
+    name: "mq-rest-sync-adapter"
+    channels:
+      - restGetBalanceRequest
+    
+  # Спецификация поставщика (локальная)
+  provider:
+    spec_path: "./provider_external.yaml"
+    name: "wallet-balance-service"
+    
+  # Настройки проверки
+  settings:
+    # Уровень логирования: debug, info, warn, error
+    log_level: "info"
+    
+    # Сохранять ли детальный отчет в JSON
+    save_json_report: true
+    
+    # Имя файла для JSON отчета
+    json_report_file: "compatibility_report_test.json"
+    
+    # Максимальное время ожидания загрузки спецификации поставщика (секунды)
+    timeout: 30
+    
+    # Игнорировать предупреждения (только breaking changes)
+    ignore_warnings: false

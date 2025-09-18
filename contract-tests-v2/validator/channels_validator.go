@@ -1,0 +1,1046 @@
+package validator
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/codemonsters/contract-tests-v2/parser"
+)
+
+// ChannelValidator структура валидатора каналов
+type ChannelValidator struct{}
+
+// NewChannelValidator создает новый экземпляр валидатора каналов
+func NewChannelValidator() *ChannelValidator {
+	return &ChannelValidator{}
+}
+
+// ValidateChannels принимает структуру ContractValidate и возвращает полную информацию о каналах
+func (v *ChannelValidator) ValidateChannels(contractValidate *ContractValidate) (*ChannelValidationResult, error) {
+	// Извлекаем информацию о канале потребителя
+	consumerChannel, err := v.extractConsumerChannel(contractValidate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract consumer channel: %w", err)
+	}
+
+	// Ищем соответствующий канал поставщика
+	providerChannel, err := v.findMatchingProviderChannel(contractValidate, consumerChannel)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find matching provider channel: %w", err)
+	}
+
+	return &ChannelValidationResult{
+		ConsumerChannel: *consumerChannel,
+		ProviderChannel: *providerChannel,
+	}, nil
+}
+
+// extractConsumerChannel извлекает информацию о канале потребителя
+func (v *ChannelValidator) extractConsumerChannel(contractValidate *ContractValidate) (*ChannelInfo, error) {
+	channelName := contractValidate.ConsumerChannelName
+	spec := contractValidate.ConsumerSpec
+
+	// Проверяем существование канала
+	channel, exists := spec.Channels[channelName]
+	if !exists {
+		return nil, newChannelNotFoundErrorValidator(channelName, "consumer.channels")
+	}
+
+	// Извлекаем протокол канала
+	protocol, err := v.extractChannelProtocol(spec, &channel)
+	if err != nil {
+		return nil, newValidationError(fmt.Sprintf("failed to extract protocol for channel %s - %s", channelName, err.Error()), "consumer.channel.protocol")
+	}
+
+	// Извлекаем сообщения из операций
+	outMessage, inMessage, err := v.extractConsumerMessages(spec, channelName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract messages for channel %s: %w", channelName, err)
+	}
+
+	return &ChannelInfo{
+		Name:       channelName,
+		Protocol:   protocol,
+		OutMessage: outMessage,
+		InMessage:  inMessage,
+	}, nil
+}
+
+// findMatchingProviderChannel находит соответствующий канал поставщика
+func (v *ChannelValidator) findMatchingProviderChannel(contractValidate *ContractValidate, consumerChannel *ChannelInfo) (*ChannelInfo, error) {
+	spec := contractValidate.ProviderSpec
+	
+	var protocolErrors []string
+	var candidateChannels []string
+	channelsWithProtocol := 0
+
+	// Перебираем все каналы поставщика
+	for channelName, channel := range spec.Channels {
+		// Проверяем протокол
+		protocol, err := v.extractChannelProtocol(spec, &channel)
+		if err != nil {
+			protocolErrors = append(protocolErrors, fmt.Sprintf("%s: %v", channelName, err))
+			continue // Пропускаем каналы с проблемными протоколами
+		}
+
+		if protocol != consumerChannel.Protocol {
+			continue // Протокол не совпадает
+		}
+		
+		channelsWithProtocol++
+		candidateInfo := fmt.Sprintf("%s (protocol: %s)", channelName, protocol)
+
+		// Извлекаем сообщения поставщика
+		inMessage, outMessage, err := v.extractProviderMessages(spec, channelName)
+		if err != nil {
+			candidateChannels = append(candidateChannels, candidateInfo + fmt.Sprintf(" - error extracting messages: %v", err))
+			continue // Пропускаем каналы с проблемными сообщениями
+		}
+
+		// Определяем паттерн коммуникации и проверяем совместимость
+		messageCompatible, compatibilityReason := v.validateCommunicationPattern(
+			*consumerChannel, inMessage, outMessage, contractValidate)
+		
+		// Если ни один паттерн не подошел, проверяем причины
+		if !messageCompatible {
+			if compatibilityReason == "" {
+				// Нет подходящих сообщений для любого паттерна
+				if consumerChannel.OutMessage == nil && consumerChannel.InMessage == nil {
+					compatibilityReason = "consumer has no messages"
+				} else if inMessage == nil && outMessage == nil {
+					compatibilityReason = "provider has no messages"
+				} else {
+					compatibilityReason = "no matching message pattern (neither request-reply nor pub-sub)"
+				}
+			}
+			candidateChannels = append(candidateChannels, candidateInfo + " - " + compatibilityReason)
+			continue
+		}
+
+
+		// Все проверки пройдены - возвращаем подходящий канал
+		return &ChannelInfo{
+			Name:       channelName,
+			Protocol:   protocol,
+			InMessage:  inMessage,
+			OutMessage: outMessage,
+		}, nil
+	}
+
+	// Формируем детальное сообщение об ошибке с использованием стандартизированного формата
+	var incompatibleDetails []string
+	
+	if len(spec.Channels) == 0 {
+		incompatibleDetails = append(incompatibleDetails, "Provider has no channels defined")
+	} else {
+		incompatibleDetails = append(incompatibleDetails, fmt.Sprintf("Provider channels analyzed: %d", len(spec.Channels)))
+		incompatibleDetails = append(incompatibleDetails, fmt.Sprintf("Channels with matching protocol: %d", channelsWithProtocol))
+	}
+	
+	if len(protocolErrors) > 0 {
+		incompatibleDetails = append(incompatibleDetails, "Protocol extraction errors:")
+		for _, err := range protocolErrors {
+			incompatibleDetails = append(incompatibleDetails, "  "+err)
+		}
+	}
+	
+	if len(candidateChannels) > 0 {
+		incompatibleDetails = append(incompatibleDetails, "Channels with matching protocol but failed validation:")
+		for _, channel := range candidateChannels {
+			incompatibleDetails = append(incompatibleDetails, "  "+channel)
+		}
+	}
+	
+	return nil, formatChannelCompatibilityError(consumerChannel.Name, len(spec.Channels), incompatibleDetails)
+}
+
+// extractChannelProtocol извлекает протокол канала из серверов
+func (v *ChannelValidator) extractChannelProtocol(spec *parser.AsyncAPISpec, channel *parser.Channel) (string, error) {
+	if len(channel.Servers) == 0 {
+		return "", newValidationError("no servers defined for channel", "channel.servers")
+	}
+
+	// Берем первый сервер
+	serverRef := channel.Servers[0].Ref
+	if !strings.HasPrefix(serverRef, "#/servers/") {
+		return "", newValidationError(fmt.Sprintf("invalid server reference: %s", serverRef), "channel.server.ref")
+	}
+
+	serverName := strings.TrimPrefix(serverRef, "#/servers/")
+	server, exists := spec.Servers[serverName]
+	if !exists {
+		return "", newValidationError(fmt.Sprintf("server %s not found", serverName), "spec.servers")
+	}
+
+	return server.Protocol, nil
+}
+
+// extractConsumerMessages извлекает сообщения потребителя из операций
+func (v *ChannelValidator) extractConsumerMessages(spec *parser.AsyncAPISpec, channelName string) (*MessageInfo, *MessageInfo, error) {
+	var outMessage, inMessage *MessageInfo
+
+	// Экранируем имя канала для поиска в ссылках
+	escapedChannelName, _ := v.escapeChannelName(channelName) // ошибки не ожидаются для валидных имен
+	channelRef := "#/channels/" + escapedChannelName
+
+	// Ищем операции для данного канала и извлекаем сообщения
+	outMessage, inMessage = v.extractConsumerMessagesFromOperations(spec, channelRef)
+
+	return outMessage, inMessage, nil
+}
+
+// extractProviderMessages извлекает сообщения поставщика из операций
+func (v *ChannelValidator) extractProviderMessages(spec *parser.AsyncAPISpec, channelName string) (*MessageInfo, *MessageInfo, error) {
+	var inMessage, outMessage *MessageInfo
+
+	// Экранируем имя канала для поиска в ссылках
+	escapedChannelName, _ := v.escapeChannelName(channelName) // ошибки не ожидаются для валидных имен
+	channelRef := "#/channels/" + escapedChannelName
+
+	// Ищем операции для данного канала и извлекаем сообщения  
+	inMessage, outMessage = v.extractProviderMessagesFromOperations(spec, channelRef)
+
+	return inMessage, outMessage, nil
+}
+
+// extractMessageInfo извлекает информацию о сообщении
+func (v *ChannelValidator) extractMessageInfo(spec *parser.AsyncAPISpec, msgRef parser.MessageRef) (*MessageInfo, error) {
+	if spec == nil {
+		return nil, fmt.Errorf("specification is nil")
+	}
+	
+	// Проверяем ссылку на компонент
+	if strings.HasPrefix(msgRef.Ref, "#/components/messages/") {
+		msgName := strings.TrimPrefix(msgRef.Ref, "#/components/messages/")
+		if spec.Components != nil && spec.Components.Messages != nil {
+			if msg, exists := spec.Components.Messages[msgName]; exists {
+				// Обрабатываем payload - может быть ссылкой
+				var payload map[string]interface{}
+				if msg.Payload != nil {
+					if msg.Payload.Ref != "" {
+						// Разрешаем ссылку на схему
+						resolvedSchema := v.resolveSchemaRef(spec, msg.Payload.Ref)
+						if resolvedSchema != nil {
+							payload = v.convertSchema(resolvedSchema)
+						}
+					} else {
+						payload = v.convertSchema(msg.Payload)
+					}
+				}
+				
+				// Извлекаем headers
+				var headers map[string]interface{}
+				if msg.Headers != nil {
+					headers = v.convertSchema(msg.Headers)
+				}
+				
+				// Извлекаем correlationId info
+				var correlationIdInfo *CorrelationIdInfo
+				if msg.CorrelationId != nil {
+					correlationIdInfo = &CorrelationIdInfo{
+						Location:    msg.CorrelationId.Location,
+						Description: msg.CorrelationId.Description,
+					}
+				}
+				
+				return &MessageInfo{
+					Name:          msgName, // Используем имя из ключа map
+					ContentType:   msg.ContentType,
+					Payload:       payload,
+					Headers:       headers,
+					CorrelationId: correlationIdInfo,
+				}, nil
+			}
+		}
+	}
+
+	// Проверяем ссылку на сообщение в канале
+	if strings.Contains(msgRef.Ref, "/messages/") {
+		parts := strings.Split(msgRef.Ref, "/messages/")
+		if len(parts) == 2 {
+			channelPath := parts[0]
+			messageName := parts[1]
+
+			// Извлекаем имя канала из пути
+			channelParts := strings.Split(channelPath, "/")
+			if len(channelParts) >= 2 {
+				channelName, _ := v.unescapeChannelName(channelParts[len(channelParts)-1]) // ошибки игнорируются для обратной совместимости
+
+				if channel, exists := spec.Channels[channelName]; exists && channel.Messages != nil {
+					if msgData, exists := channel.Messages[messageName]; exists {
+						// Если это ссылка на компонент, разыменовываем её
+						if msgData.Ref != "" {
+							return v.extractMessageInfo(spec, parser.MessageRef{Ref: msgData.Ref})
+						}
+						
+						// Если это inline сообщение
+						if msgData.Message != nil {
+							// Обрабатываем payload - может быть ссылкой
+							var payload map[string]interface{}
+							if msgData.Message.Payload != nil {
+								if msgData.Message.Payload.Ref != "" {
+									// Разрешаем ссылку на схему
+									resolvedSchema := v.resolveSchemaRef(spec, msgData.Message.Payload.Ref)
+									if resolvedSchema != nil {
+										payload = v.convertSchema(resolvedSchema)
+									}
+								} else {
+									payload = v.convertSchema(msgData.Message.Payload)
+								}
+							}
+							
+							// Используем имя из сообщения или имя из ключа канала
+							msgName := msgData.Message.Name
+							if msgName == "" {
+								msgName = messageName
+							}
+							
+							// Извлекаем headers
+							var headers map[string]interface{}
+							if msgData.Message.Headers != nil {
+								headers = v.convertSchema(msgData.Message.Headers)
+							}
+							
+							// Извлекаем correlationId info
+							var correlationIdInfo *CorrelationIdInfo
+							if msgData.Message.CorrelationId != nil {
+								correlationIdInfo = &CorrelationIdInfo{
+									Location:    msgData.Message.CorrelationId.Location,
+									Description: msgData.Message.CorrelationId.Description,
+								}
+							}
+							
+							return &MessageInfo{
+								Name:          msgName,
+								ContentType:   msgData.Message.ContentType,
+								Payload:       payload,
+								Headers:       headers,
+								CorrelationId: correlationIdInfo,
+							}, nil
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return nil, fmt.Errorf("message not found: %s", msgRef.Ref)
+}
+
+// resolveSchemaRef разрешает ссылку на схему согласно AsyncAPI 3.0 спецификации
+func (v *ChannelValidator) resolveSchemaRef(spec *parser.AsyncAPISpec, ref string) *parser.Schema {
+	if spec == nil || !strings.HasPrefix(ref, "#/components/schemas/") {
+		return nil
+	}
+	
+	schemaName := strings.TrimPrefix(ref, "#/components/schemas/")
+	
+	// Валидация имени схемы согласно AsyncAPI 3.0: ^[a-zA-Z0-9\.\-_]+$
+	if !isValidSchemaName(schemaName) {
+		return nil
+	}
+	
+	if spec.Components != nil && spec.Components.Schemas != nil {
+		if schema, exists := spec.Components.Schemas[schemaName]; exists {
+			// Если схема тоже содержит ссылку, рекурсивно разрешаем её с защитой от циклов
+			if schema.Ref != "" {
+				return v.resolveSchemaRefWithDepth(spec, schema.Ref, 0, make(map[string]bool))
+			}
+			return &schema
+		}
+	}
+	
+	return nil
+}
+
+// resolveSchemaRefWithDepth разрешает ссылку с защитой от циклических ссылок
+func (v *ChannelValidator) resolveSchemaRefWithDepth(spec *parser.AsyncAPISpec, ref string, depth int, visited map[string]bool) *parser.Schema {
+	// Защита от слишком глубокой рекурсии
+	if depth > 10 {
+		return nil
+	}
+	
+	// Защита от циклических ссылок
+	if visited[ref] {
+		return nil
+	}
+	
+	if spec == nil || !strings.HasPrefix(ref, "#/components/schemas/") {
+		return nil
+	}
+	
+	schemaName := strings.TrimPrefix(ref, "#/components/schemas/")
+	
+	// Валидация имени схемы согласно AsyncAPI 3.0
+	if !isValidSchemaName(schemaName) {
+		return nil
+	}
+	
+	if spec.Components != nil && spec.Components.Schemas != nil {
+		if schema, exists := spec.Components.Schemas[schemaName]; exists {
+			if schema.Ref != "" {
+				// Отмечаем текущую ссылку как посещенную
+				visited[ref] = true
+				result := v.resolveSchemaRefWithDepth(spec, schema.Ref, depth+1, visited)
+				// Убираем отметку после обработки
+				delete(visited, ref)
+				return result
+			}
+			return &schema
+		}
+	}
+	
+	return nil
+}
+
+// isValidSchemaName проверяет валидность имени схемы согласно AsyncAPI 3.0: ^[a-zA-Z0-9\.\-_]+$
+func isValidSchemaName(name string) bool {
+	if name == "" {
+		return false
+	}
+	
+	for _, r := range name {
+		if !((r >= 'a' && r <= 'z') || 
+			 (r >= 'A' && r <= 'Z') || 
+			 (r >= '0' && r <= '9') || 
+			 r == '.' || r == '-' || r == '_') {
+			return false
+		}
+	}
+	
+	return true
+}
+
+// convertSchema преобразует схему в map[string]interface{}
+func (v *ChannelValidator) convertSchema(schema *parser.Schema) map[string]interface{} {
+	if schema == nil {
+		return nil
+	}
+
+	result := make(map[string]interface{})
+	
+	// Если есть ссылка, сохраняем её как $ref
+	if schema.Ref != "" {
+		result["$ref"] = schema.Ref
+		return result
+	}
+	
+	result["type"] = schema.Type
+
+	// Format поддержка (int64, double, email, uri, etc.)
+	if schema.Format != "" {
+		result["format"] = schema.Format
+	}
+
+	// Enum поддержка
+	if len(schema.Enum) > 0 {
+		result["enum"] = schema.Enum
+	}
+
+	// Properties поддержка
+	if len(schema.Properties) > 0 {
+		properties := make(map[string]interface{})
+		for name, prop := range schema.Properties {
+			properties[name] = v.convertSchema(&prop)
+		}
+		result["properties"] = properties
+	}
+
+	// Required поддержка
+	if len(schema.Required) > 0 {
+		result["required"] = schema.Required
+	}
+
+	// Items поддержка для массивов
+	if schema.Items != nil {
+		result["items"] = v.convertSchema(schema.Items)
+	}
+	
+	// Description поддержка
+	if schema.Description != "" {
+		result["description"] = schema.Description
+	}
+	
+	// Example поддержка
+	if schema.Example != nil {
+		result["example"] = schema.Example
+	}
+	
+	// Копируем все дополнительные поля из Additional
+	for key, value := range schema.Additional {
+		// Не переопределяем уже установленные поля
+		if _, exists := result[key]; !exists {
+			result[key] = value
+		}
+	}
+
+	return result
+}
+
+// areMessagesCompatible проверяет совместимость сообщений по именам полей и их типам
+func (v *ChannelValidator) areMessagesCompatible(msg1, msg2 *MessageInfo, spec1, spec2 *parser.AsyncAPISpec) bool {
+	if msg1 == nil || msg2 == nil {
+		return false
+	}
+
+	// Проверяем совместимость ContentType
+	if msg1.ContentType != msg2.ContentType {
+		return false
+	}
+
+	// Проверяем совместимость Correlation ID
+	if !v.areCorrelationIdsCompatible(msg1.CorrelationId, msg2.CorrelationId) {
+		return false
+	}
+
+	// Проверяем наличие свойств (обязательно по нашему стандарту)
+	props1, ok1 := msg1.Payload["properties"].(map[string]interface{})
+	props2, ok2 := msg2.Payload["properties"].(map[string]interface{})
+
+	if !ok1 || !ok2 {
+		return false
+	}
+
+	// Проверяем обязательные поля
+	required1, _ := v.getRequiredFields(msg1.Payload)
+	required2, _ := v.getRequiredFields(msg2.Payload)
+
+	if !v.areRequiredFieldsSetsIdentical(required1, required2) {
+		return false
+	}
+
+	if !v.areAllRequiredFieldsCompatible(required1, props1, props2, spec1, spec2) {
+		return false
+	}
+
+	return true
+}
+
+// areRequiredFieldsSetsIdentical проверяет что множества required полей идентичны
+func (v *ChannelValidator) areRequiredFieldsSetsIdentical(required1, required2 []string) bool {
+	if len(required1) != len(required2) {
+		return false
+	}
+	
+	// Создаем карты для быстрого поиска
+	required1Map := make(map[string]bool)
+	for _, field := range required1 {
+		required1Map[field] = true
+	}
+	
+	// Проверяем что все поля из required2 присутствуют в required1
+	for _, field := range required2 {
+		if !required1Map[field] {
+			return false
+		}
+	}
+	
+	return true
+}
+
+// areAllRequiredFieldsCompatible проверяет совместимость типов всех required полей
+func (v *ChannelValidator) areAllRequiredFieldsCompatible(required1 []string, props1, props2 map[string]interface{}, spec1, spec2 *parser.AsyncAPISpec) bool {
+	for _, field := range required1 {
+		// Проверяем наличие поля в обеих схемах
+		prop1, exists1 := props1[field]
+		prop2, exists2 := props2[field]
+		
+		if !exists1 || !exists2 {
+			return false
+		}
+
+		// Проверяем совпадение типов полей
+		if !v.arePropertyTypesCompatible(prop1, prop2, spec1, spec2) {
+			return false
+		}
+	}
+	return true
+}
+
+// arePropertyTypesCompatible проверяет совместимость типов свойств
+func (v *ChannelValidator) arePropertyTypesCompatible(prop1, prop2 interface{}, spec1, spec2 *parser.AsyncAPISpec) bool {
+	// Обрабатываем ссылки ($ref)
+	ref1 := v.getPropertyRef(prop1)
+	ref2 := v.getPropertyRef(prop2)
+	
+	// Если оба свойства содержат ссылки, сравниваем сами ссылки
+	if ref1 != "" && ref2 != "" {
+		// Для $ref ссылок важна точная идентичность, а не структурная совместимость
+		return ref1 == ref2
+	}
+	
+	// Если одно содержит ссылку, а другое нет, они несовместимы
+	if (ref1 != "") != (ref2 != "") {
+		return false
+	}
+	
+	// Извлекаем типы из свойств (тип обязателен по стандарту)
+	type1 := v.getPropertyType(prop1)
+	type2 := v.getPropertyType(prop2)
+	
+	// Типы должны совпадать и не быть пустыми (валидация стандарта)
+	if type1 == "" || type2 == "" || type1 != type2 {
+		return false
+	}
+	
+	// Для массивов проверяем совместимость элементов
+	if type1 == "array" {
+		return v.areArrayItemsCompatible(prop1, prop2, spec1, spec2)
+	}
+	
+	// Для объектов проверяем совместимость свойств
+	if type1 == "object" {
+		return v.areObjectPropertiesCompatible(prop1, prop2, spec1, spec2)
+	}
+	
+	// Для простых типов достаточно проверки равенства типов
+	return true
+}
+
+// getPropertyRef извлекает ссылку из свойства
+func (v *ChannelValidator) getPropertyRef(prop interface{}) string {
+	if propMap, ok := prop.(map[string]interface{}); ok {
+		if refVal, exists := propMap["$ref"]; exists {
+			if refStr, ok := refVal.(string); ok {
+				return refStr
+			}
+		}
+	}
+	return ""
+}
+
+// getPropertyType извлекает тип свойства из схемы
+func (v *ChannelValidator) getPropertyType(prop interface{}) string {
+	if propMap, ok := prop.(map[string]interface{}); ok {
+		if typeVal, exists := propMap["type"]; exists {
+			if typeStr, ok := typeVal.(string); ok {
+				return typeStr
+			}
+		}
+	}
+	return ""
+}
+
+// getRequiredFields извлекает список обязательных полей
+func (v *ChannelValidator) getRequiredFields(payload map[string]interface{}) ([]string, error) {
+	if payload == nil {
+		return nil, fmt.Errorf("payload is nil")
+	}
+	
+	// Проверяем наличие поля required
+	requiredField, exists := payload["required"]
+	if !exists {
+		return []string{}, nil // Нет required полей - это нормально
+	}
+	
+	// Обработка []interface{} (из YAML парсера)
+	if required, ok := requiredField.([]interface{}); ok {
+		result := make([]string, len(required))
+		for i, field := range required {
+			if str, ok := field.(string); ok {
+				result[i] = str
+			} else {
+				return nil, fmt.Errorf("invalid required field at index %d: expected string, got %T", i, field)
+			}
+		}
+		return result, nil
+	}
+	
+	// Обработка []string (из convertSchema)
+	if required, ok := requiredField.([]string); ok {
+		return required, nil
+	}
+	
+	// Если поле required есть, но имеет неправильный тип - это ошибка
+	return nil, fmt.Errorf("invalid required field type: expected []string or []interface{}, got %T", requiredField)
+}
+
+// escapeChannelName экранирует имя канала для использования в JSON Pointer по RFC 6901
+func (v *ChannelValidator) escapeChannelName(name string) (string, error) {
+	if name == "" {
+		return "", nil // пустая строка валидна
+	}
+	
+	// RFC 6901: сначала ~ → ~0, затем / → ~1
+	result := strings.ReplaceAll(name, "~", "~0")
+	result = strings.ReplaceAll(result, "/", "~1")
+	return result, nil
+}
+
+// unescapeChannelName разэкранирует имя канала по RFC 6901
+func (v *ChannelValidator) unescapeChannelName(name string) (string, error) {
+	if name == "" {
+		return "", nil // пустая строка валидна
+	}
+	
+	// Валидация escape последовательностей
+	if err := v.validateEscapeSequences(name); err != nil {
+		return "", err
+	}
+	
+	// RFC 6901: сначала ~1 → /, затем ~0 → ~
+	result := strings.ReplaceAll(name, "~1", "/")
+	result = strings.ReplaceAll(result, "~0", "~")
+	return result, nil
+}
+
+// validateEscapeSequences проверяет корректность escape последовательностей
+func (v *ChannelValidator) validateEscapeSequences(name string) error {
+	for i := 0; i < len(name); i++ {
+		if name[i] != '~' {
+			continue
+		}
+		
+		// Проверяем, что после ~ есть символ
+		if i+1 >= len(name) {
+			return fmt.Errorf("invalid escape: incomplete '~' at end")
+		}
+		
+		// Проверяем, что после ~ идет только 0 или 1
+		next := name[i+1]
+		if next != '0' && next != '1' {
+			return fmt.Errorf("invalid escape: '~%c' not allowed", next)
+		}
+	}
+	return nil
+}
+
+// areArrayItemsCompatible проверяет совместимость элементов массивов
+func (v *ChannelValidator) areArrayItemsCompatible(prop1, prop2 interface{}, spec1, spec2 *parser.AsyncAPISpec) bool {
+	// Извлекаем items из обоих массивов
+	items1 := v.getArrayItems(prop1)
+	items2 := v.getArrayItems(prop2)
+	
+	if items1 == nil || items2 == nil {
+		return false
+	}
+	
+	// Рекурсивно проверяем совместимость элементов массива
+	return v.arePropertyTypesCompatible(items1, items2, spec1, spec2)
+}
+
+// getArrayItems извлекает items из array свойства
+func (v *ChannelValidator) getArrayItems(prop interface{}) interface{} {
+	if propMap, ok := prop.(map[string]interface{}); ok {
+		if items, exists := propMap["items"]; exists {
+			return items
+		}
+	}
+	return nil
+}
+
+// areObjectPropertiesCompatible проверяет совместимость свойств объектов
+func (v *ChannelValidator) areObjectPropertiesCompatible(prop1, prop2 interface{}, spec1, spec2 *parser.AsyncAPISpec) bool {
+	// Извлекаем properties и required из обоих объектов
+	props1 := v.getObjectProperties(prop1)
+	props2 := v.getObjectProperties(prop2)
+	
+	// Используем существующую функцию для извлечения required полей
+	objMap1, ok1 := prop1.(map[string]interface{})
+	objMap2, ok2 := prop2.(map[string]interface{})
+	if !ok1 || !ok2 {
+		return false
+	}
+	
+	required1, _ := v.getRequiredFields(objMap1)
+	required2, _ := v.getRequiredFields(objMap2)
+	
+	// Проверяем что множества required полей идентичны
+	if !v.areRequiredFieldsSetsIdentical(required1, required2) {
+		return false
+	}
+	
+	// Проверяем что все required поля имеют совместимые типы
+	return v.areAllObjectFieldsCompatible(required1, props1, props2, spec1, spec2)
+}
+
+// areAllObjectFieldsCompatible проверяет совместимость всех полей объекта
+func (v *ChannelValidator) areAllObjectFieldsCompatible(requiredFields []string, props1, props2 map[string]interface{}, spec1, spec2 *parser.AsyncAPISpec) bool {
+	for _, field := range requiredFields {
+		if !v.areObjectFieldsExistInBothSchemas(field, props1, props2) {
+			return false
+		}
+		
+		// Рекурсивно проверяем совместимость свойств
+		if !v.arePropertyTypesCompatible(props1[field], props2[field], spec1, spec2) {
+			return false
+		}
+	}
+	return true
+}
+
+// areObjectFieldsExistInBothSchemas проверяет существование поля в обеих схемах
+func (v *ChannelValidator) areObjectFieldsExistInBothSchemas(field string, props1, props2 map[string]interface{}) bool {
+	_, exists1 := props1[field]
+	_, exists2 := props2[field]
+	return exists1 && exists2
+}
+
+// getObjectProperties извлекает properties из object свойства
+func (v *ChannelValidator) getObjectProperties(prop interface{}) map[string]interface{} {
+	if propMap, ok := prop.(map[string]interface{}); ok {
+		if properties, exists := propMap["properties"]; exists {
+			if propsMap, ok := properties.(map[string]interface{}); ok {
+				return propsMap
+			}
+		}
+	}
+	return make(map[string]interface{})
+}
+
+// areCorrelationIdsCompatible проверяет совместимость Correlation ID между сообщениями
+func (v *ChannelValidator) areCorrelationIdsCompatible(corrId1, corrId2 *CorrelationIdInfo) bool {
+	// Если оба отсутствуют - совместимо
+	if corrId1 == nil && corrId2 == nil {
+		return true
+	}
+	
+	// Если один присутствует, а другой отсутствует - несовместимо
+	// Это критично для Request-Reply паттерна
+	if corrId1 == nil || corrId2 == nil {
+		return false
+	}
+	
+	// Если оба присутствуют, проверяем совместимость location
+	// В AsyncAPI 3.0 location указывает, где в сообщении находится correlation ID
+	// Они должны использовать одинаковый location для совместимости
+	return corrId1.Location == corrId2.Location
+}
+
+// extractConsumerMessagesFromOperations извлекает сообщения Consumer из операций
+// Поддерживает оба паттерна: Request-Reply/Fire-and-Forget (send) и Publish-Subscribe (receive)
+func (v *ChannelValidator) extractConsumerMessagesFromOperations(spec *parser.AsyncAPISpec, channelRef string) (*MessageInfo, *MessageInfo) {
+	var outMessage, inMessage *MessageInfo
+	
+	for _, operation := range spec.Operations {
+		if operation.Channel.Ref != channelRef {
+			continue
+		}
+		
+		switch operation.Action {
+		case "send":
+			// Consumer отправляет сообщения (request)
+			if outMessage == nil {
+				outMessage = v.extractOutMessageFromOperation(spec, operation)
+			}
+			// Проверяем reply для получения ответа (response)
+			if inMessage == nil {
+				inMessage = v.extractReplyMessageFromOperation(spec, operation)
+			}
+			
+		case "receive":
+			// Consumer получает сообщения (notifications, events)
+			if inMessage == nil {
+				inMessage = v.extractInMessageFromOperation(spec, operation)
+			}
+		}
+	}
+	
+	return outMessage, inMessage
+}
+
+// extractOutMessageFromOperation извлекает исходящее сообщение из операции
+func (v *ChannelValidator) extractOutMessageFromOperation(spec *parser.AsyncAPISpec, operation parser.Operation) *MessageInfo {
+	if len(operation.Messages) == 0 {
+		return nil
+	}
+	
+	msg, err := v.extractMessageInfo(spec, operation.Messages[0])
+	if err != nil {
+		return nil
+	}
+	
+	return msg
+}
+
+// extractInMessageFromOperation извлекает входящее сообщение из операции
+func (v *ChannelValidator) extractInMessageFromOperation(spec *parser.AsyncAPISpec, operation parser.Operation) *MessageInfo {
+	if len(operation.Messages) == 0 {
+		return nil
+	}
+	
+	msg, err := v.extractMessageInfo(spec, operation.Messages[0])
+	if err != nil {
+		return nil
+	}
+	
+	return msg
+}
+
+// extractReplyMessageFromOperation извлекает reply сообщение из операции
+func (v *ChannelValidator) extractReplyMessageFromOperation(spec *parser.AsyncAPISpec, operation parser.Operation) *MessageInfo {
+	if operation.Reply == nil || len(operation.Reply.Messages) == 0 {
+		return nil
+	}
+	
+	msg, err := v.extractMessageInfo(spec, operation.Reply.Messages[0])
+	if err != nil {
+		return nil
+	}
+	
+	return msg
+}
+
+// extractProviderMessagesFromOperations извлекает сообщения Provider из операций  
+// Поддерживает оба паттерна: Request-Reply/Fire-and-Forget (receive) и Publish-Subscribe (send)
+func (v *ChannelValidator) extractProviderMessagesFromOperations(spec *parser.AsyncAPISpec, channelRef string) (*MessageInfo, *MessageInfo) {
+	var inMessage, outMessage *MessageInfo
+	
+	for _, operation := range spec.Operations {
+		if operation.Channel.Ref != channelRef {
+			continue
+		}
+		
+		switch operation.Action {
+		case "receive":
+			// Provider получает сообщения (requests)
+			if inMessage == nil {
+				inMessage = v.extractInMessageFromOperation(spec, operation)
+			}
+			// Проверяем reply для отправки ответа (response)
+			if outMessage == nil {
+				outMessage = v.extractReplyMessageFromOperation(spec, operation)
+			}
+			
+		case "send":
+			// Provider отправляет сообщения (notifications, events)
+			if outMessage == nil {
+				outMessage = v.extractOutMessageFromOperation(spec, operation)
+			}
+		}
+	}
+	
+	return inMessage, outMessage
+}
+
+// validateCommunicationPattern определяет паттерн коммуникации и проверяет совместимость
+func (v *ChannelValidator) validateCommunicationPattern(
+	consumerChannel ChannelInfo, 
+	providerInMessage, providerOutMessage *MessageInfo,
+	contractValidate *ContractValidate,
+) (bool, string) {
+	
+	hasConsumerOut := consumerChannel.OutMessage != nil
+	hasConsumerIn := consumerChannel.InMessage != nil
+
+	// Определяем паттерн коммуникации на основе сообщений Consumer
+	switch {
+	case hasConsumerOut && hasConsumerIn:
+		// Request-Reply паттерн: требуется совместимость ОБЕИХ сообщений
+		return v.validateRequestReplyPattern(
+			consumerChannel, providerInMessage, providerOutMessage, contractValidate)
+			
+	case hasConsumerOut && !hasConsumerIn:
+		// Fire-and-Forget паттерн: только request сообщение
+		return v.validateFireAndForgetPattern(
+			consumerChannel, providerInMessage, contractValidate)
+			
+	case !hasConsumerOut && hasConsumerIn:
+		// Publish-Subscribe паттерн: только subscription сообщение
+		return v.validatePublishSubscribePattern(
+			consumerChannel, providerOutMessage, contractValidate)
+			
+	default:
+		// Consumer не имеет сообщений
+		return false, "consumer has no messages"
+	}
+}
+
+// validateRequestReplyPattern проверяет совместимость Request-Reply паттерна
+func (v *ChannelValidator) validateRequestReplyPattern(
+	consumerChannel ChannelInfo,
+	providerInMessage, providerOutMessage *MessageInfo,
+	contractValidate *ContractValidate,
+) (bool, string) {
+	
+	var reasons []string
+	
+	// Проверяем request сообщение (Consumer.Out → Provider.In)
+	requestCompatible := providerInMessage != nil && 
+		v.areMessagesCompatible(consumerChannel.OutMessage, providerInMessage, 
+			contractValidate.ConsumerSpec, contractValidate.ProviderSpec)
+			
+	if !requestCompatible {
+		if providerInMessage == nil {
+			reasons = append(reasons, "provider has no incoming message for request")
+		} else {
+			consumerReq, _ := v.getRequiredFields(consumerChannel.OutMessage.Payload)
+			providerReq, _ := v.getRequiredFields(providerInMessage.Payload)
+			reasons = append(reasons, fmt.Sprintf(
+				"request incompatible (consumer required: %v, provider required: %v)", 
+				consumerReq, providerReq))
+		}
+	}
+	
+	// Проверяем response сообщение (Consumer.In ← Provider.Out)
+	responseCompatible := providerOutMessage != nil && 
+		v.areMessagesCompatible(consumerChannel.InMessage, providerOutMessage,
+			contractValidate.ConsumerSpec, contractValidate.ProviderSpec)
+			
+	if !responseCompatible {
+		if providerOutMessage == nil {
+			reasons = append(reasons, "provider has no outgoing message for response")
+		} else {
+			consumerReq, _ := v.getRequiredFields(consumerChannel.InMessage.Payload)
+			providerReq, _ := v.getRequiredFields(providerOutMessage.Payload)
+			reasons = append(reasons, fmt.Sprintf(
+				"response incompatible (consumer required: %v, provider required: %v)", 
+				consumerReq, providerReq))
+		}
+	}
+	
+	// Для Request-Reply ОБЯЗАТЕЛЬНО оба сообщения должны быть совместимы
+	if requestCompatible && responseCompatible {
+		return true, "Request-Reply pattern match (both request and response compatible)"
+	}
+	
+	return false, fmt.Sprintf("Request-Reply pattern failed: %s", strings.Join(reasons, "; "))
+}
+
+// validateFireAndForgetPattern проверяет совместимость Fire-and-Forget паттерна
+func (v *ChannelValidator) validateFireAndForgetPattern(
+	consumerChannel ChannelInfo,
+	providerInMessage *MessageInfo,
+	contractValidate *ContractValidate,
+) (bool, string) {
+	
+	if providerInMessage == nil {
+		return false, "Fire-and-Forget failed: provider has no incoming message"
+	}
+	
+	if v.areMessagesCompatible(consumerChannel.OutMessage, providerInMessage,
+		contractValidate.ConsumerSpec, contractValidate.ProviderSpec) {
+		return true, "Fire-and-Forget pattern match"
+	}
+	
+	// Сообщения несовместимы
+	consumerReq, _ := v.getRequiredFields(consumerChannel.OutMessage.Payload)
+	providerReq, _ := v.getRequiredFields(providerInMessage.Payload)
+	return false, fmt.Sprintf(
+		"Fire-and-Forget failed: message incompatible (consumer required: %v, provider required: %v)", 
+		consumerReq, providerReq)
+}
+
+// validatePublishSubscribePattern проверяет совместимость Publish-Subscribe паттерна  
+func (v *ChannelValidator) validatePublishSubscribePattern(
+	consumerChannel ChannelInfo,
+	providerOutMessage *MessageInfo,
+	contractValidate *ContractValidate,
+) (bool, string) {
+	
+	if providerOutMessage == nil {
+		return false, "Publish-Subscribe failed: provider has no outgoing message"
+	}
+	
+	if v.areMessagesCompatible(providerOutMessage, consumerChannel.InMessage,
+		contractValidate.ProviderSpec, contractValidate.ConsumerSpec) {
+		return true, "Publish-Subscribe pattern match"
+	}
+	
+	// Сообщения несовместимы
+	providerReq, _ := v.getRequiredFields(providerOutMessage.Payload)
+	consumerReq, _ := v.getRequiredFields(consumerChannel.InMessage.Payload)
+	return false, fmt.Sprintf(
+		"Publish-Subscribe failed: message incompatible (provider required: %v, consumer required: %v)", 
+		providerReq, consumerReq)
+}

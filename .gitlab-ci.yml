@@ -5,7 +5,7 @@ stages:
 
 test-api-specification:
   image:
-    name: asyncapi/cli:3.1.1
+    name: asyncapi/cli:3.5.2
     entrypoint: ['']
   stage: test-api-specification
   script:

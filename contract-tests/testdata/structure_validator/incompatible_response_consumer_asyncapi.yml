@@ -1,0 +1,129 @@
+asyncapi: 3.0.0
+info:
+  title: MQ Adapter Consumer (expects specific response structure)
+  version: 1.0.0
+  description: Потребитель, который ожидает конкретную структуру ответа
+servers:
+  restServer:
+    host: https://localhost:8080
+    protocol: http
+    pathname: '/api/client/{clientId}/wallet/balance'
+channels:
+  restGetBalanceRequest:
+    address: "/api/client/{Api-clientId}/wallet/balance"
+    description: Канал для получения баланса кошелька
+    messages:
+      balanceRequest:
+        $ref: '#/components/messages/balanceRequest'
+      balanceResponse:
+        $ref: '#/components/messages/balanceResponse'
+    servers:
+      - $ref: "#/servers/restServer"
+operations:
+  getBalance:
+    action: send
+    channel:
+      $ref: "#/channels/restGetBalanceRequest"
+    reply:
+      channel:
+        $ref: "#/channels/restGetBalanceRequest"
+      messages:
+        - $ref: "#/components/messages/balanceResponse"
+components:
+  messages:
+    balanceRequest:
+      name: BalanceRequest
+      title: Запрос баланса
+      contentType: application/json
+      headers:
+        $ref: '#/components/schemas/requestHeaders'
+      payload:
+        $ref: '#/components/schemas/balanceRequestPayload'
+    balanceResponse:
+      name: BalanceResponse
+      title: Ответ с балансом (ожидаемая потребителем структура)
+      contentType: application/json
+      headers:
+        $ref: '#/components/schemas/responseHeaders'
+      payload:
+        $ref: '#/components/schemas/expectedBalanceResponsePayload'
+  schemas:
+    requestHeaders:
+      type: object
+      properties:
+        Content-Type:
+          type: string
+          enum: ["application/json"]
+        Api-clientId:
+          type: string
+      required:
+        - Content-Type
+        - Api-clientId
+    responseHeaders:
+      type: object
+      properties:
+        Content-Type:
+          type: string
+          enum: ["application/json"]
+        RequestID:
+          type: string
+      required:
+        - Content-Type
+    balanceRequestPayload:
+      type: object
+      required:
+        - requestType
+        - dateFrom
+        - dateTo
+        - operTime
+      properties:
+        requestType:
+          type: string
+        dateFrom:
+          type: number
+        dateTo:
+          type: number
+        operTime:
+          type: number
+    expectedBalanceResponsePayload:
+      type: object
+      required:
+        - status
+        - timestamp
+        - data
+      properties:
+        status:
+          type: string
+          description: Статус выполнения запроса
+        timestamp:
+          type: integer
+          format: int64
+          description: Временная метка (потребитель ожидает поле timestamp)
+        data:
+          type: object
+          description: Данные баланса
+          required:
+            - createTime
+            - operationId
+            - balance
+          properties:
+            createTime:
+              type: integer
+              format: int64
+              description: Время создания записи
+            operationId:
+              type: string
+              description: Уникальный идентификатор операции
+            balance:
+              type: object
+              required:
+                - value
+                - currency
+              properties:
+                value:
+                  type: number
+                  format: double
+                  description: Сумма баланса
+                currency:
+                  type: string
+                  description: Код валюты баланса

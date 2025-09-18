@@ -1,0 +1,17 @@
+contract_tests:
+  consumer:
+    spec_path: "testdata/channel_validator/testdata_consumer_asyncapi.yml"
+    name: "test-consumer"
+    channels:
+      - restGetBalanceRequest
+    
+  provider:
+    spec_url: "testdata/channel_validator/testdata_provider_fails_channel.yml"
+    name: "test-provider"
+    
+  settings:
+    log_level: "info"
+    save_json_report: true
+    json_report_file: "test_fail_report.json"
+    timeout: 30
+    ignore_warnings: false
